@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #1E40AF;
+  --color-accent: #EAB308;
+  color-scheme: light dark;
+}
+
+body {
+  @apply bg-slate-100/75 text-slate-900 antialiased dark:bg-school-dark-bg dark:text-slate-100 min-h-screen transition-colors duration-200;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Melhorias de Contraste no Modo Claro */
+html:not(.dark) {
+  /* Escurece sutilmente textos secundários para garantir conformidade WCAG AAA/AA */
+  .text-slate-400 {
+    color: #64748b !important; /* Slate 500 mais legível em fundo branco */
+  }
+  .text-slate-500 {
+    color: #475569 !important; /* Slate 600 com alto contraste */
+  }
+  
+  /* Melhora a nitidez e presença de bordas de cartões e divisórias */
+  .border-slate-200 {
+    border-color: #cbd5e1 !important; /* Slate 300 nítido e definido */
+  }
+  .border-slate-100 {
+    border-color: #e2e8f0 !important; /* Slate 200 visível */
+  }
+
+  /* Campos de input e selects com bordas e placeholders mais evidentes */
+  input, select, textarea {
+    &::placeholder {
+      color: #64748b !important;
+      opacity: 0.9;
+    }
+  }
+
+  /* Cabeçalhos de tabelas e seções em caixas */
+  thead.bg-slate-50, .bg-slate-50 {
+    background-color: #f1f5f9 !important; /* Slate 100 suave com contraste real */
+  }
+
+  /* Sombras mais definidas para separar cards brancos do fundo */
+  .shadow-sm {
+    box-shadow: 0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.06) !important;
+  }
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400 dark:bg-slate-600;
+}
+
+/* Regras Estritas de Impressão */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+
+  /* Oculta elementos que não pertencem ao documento impresso */
+  header,
+  aside,
+  button,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Garante exibição dos cabeçalhos timbrados */
+  .print\:block {
+    display: block !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .card-print {
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+}

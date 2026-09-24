@@ -20,9 +20,18 @@ export function hashPassword(password: string): string {
 export function verifyPassword(password: string, storedHash: string): boolean {
   if (!storedHash) return false;
 
-  // Suporte a senhas simples de seed legadas (ex: 'admin123', CPF) para migração suave
+  // 1. Suporte a senhas simples legadas / sementes (ex: 'admin123', CPF)
+  if (password === storedHash) return true;
+
+  // 2. Suporte a hashes SHA-256 legados (64 caracteres hexadecimais)
+  if (storedHash.length === 64 && /^[0-9a-f]{64}$/i.test(storedHash)) {
+    const sha256 = crypto.createHash('sha256').update(password).digest('hex');
+    if (sha256.toLowerCase() === storedHash.toLowerCase()) return true;
+  }
+
+  // 3. Suporte a PBKDF2 com Salt Rounds (padrão de alta segurança da plataforma)
   if (!storedHash.startsWith('pbkdf2$')) {
-    return password === storedHash;
+    return false;
   }
 
   const parts = storedHash.split('$');

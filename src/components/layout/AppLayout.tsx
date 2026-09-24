@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useApp } from '@/context/AppContext';
@@ -10,6 +11,12 @@ import { MustChangePasswordModal } from '@/components/auth/MustChangePasswordMod
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const { sidebarCollapsed } = useApp();
+  const pathname = usePathname();
+
+  // Rotas de autenticação (como /login) ocupam a tela inteira com layout imersivo
+  if (pathname === '/login') {
+    return <main className="w-full min-h-screen">{children}</main>;
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-100/75 dark:bg-school-dark-bg text-slate-900 dark:text-slate-100">

@@ -14,11 +14,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Rotas de autenticação (como /login) ocupam a tela inteira com layout imersivo
-  if (pathname === '/login') {
-    return <main className="w-full min-h-screen">{children}</main>;
-  }
-
   // Toda vez que iniciar o sistema tem que solicitar o login:
   // Redireciona imediatamente para /login caso não haja sessão ativa
   useEffect(() => {
@@ -26,6 +21,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace('/login');
     }
   }, [isInitialized, isAuthenticated, pathname, router]);
+
+  // Rotas de autenticação (como /login) ocupam a tela inteira com layout imersivo
+  if (pathname === '/login') {
+    return <main className="w-full min-h-screen">{children}</main>;
+  }
 
   // Se ainda estiver inicializando ou não autenticado em rota protegida, exibe transição suave
   if (!isInitialized || !isAuthenticated) {

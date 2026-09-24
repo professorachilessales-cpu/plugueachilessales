@@ -679,6 +679,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setRole = (newRole: UserRole) => {
+    // Regra estrita de RBAC: Usuários com perfil Docente não podem alternar para Administrador
+    if (currentUser?.role === 'professor' && newRole === 'admin') {
+      console.warn('Operação bloqueada: Usuário com perfil Docente não possui permissão para alternar para Administrador.');
+      return;
+    }
     setRoleState(newRole);
     localStorage.setItem('school_os_role', newRole);
     // Sincroniza currentUser para um usuário com essa role

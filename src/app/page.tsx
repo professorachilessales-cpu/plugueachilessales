@@ -967,7 +967,7 @@ export default function DashboardPage() {
         <div className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 flex flex-col justify-between ${
           inclusaoExpandido ? 'lg:col-span-12 ring-2 ring-emerald-500/25 shadow-md' : 'lg:col-span-5'
         }`}>
-          <div>
+          <div className="flex flex-col flex-1 min-h-0">
             <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
@@ -1026,7 +1026,7 @@ export default function DashboardPage() {
 
             {/* Conteúdo Expansível / Recolhível */}
             {!inclusaoRecolhido && (
-              <div className="transition-all duration-300">
+              <div className="flex flex-col flex-1 min-h-0 transition-all duration-300">
                 {/* Banner Informativo Rápido */}
                 <div className="mt-4 flex items-center justify-between rounded-xl bg-emerald-50/70 p-3 text-xs dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50">
                   <div className="flex items-center gap-2">
@@ -1041,7 +1041,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Lista dos Estudantes com Laudo Médico */}
-                <div className="mt-4">
+                <div className="mt-4 flex-1 min-h-0">
                   {estudantesComLaudo.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center">
                       <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-2" />
@@ -1055,8 +1055,8 @@ export default function DashboardPage() {
                   ) : (
                     <div className={
                       inclusaoExpandido
-                        ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 max-h-[620px] overflow-y-auto pr-1"
-                        : "space-y-3 max-h-[380px] overflow-y-auto pr-1"
+                        ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 max-h-[640px] overflow-y-auto pr-1"
+                        : "space-y-3 overflow-y-auto pr-1 flex-1 max-h-[580px] lg:max-h-[640px]"
                     }>
                       {estudantesComLaudo.map((est) => {
                         const turmaInfo = obterInfoTurma(est.turma_id, est.turma_nome);

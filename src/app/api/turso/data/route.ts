@@ -132,6 +132,82 @@ export async function GET() {
       console.error('Erro ao ler activity_logs do Turso:', e);
     }
 
+    // 10. Módulo de Relatórios Pedagógicos Colaborativos
+    let solicitacoesRelatorio: any[] = [];
+    let relatoriosProfessores: any[] = [];
+    let relatoriosConsolidados: any[] = [];
+    let notificacoesAdmin: any[] = [];
+
+    try {
+      const solRes = await executeTursoQuery('SELECT * FROM solicitacoes_relatorio ORDER BY data_solicitacao DESC');
+      solicitacoesRelatorio = solRes.rows;
+    } catch (e) {
+      console.warn('Tabela solicitacoes_relatorio ainda não criada no Turso:', e);
+    }
+
+    try {
+      const relProfRes = await executeTursoQuery('SELECT * FROM relatorios_professores');
+      relatoriosProfessores = relProfRes.rows;
+    } catch (e) {
+      console.warn('Tabela relatorios_professores ainda não criada no Turso:', e);
+    }
+
+    try {
+      const relConsRes = await executeTursoQuery('SELECT * FROM relatorios_consolidados');
+      relatoriosConsolidados = relConsRes.rows;
+    } catch (e) {
+      console.warn('Tabela relatorios_consolidados ainda não criada no Turso:', e);
+    }
+
+    try {
+      const notifRes = await executeTursoQuery('SELECT * FROM notificacoes_admin ORDER BY data_criacao DESC');
+      notificacoesAdmin = notifRes.rows.map((row: any) => ({
+        ...row,
+        lido: Boolean(row.lido),
+      }));
+    } catch (e) {
+      console.warn('Tabela notificacoes_admin ainda não criada no Turso:', e);
+    }
+
+    // 11. Observações Contínuas do Estudante
+    let observacoesAluno: any[] = [];
+    try {
+      const obsRes = await executeTursoQuery('SELECT * FROM observacoes_aluno ORDER BY data_registro DESC');
+      observacoesAluno = obsRes.rows;
+    } catch (e) {
+      console.warn('Tabela observacoes_aluno ainda não criada no Turso:', e);
+    }
+
+    // 12. Documentos do Estudante no Google Drive
+    let documentosEstudanteDrive: any[] = [];
+    try {
+      const driveDocsRes = await executeTursoQuery('SELECT * FROM documentos_estudante ORDER BY data_upload DESC');
+      documentosEstudanteDrive = driveDocsRes.rows;
+    } catch (e) {
+      console.warn('Tabela documentos_estudante ainda não criada no Turso:', e);
+    }
+
+    // 13. Atestados dos Professores
+    let atestadosProfessor: any[] = [];
+    try {
+      const atestRes = await executeTursoQuery('SELECT * FROM atestados_professor ORDER BY data_upload DESC');
+      atestadosProfessor = atestRes.rows.map((row: any) => ({
+        ...row,
+        permite_exclusao: Boolean(row.permite_exclusao),
+      }));
+    } catch (e) {
+      console.warn('Tabela atestados_professor ainda não criada no Turso:', e);
+    }
+
+    // 14. Débito & Reposições de Aulas (Regra dos 30 Dias)
+    let reposicoesAulas: any[] = [];
+    try {
+      const repRes = await executeTursoQuery('SELECT * FROM reposicoes_aulas ORDER BY data_limite_reposicao ASC');
+      reposicoesAulas = repRes.rows;
+    } catch (e) {
+      console.warn('Tabela reposicoes_aulas ainda não criada no Turso:', e);
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -143,6 +219,14 @@ export async function GET() {
         faltasProfessores,
         eventos,
         activityLogs,
+        solicitacoesRelatorio,
+        relatoriosProfessores,
+        relatoriosConsolidados,
+        notificacoesAdmin,
+        observacoesAluno,
+        documentosEstudanteDrive,
+        atestadosProfessor,
+        reposicoesAulas,
       },
     });
   } catch (error: any) {

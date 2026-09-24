@@ -15,7 +15,17 @@ import {
   ActivityLogDetails,
   EstudanteAfetadoLog,
   SystemUser,
-  AllowedModule
+  AllowedModule,
+  SolicitacaoRelatorio,
+  RelatorioProfessor,
+  RelatorioConsolidado,
+  NotificacaoAdmin,
+  ObservacaoAluno,
+  DocumentoEstudanteDrive,
+  AtestadoProfessor,
+  ReposicaoAula,
+  TipoObservacaoAluno,
+  TipoDocumentoDrive
 } from '@/lib/types';
 import { 
   initialEscolaConfig, 
@@ -25,7 +35,15 @@ import {
   initialFaltasProfessores, 
   initialEventos,
   initialActivityLogs,
-  initialUsers
+  initialUsers,
+  initialSolicitacoesRelatorio,
+  initialRelatoriosProfessores,
+  initialRelatoriosConsolidados,
+  initialNotificacoesAdmin,
+  initialObservacoesAluno,
+  initialDocumentosEstudanteDrive,
+  initialAtestadosProfessor,
+  initialReposicoesAulas
 } from '@/lib/mock-data';
 
 interface AppContextType {
@@ -58,6 +76,40 @@ interface AppContextType {
   faltasProfessores: FaltaProfessor[];
   eventos: EventoEscolar[];
   activityLogs: ActivityLog[];
+
+  // 1. Relatórios Pedagógicos Colaborativos com IA
+  solicitacoesRelatorio: SolicitacaoRelatorio[];
+  relatoriosProfessores: RelatorioProfessor[];
+  relatoriosConsolidados: RelatorioConsolidado[];
+  notificacoesAdmin: NotificacaoAdmin[];
+  addSolicitacaoRelatorio: (alunoId: string) => void;
+  salvarRascunhoProfessor: (relatorioId: string, rascunho: string) => void;
+  polirRelatorioComIA: (relatorioId: string, rascunho: string) => Promise<string>;
+  enviarRelatorioProfessor: (relatorioId: string, textoFinal: string) => Promise<void>;
+  marcarNotificacaoLida: (notificacaoId: string) => void;
+  marcarTodasNotificacoesLidas: () => void;
+  consolidarRelatorioComIA: (solicitacaoId: string, observacoesSecretaria?: string) => Promise<string>;
+  salvarRelatorioConsolidado: (solicitacaoId: string, conteudoFinal: string) => void;
+  excluirSolicitacaoRelatorio: (solicitacaoId: string) => void;
+
+  // 6. Observações Contínuas do Estudante (Ficha do Aluno)
+  observacoesAluno: ObservacaoAluno[];
+  addObservacaoAluno: (alunoId: string, tipo: TipoObservacaoAluno, texto: string) => void;
+
+  // 7. Repositório Google Drive (Ficha do Estudante)
+  documentosEstudanteDrive: DocumentoEstudanteDrive[];
+  addDocumentoEstudanteDrive: (doc: DocumentoEstudanteDrive) => void;
+
+  // 8. Gestão de Atestados dos Professores
+  atestadosProfessor: AtestadoProfessor[];
+  addAtestadoProfessor: (atestado: Omit<AtestadoProfessor, 'id' | 'data_upload' | 'permite_exclusao'>) => void;
+  deleteAtestadoProfessor: (id: string) => void;
+
+  // 8.1 Lógica de Débito & Reposição de Aulas (Regra dos 30 Dias)
+  reposicoesAulas: ReposicaoAula[];
+  registrarReposicaoAula: (reposicaoId: string, dados: { data_execucao: string; horario: string; conteudo: string }) => void;
+  homologarReposicaoAula: (reposicaoId: string) => void;
+  addFaltaComReposicao: (dados: { professorId: string; professorNome: string; dataFalta: string; aulasFaltadas: number; justificativa: string; turmaId?: string }) => void;
 
   // Ações Estudantes
   addEstudante: (estudante: Omit<Estudante, 'id' | 'created_at' | 'documentos'>) => void;
@@ -100,6 +152,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [faltasProfessores, setFaltasProfessores] = useState<FaltaProfessor[]>(initialFaltasProfessores);
   const [eventos, setEventos] = useState<EventoEscolar[]>(initialEventos);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(initialActivityLogs);
+
+  // 1. Relatórios Pedagógicos Colaborativos com IA
+  const [solicitacoesRelatorio, setSolicitacoesRelatorio] = useState<SolicitacaoRelatorio[]>(initialSolicitacoesRelatorio);
+  const [relatoriosProfessores, setRelatoriosProfessores] = useState<RelatorioProfessor[]>(initialRelatoriosProfessores);
+  const [relatoriosConsolidados, setRelatoriosConsolidados] = useState<RelatorioConsolidado[]>(initialRelatoriosConsolidados);
+  const [notificacoesAdmin, setNotificacoesAdmin] = useState<NotificacaoAdmin[]>(initialNotificacoesAdmin);
+
+  // 6. Observações Contínuas do Estudante
+  const [observacoesAluno, setObservacoesAluno] = useState<ObservacaoAluno[]>(initialObservacoesAluno);
+
+  // 7. Documentos Google Drive
+  const [documentosEstudanteDrive, setDocumentosEstudanteDrive] = useState<DocumentoEstudanteDrive[]>(initialDocumentosEstudanteDrive);
+
+  // 8. Gestão de Atestados dos Professores
+  const [atestadosProfessor, setAtestadosProfessor] = useState<AtestadoProfessor[]>(initialAtestadosProfessor);
+
+  // 8.1 Débito & Reposição de Aulas (Regra dos 30 Dias)
+  const [reposicoesAulas, setReposicoesAulas] = useState<ReposicaoAula[]>(initialReposicoesAulas);
   const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(false);
   const [users, setUsers] = useState<SystemUser[]>(initialUsers);
   const [currentUser, setCurrentUserState] = useState<SystemUser>(initialUsers[0]);
@@ -178,10 +248,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setEscolaConfigState(JSON.parse(savedConfig));
       }
 
-      // Estudantes persistidos
+      // Estudantes persistidos (com validação de integridade pós-migração)
       const savedEstudantes = localStorage.getItem('school_os_estudantes');
       if (savedEstudantes) {
-        setEstudantes(JSON.parse(savedEstudantes));
+        try {
+          const parsedEst: Estudante[] = JSON.parse(savedEstudantes);
+          const hasLegacyDummy = parsedEst.some(e => e.id.startsWith('est-'));
+          if (hasLegacyDummy || parsedEst.length < 50) {
+            setEstudantes(initialEstudantes);
+            localStorage.setItem('school_os_estudantes', JSON.stringify(initialEstudantes));
+          } else {
+            setEstudantes(parsedEst);
+          }
+        } catch {
+          setEstudantes(initialEstudantes);
+        }
+      } else {
+        setEstudantes(initialEstudantes);
       }
 
       // Turmas persistidas
@@ -189,34 +272,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (savedTurmas) {
         try {
           const parsedTurmas: Turma[] = JSON.parse(savedTurmas);
-          const sanitizedTurmas = parsedTurmas.map((t) => ({
-            ...t,
-            professores_ids: t.professores_ids || (t.professor_regente_id ? [t.professor_regente_id] : []),
-            equipe_apoio_ids: t.equipe_apoio_ids || [],
-          }));
-          setTurmas(sanitizedTurmas);
+          const hasLegacyTurmas = parsedTurmas.some(t => t.id === 'turma-1' && t.nome.includes('Ensino Médio'));
+          if (hasLegacyTurmas || parsedTurmas.length < 10) {
+            setTurmas(initialTurmas);
+            localStorage.setItem('school_os_turmas', JSON.stringify(initialTurmas));
+          } else {
+            const sanitizedTurmas = parsedTurmas.map((t) => ({
+              ...t,
+              professores_ids: t.professores_ids || (t.professor_regente_id ? [t.professor_regente_id] : []),
+              equipe_apoio_ids: t.equipe_apoio_ids || [],
+            }));
+            setTurmas(sanitizedTurmas);
+          }
         } catch (e) {
           console.error('Falha ao ler school_os_turmas:', e);
+          setTurmas(initialTurmas);
         }
+      } else {
+        setTurmas(initialTurmas);
       }
 
-      // Professores persistidos
+      // Professores persistidos (com validação de integridade pós-migração)
       const savedProfessores = localStorage.getItem('school_os_professores');
       if (savedProfessores) {
         try {
           const parsedProfessores: Professor[] = JSON.parse(savedProfessores);
-          const sanitizedProfessores = parsedProfessores.map((p) => ({
-            ...p,
-            ativo: p.ativo !== false,
-          }));
-          const hasProf5 = sanitizedProfessores.some((p) => p.id === 'prof-5');
-          const finalProfessores = hasProf5 
-            ? sanitizedProfessores 
-            : [...sanitizedProfessores, ...initialProfessores.filter((ip) => ip.id === 'prof-5')];
-          setProfessores(finalProfessores);
+          const hasLegacyDummy = parsedProfessores.some(p => p.id.startsWith('prof-'));
+          if (hasLegacyDummy || parsedProfessores.length < 20) {
+            setProfessores(initialProfessores);
+            localStorage.setItem('school_os_professores', JSON.stringify(initialProfessores));
+          } else {
+            const sanitizedProfessores = parsedProfessores.map((p) => ({
+              ...p,
+              ativo: p.ativo !== false,
+            }));
+            setProfessores(sanitizedProfessores);
+          }
         } catch (e) {
           console.error('Falha ao ler school_os_professores:', e);
+          setProfessores(initialProfessores);
         }
+      } else {
+        setProfessores(initialProfessores);
       }
 
       // Faltas persistidas
@@ -236,6 +333,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (savedLogs) {
         setActivityLogs(JSON.parse(savedLogs));
       }
+
+      // Relatórios Pedagógicos persistidos
+      const savedSol = localStorage.getItem('school_os_solicitacoes_relatorio');
+      if (savedSol) setSolicitacoesRelatorio(JSON.parse(savedSol));
+
+      const savedRelProf = localStorage.getItem('school_os_relatorios_professores');
+      if (savedRelProf) setRelatoriosProfessores(JSON.parse(savedRelProf));
+
+      const savedRelCons = localStorage.getItem('school_os_relatorios_consolidados');
+      if (savedRelCons) setRelatoriosConsolidados(JSON.parse(savedRelCons));
+
+      const savedNotifs = localStorage.getItem('school_os_notificacoes_admin');
+      if (savedNotifs) setNotificacoesAdmin(JSON.parse(savedNotifs));
+
+      // Observações Alunos persistidas
+      const savedObs = localStorage.getItem('school_os_observacoes_aluno');
+      if (savedObs) setObservacoesAluno(JSON.parse(savedObs));
+
+      // Documentos Drive persistidos
+      const savedDriveDocs = localStorage.getItem('school_os_documentos_drive');
+      if (savedDriveDocs) setDocumentosEstudanteDrive(JSON.parse(savedDriveDocs));
+
+      // Atestados Professores persistidos
+      const savedAtests = localStorage.getItem('school_os_atestados_professor');
+      if (savedAtests) setAtestadosProfessor(JSON.parse(savedAtests));
+
+      // Reposições Aulas persistidas
+      const savedRep = localStorage.getItem('school_os_reposicoes_aulas');
+      if (savedRep) setReposicoesAulas(JSON.parse(savedRep));
     } catch (e) {
       console.error('Falha ao ler localStorage:', e);
     } finally {
@@ -293,6 +419,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (tLogs && tLogs.length > 0) {
             setActivityLogs(tLogs);
             localStorage.setItem('school_os_activity_logs', JSON.stringify(tLogs));
+          }
+          if (json.data.solicitacoesRelatorio && json.data.solicitacoesRelatorio.length > 0) {
+            setSolicitacoesRelatorio(json.data.solicitacoesRelatorio);
+            localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(json.data.solicitacoesRelatorio));
+          }
+          if (json.data.relatoriosProfessores && json.data.relatoriosProfessores.length > 0) {
+            setRelatoriosProfessores(json.data.relatoriosProfessores);
+            localStorage.setItem('school_os_relatorios_professores', JSON.stringify(json.data.relatoriosProfessores));
+          }
+          if (json.data.relatoriosConsolidados && json.data.relatoriosConsolidados.length > 0) {
+            setRelatoriosConsolidados(json.data.relatoriosConsolidados);
+            localStorage.setItem('school_os_relatorios_consolidados', JSON.stringify(json.data.relatoriosConsolidados));
+          }
+          if (json.data.notificacoesAdmin && json.data.notificacoesAdmin.length > 0) {
+            setNotificacoesAdmin(json.data.notificacoesAdmin);
+            localStorage.setItem('school_os_notificacoes_admin', JSON.stringify(json.data.notificacoesAdmin));
+          }
+          if (json.data.observacoesAluno && json.data.observacoesAluno.length > 0) {
+            setObservacoesAluno(json.data.observacoesAluno);
+            localStorage.setItem('school_os_observacoes_aluno', JSON.stringify(json.data.observacoesAluno));
+          }
+          if (json.data.documentosEstudanteDrive && json.data.documentosEstudanteDrive.length > 0) {
+            setDocumentosEstudanteDrive(json.data.documentosEstudanteDrive);
+            localStorage.setItem('school_os_documentos_drive', JSON.stringify(json.data.documentosEstudanteDrive));
+          }
+          if (json.data.atestadosProfessor && json.data.atestadosProfessor.length > 0) {
+            setAtestadosProfessor(json.data.atestadosProfessor);
+            localStorage.setItem('school_os_atestados_professor', JSON.stringify(json.data.atestadosProfessor));
+          }
+          if (json.data.reposicoesAulas && json.data.reposicoesAulas.length > 0) {
+            setReposicoesAulas(json.data.reposicoesAulas);
+            localStorage.setItem('school_os_reposicoes_aulas', JSON.stringify(json.data.reposicoesAulas));
           }
         }
       })
@@ -368,6 +526,79 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error(e);
     }
   }, [activityLogs, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(solicitacoesRelatorio));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [solicitacoesRelatorio, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_relatorios_professores', JSON.stringify(relatoriosProfessores));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [relatoriosProfessores, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_relatorios_consolidados', JSON.stringify(relatoriosConsolidados));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [relatoriosConsolidados, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_notificacoes_admin', JSON.stringify(notificacoesAdmin));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [notificacoesAdmin, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_observacoes_aluno', JSON.stringify(observacoesAluno));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [observacoesAluno, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_documentos_drive', JSON.stringify(documentosEstudanteDrive));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [documentosEstudanteDrive, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_atestados_professor', JSON.stringify(atestadosProfessor));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [atestadosProfessor, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_reposicoes_aulas', JSON.stringify(reposicoesAulas));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [reposicoesAulas, isInitialized]);
+
 
   const toggleTheme = () => {
     const nextTheme = theme === 'light' ? 'dark' : 'light';
@@ -921,6 +1152,331 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  // 1. Relatórios Pedagógicos Colaborativos com IA
+  const addSolicitacaoRelatorio = (alunoId: string) => {
+    const novaSolId = `sol-${Date.now()}`;
+    const novaSol: SolicitacaoRelatorio = {
+      id: novaSolId,
+      aluno_id: alunoId,
+      status: 'pendente',
+      data_solicitacao: new Date().toISOString().split('T')[0],
+      admin_solicitante_id: currentUser.id,
+      created_at: new Date().toISOString(),
+    };
+
+    setSolicitacoesRelatorio(prev => [novaSol, ...prev]);
+
+    // Localiza os professores atribuídos à turma do estudante
+    const aluno = estudantes.find(e => e.id === alunoId);
+    const turma = turmas.find(t => t.id === aluno?.turma_id);
+
+    let profsIds: string[] = [];
+    if (turma?.professores_ids && turma.professores_ids.length > 0) {
+      profsIds = turma.professores_ids;
+    } else if (turma?.professor_regente_id) {
+      profsIds = [turma.professor_regente_id];
+    } else {
+      profsIds = professores.filter(p => p.ativo).map(p => p.id);
+    }
+
+    const novosRelatoriosProfessores: RelatorioProfessor[] = profsIds.map(profId => ({
+      id: `rel-prof-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      solicitacao_id: novaSolId,
+      professor_id: profId,
+      rascunho_original: '',
+      texto_ia: '',
+      texto_final: '',
+      status: 'pendente',
+      created_at: new Date().toISOString(),
+    }));
+
+    setRelatoriosProfessores(prev => [...novosRelatoriosProfessores, ...prev]);
+  };
+
+  const salvarRascunhoProfessor = (relatorioId: string, rascunho: string) => {
+    setRelatoriosProfessores(prev =>
+      prev.map(r => (r.id === relatorioId ? { ...r, rascunho_original: rascunho, texto_final: r.texto_final || rascunho } : r))
+    );
+  };
+
+  const polirRelatorioComIA = async (relatorioId: string, rascunho: string): Promise<string> => {
+    const rel = relatoriosProfessores.find(r => r.id === relatorioId);
+    const sol = solicitacoesRelatorio.find(s => s.id === rel?.solicitacao_id);
+    const aluno = estudantes.find(e => e.id === sol?.aluno_id);
+    const turma = turmas.find(t => t.id === aluno?.turma_id);
+    const prof = professores.find(p => p.id === rel?.professor_id);
+
+    const res = await fetch('/api/ia/polir-relatorio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rascunho,
+        alunoNome: aluno?.nome_completo || 'Estudante',
+        turmaNome: turma?.nome || '',
+        disciplina: prof?.disciplinas?.join(', ') || '',
+        professorNome: prof?.nome_completo || currentUser.name,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Falha ao polir parecer com IA.');
+    }
+
+    const textoIa = data.texto_ia || rascunho;
+    setRelatoriosProfessores(prev =>
+      prev.map(r => (r.id === relatorioId ? { ...r, rascunho_original: rascunho, texto_ia: textoIa, texto_final: textoIa } : r))
+    );
+
+    return textoIa;
+  };
+
+  const enviarRelatorioProfessor = async (relatorioId: string, textoFinal: string) => {
+    const rel = relatoriosProfessores.find(r => r.id === relatorioId);
+    if (!rel) return;
+
+    const sol = solicitacoesRelatorio.find(s => s.id === rel.solicitacao_id);
+    const aluno = estudantes.find(e => e.id === sol?.aluno_id);
+    const prof = professores.find(p => p.id === rel.professor_id);
+
+    const agora = new Date().toISOString();
+
+    setRelatoriosProfessores(prev =>
+      prev.map(r => (r.id === relatorioId ? { ...r, texto_final: textoFinal, status: 'enviado', data_envio: agora } : r))
+    );
+
+    // Dispara alerta para todos os perfis Administradores / Direção
+    const novaNotif: NotificacaoAdmin = {
+      id: `notif-${Date.now()}`,
+      relatorio_professor_id: relatorioId,
+      solicitacao_id: rel.solicitacao_id,
+      professor_id: rel.professor_id,
+      professor_nome: prof?.nome_completo || currentUser.name,
+      aluno_nome: aluno?.nome_completo || 'Estudante',
+      lido: false,
+      data_criacao: agora,
+    };
+
+    setNotificacoesAdmin(prev => [novaNotif, ...prev]);
+  };
+
+  const marcarNotificacaoLida = (notificacaoId: string) => {
+    setNotificacoesAdmin(prev =>
+      prev.map(n => (n.id === notificacaoId ? { ...n, lido: true } : n))
+    );
+  };
+
+  const marcarTodasNotificacoesLidas = () => {
+    setNotificacoesAdmin(prev => prev.map(n => ({ ...n, lido: true })));
+  };
+
+  const consolidarRelatorioComIA = async (solicitacaoId: string, observacoesSecretaria?: string): Promise<string> => {
+    const sol = solicitacoesRelatorio.find(s => s.id === solicitacaoId);
+    if (!sol) throw new Error('Solicitação não encontrada.');
+
+    const aluno = estudantes.find(e => e.id === sol.aluno_id);
+    const turma = turmas.find(t => t.id === aluno?.turma_id);
+
+    const relsEnviados = relatoriosProfessores.filter(r => r.solicitacao_id === solicitacaoId && r.status === 'enviado');
+    if (relsEnviados.length === 0) {
+      throw new Error('Não há pareceres docentes enviados para consolidar.');
+    }
+
+    const pareceresPayload = relsEnviados.map(r => {
+      const prof = professores.find(p => p.id === r.professor_id);
+      return {
+        professorNome: prof?.nome_completo || 'Docente',
+        disciplinas: prof?.disciplinas || [],
+        textoFinal: r.texto_final || r.rascunho_original,
+      };
+    });
+
+    const res = await fetch('/api/ia/consolidar-relatorios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        alunoNome: aluno?.nome_completo || 'Estudante',
+        turmaNome: turma?.nome || '',
+        turno: turma?.turno || 'manha',
+        pareceres: pareceresPayload,
+        observacoesSecretaria,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Falha ao consolidar pareceres.');
+    }
+
+    const conteudoConsolidado = data.conteudo_consolidado;
+    const agora = new Date().toISOString();
+
+    const novoConsolidado: RelatorioConsolidado = {
+      id: `rel-cons-${Date.now()}`,
+      solicitacao_id: solicitacaoId,
+      conteudo_final: conteudoConsolidado,
+      data_geracao: agora,
+      arquivo_docx_url: `/api/relatorios/docx?solicitacao_id=${solicitacaoId}`,
+      created_at: agora,
+    };
+
+    setRelatoriosConsolidados(prev => {
+      const filtrado = prev.filter(c => c.solicitacao_id !== solicitacaoId);
+      return [novoConsolidado, ...filtrado];
+    });
+
+    setSolicitacoesRelatorio(prev =>
+      prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' } : s))
+    );
+
+    return conteudoConsolidado;
+  };
+
+  const salvarRelatorioConsolidado = (solicitacaoId: string, conteudoFinal: string) => {
+    const agora = new Date().toISOString();
+    setRelatoriosConsolidados(prev => {
+      const existe = prev.find(c => c.solicitacao_id === solicitacaoId);
+      if (existe) {
+        return prev.map(c => (c.solicitacao_id === solicitacaoId ? { ...c, conteudo_final: conteudoFinal } : c));
+      }
+      return [
+        {
+          id: `rel-cons-${Date.now()}`,
+          solicitacao_id: solicitacaoId,
+          conteudo_final: conteudoFinal,
+          data_geracao: agora,
+          arquivo_docx_url: `/api/relatorios/docx?solicitacao_id=${solicitacaoId}`,
+          created_at: agora,
+        },
+        ...prev,
+      ];
+    });
+  };
+
+  const excluirSolicitacaoRelatorio = (solicitacaoId: string) => {
+    setSolicitacoesRelatorio(prev => prev.filter(s => s.id !== solicitacaoId));
+    setRelatoriosProfessores(prev => prev.filter(r => r.solicitacao_id !== solicitacaoId));
+    setRelatoriosConsolidados(prev => prev.filter(c => c.solicitacao_id !== solicitacaoId));
+    setNotificacoesAdmin(prev => prev.filter(n => n.solicitacao_id !== solicitacaoId));
+  };
+
+  // 6. Observações Contínuas do Estudante
+  const addObservacaoAluno = (alunoId: string, tipo: TipoObservacaoAluno, texto: string) => {
+    const cargo = role === 'admin' ? 'Administração Escolar' : role === 'direcao' ? 'Direção Escolar' : 'Professor Docente';
+    const novaObs: ObservacaoAluno = {
+      id: `obs-${Date.now()}`,
+      aluno_id: alunoId,
+      autor_id: currentUser.id,
+      autor_nome: currentUser.name,
+      autor_cargo: cargo,
+      tipo,
+      texto,
+      data_registro: new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setObservacoesAluno(prev => [novaObs, ...prev]);
+  };
+
+  // 7. Repositório Google Drive
+  const addDocumentoEstudanteDrive = (doc: DocumentoEstudanteDrive) => {
+    setDocumentosEstudanteDrive(prev => [doc, ...prev]);
+  };
+
+  // 8. Gestão de Atestados dos Professores
+  const addAtestadoProfessor = (atestado: Omit<AtestadoProfessor, 'id' | 'data_upload' | 'permite_exclusao'>) => {
+    const novoAtestado: AtestadoProfessor = {
+      ...atestado,
+      id: `atest-${Date.now()}`,
+      data_upload: new Date().toISOString().split('T')[0],
+      permite_exclusao: true,
+    };
+
+    setAtestadosProfessor(prev => [novoAtestado, ...prev]);
+
+    // Registra automaticamente falta e reposição devida com a regra dos 30 dias
+    const dataLimite = new Date(new Date(atestado.data_inicio).getTime() + 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+
+    const novaReposicao: ReposicaoAula = {
+      id: `rep-${Date.now()}`,
+      professor_id: atestado.professor_id,
+      data_falta: atestado.data_inicio,
+      qtd_aulas_faltantes: atestado.dias_afastamento * 2,
+      data_limite_reposicao: dataLimite,
+      status: 'Pendente',
+      created_at: new Date().toISOString(),
+    };
+
+    setReposicoesAulas(prev => [novaReposicao, ...prev]);
+  };
+
+  const deleteAtestadoProfessor = (id: string) => {
+    setAtestadosProfessor(prev => prev.filter(a => a.id !== id));
+  };
+
+  // 8.1 Débito & Reposição de Aulas (Regra dos 30 Dias)
+  const registrarReposicaoAula = (reposicaoId: string, dados: { data_execucao: string; horario: string; conteudo: string }) => {
+    setReposicoesAulas(prev =>
+      prev.map(r => {
+        if (r.id === reposicaoId) {
+          return {
+            ...r,
+            data_execucao_reposicao: dados.data_execucao,
+            horario_reposicao: dados.horario,
+            conteudo_lecionado: dados.conteudo,
+          };
+        }
+        return r;
+      })
+    );
+  };
+
+  const homologarReposicaoAula = (reposicaoId: string) => {
+    setReposicoesAulas(prev =>
+      prev.map(r => (r.id === reposicaoId ? { ...r, status: 'Reposta' } : r))
+    );
+  };
+
+  const addFaltaComReposicao = (dados: {
+    professorId: string;
+    professorNome: string;
+    dataFalta: string;
+    aulasFaltadas: number;
+    justificativa: string;
+    turmaId?: string;
+  }) => {
+    const novaFalta: FaltaProfessor = {
+      id: `falta-${Date.now()}`,
+      professor_id: dados.professorId,
+      professor_nome: dados.professorNome,
+      data_falta: dados.dataFalta,
+      aulas_faltadas: dados.aulasFaltadas,
+      justificativa: dados.justificativa,
+      homologado: false,
+      created_at: new Date().toISOString(),
+    };
+
+    setFaltasProfessores(prev => [novaFalta, ...prev]);
+
+    const dataLimite = new Date(new Date(dados.dataFalta).getTime() + 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+
+    const novaReposicao: ReposicaoAula = {
+      id: `rep-${Date.now()}`,
+      professor_id: dados.professorId,
+      data_falta: dados.dataFalta,
+      qtd_aulas_faltantes: dados.aulasFaltadas,
+      data_limite_reposicao: dataLimite,
+      turma_id: dados.turmaId,
+      status: 'Pendente',
+      created_at: new Date().toISOString(),
+    };
+
+    setReposicoesAulas(prev => [novaReposicao, ...prev]);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -947,6 +1503,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         faltasProfessores,
         eventos,
         activityLogs,
+        solicitacoesRelatorio,
+        relatoriosProfessores,
+        relatoriosConsolidados,
+        notificacoesAdmin,
+        addSolicitacaoRelatorio,
+        salvarRascunhoProfessor,
+        polirRelatorioComIA,
+        enviarRelatorioProfessor,
+        marcarNotificacaoLida,
+        marcarTodasNotificacoesLidas,
+        consolidarRelatorioComIA,
+        salvarRelatorioConsolidado,
+        excluirSolicitacaoRelatorio,
+        observacoesAluno,
+        addObservacaoAluno,
+        documentosEstudanteDrive,
+        addDocumentoEstudanteDrive,
+        atestadosProfessor,
+        addAtestadoProfessor,
+        deleteAtestadoProfessor,
+        reposicoesAulas,
+        registrarReposicaoAula,
+        homologarReposicaoAula,
+        addFaltaComReposicao,
         addEstudante,
         updateEstudante,
         deleteEstudante,

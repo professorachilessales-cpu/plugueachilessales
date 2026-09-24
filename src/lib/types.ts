@@ -1,12 +1,13 @@
 // Tipos centrais do Antigravity School OS
 
-export type UserRole = 'admin' | 'professor';
-export type AppUserRole = 'ADMIN' | 'PROFESSOR';
+export type UserRole = 'admin' | 'direcao' | 'professor';
+export type AppUserRole = 'ADMIN' | 'DIRECAO' | 'PROFESSOR';
 
 export type AllowedModule = 
   | 'PROFILE'      // Perfil & Dados Pessoais (Obrigatório / Sempre ativo)
   | 'FOTOGRAMA'    // Fotograma da Turma
-  | 'CALENDARIO';  // Calendário & Eventos
+  | 'CALENDARIO'   // Calendário & Eventos
+  | 'RELATORIOS';  // Relatórios Pedagógicos Colaborativos
 
 export interface SystemUser {
   id: string;
@@ -286,4 +287,119 @@ export interface ActivityLog {
   details: ActivityLogDetails;
   created_at: string;
 }
+
+// -------------------------------------------------------------
+// 1. MÓDULO: RELATÓRIOS PEDAGÓGICOS COLABORATIVOS COM IA
+// -------------------------------------------------------------
+export type StatusSolicitacaoRelatorio = 'pendente' | 'concluido';
+export type StatusRelatorioProfessor = 'pendente' | 'enviado';
+
+export interface SolicitacaoRelatorio {
+  id: string;
+  aluno_id: string;
+  status: StatusSolicitacaoRelatorio;
+  data_solicitacao: string;
+  admin_solicitante_id?: string;
+  created_at?: string;
+}
+
+export interface RelatorioProfessor {
+  id: string;
+  solicitacao_id: string;
+  professor_id: string;
+  rascunho_original: string;
+  texto_ia?: string;
+  texto_final: string;
+  status: StatusRelatorioProfessor;
+  data_envio?: string;
+  created_at?: string;
+}
+
+export interface RelatorioConsolidado {
+  id: string;
+  solicitacao_id: string;
+  conteudo_final: string;
+  data_geracao: string;
+  arquivo_docx_url?: string;
+  created_at?: string;
+}
+
+export interface NotificacaoAdmin {
+  id: string;
+  relatorio_professor_id?: string;
+  solicitacao_id?: string;
+  professor_id?: string;
+  professor_nome?: string;
+  aluno_nome?: string;
+  lido: boolean;
+  data_criacao: string;
+}
+
+// -------------------------------------------------------------
+// 6. OBSERVAÇÕES CONTÍNUAS DO ESTUDANTE (FICHA DO ALUNO)
+// -------------------------------------------------------------
+export type TipoObservacaoAluno = 'comportamental' | 'pedagogico' | 'saude' | 'geral';
+
+export interface ObservacaoAluno {
+  id: string;
+  aluno_id: string;
+  autor_id: string;
+  autor_nome: string;
+  autor_cargo: string;
+  tipo: TipoObservacaoAluno;
+  texto: string;
+  data_registro: string;
+}
+
+// -------------------------------------------------------------
+// 7. REPOSITÓRIO DE DOCUMENTOS NO GOOGLE DRIVE (FICHA DO ESTUDANTE)
+// -------------------------------------------------------------
+export type TipoDocumentoDrive = 'Historico' | 'Ficha Cadastral' | 'Documentos Pessoais' | 'Atestado' | 'Outros';
+
+export interface DocumentoEstudanteDrive {
+  id: string;
+  aluno_id: string;
+  drive_file_id?: string;
+  nome_arquivo: string;
+  url_visualizacao?: string;
+  tipo_documento: TipoDocumentoDrive;
+  uploader_id?: string;
+  data_upload: string;
+}
+
+// -------------------------------------------------------------
+// 8. GESTÃO DE ATESTADOS DOS PROFESSORES (GOOGLE DRIVE)
+// -------------------------------------------------------------
+export interface AtestadoProfessor {
+  id: string;
+  professor_id: string;
+  drive_file_id?: string;
+  nome_arquivo?: string;
+  data_inicio: string;
+  data_fim: string;
+  dias_afastamento: number;
+  motivo_cid?: string;
+  data_upload: string;
+  permite_exclusao: boolean;
+}
+
+// -------------------------------------------------------------
+// 8.1 LÓGICA DE DÉBITO & REPOSIÇÃO DE AULAS (REGRA DOS 30 DIAS)
+// -------------------------------------------------------------
+export type StatusReposicaoAula = 'Pendente' | 'Reposta' | 'Vencida';
+
+export interface ReposicaoAula {
+  id: string;
+  professor_id: string;
+  data_falta: string;
+  qtd_aulas_faltantes: number;
+  data_limite_reposicao: string; // calculada: data_falta + 30 dias
+  data_execucao_reposicao?: string;
+  horario_reposicao?: string;
+  conteudo_lecionado?: string;
+  turma_id?: string;
+  status: StatusReposicaoAula;
+  created_at?: string;
+}
+
 

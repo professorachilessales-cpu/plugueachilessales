@@ -34,51 +34,50 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
 
   const allNavItems = [
     {
-      title: 'Dashboard de Gestão',
+      title: 'Dashboard',
       href: '/',
       icon: LayoutDashboard,
-      roles: ['admin'],
-      badge: 'Geral',
+      roles: ['admin', 'direcao', 'professor'],
+      badge: role === 'professor' ? 'Docente' : undefined,
     },
     {
-      title: 'Estudantes',
+      title: 'Estudantes & Relatórios',
       href: '/estudantes',
       icon: Users,
-      roles: ['admin'],
+      roles: ['admin', 'direcao'],
     },
     {
       title: 'Fotograma da Turma',
       href: '/fotograma',
       icon: ImageIcon,
-      roles: ['admin', 'professor'],
+      roles: ['admin', 'direcao', 'professor'],
       module: 'FOTOGRAMA' as AllowedModule,
-      badge: 'WhatsApp',
       highlight: true,
     },
     {
       title: 'Turmas & Horários',
       href: '/turmas',
       icon: BookOpen,
-      roles: ['admin'],
+      roles: ['admin', 'direcao'],
     },
     {
       title: 'Ficha Funcional & Faltas',
       href: '/professores',
       icon: UserCheck,
-      roles: ['admin'],
+      roles: ['admin', 'direcao'],
     },
     {
       title: 'Calendário & Eventos',
       href: '/calendario',
       icon: Calendar,
-      roles: ['admin', 'professor'],
+      roles: ['admin', 'direcao', 'professor'],
       module: 'CALENDARIO' as AllowedModule,
     },
     {
       title: 'Registro de Atividades',
       href: '/auditoria',
       icon: History,
-      roles: ['admin'],
+      roles: ['admin', 'direcao'],
       badge: 'Auditoria',
     },
     {
@@ -91,7 +90,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
       title: 'Configurações',
       href: '/configuracoes',
       icon: Settings,
-      roles: ['admin'],
+      roles: ['admin', 'direcao'],
     },
   ];
 

@@ -44,17 +44,21 @@ interface AniversariantesSectionProps {
 }
 
 export function AniversariantesSection({
-  dataHojeFormatada,
-  hojeCurto,
-  abaAniversario,
-  setAbaAniversario,
-  homenagemEnviadaId,
-  setHomenagemEnviadaId,
-  handleEnviarHomenagem,
-  handleSimularHoje,
-  dadosAniversarios,
-  obterInfoTurma,
-}: AniversariantesSectionProps) {
+  dataHojeFormatada = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
+  hojeCurto = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+  abaAniversario = 'mes',
+  setAbaAniversario = () => {},
+  homenagemEnviadaId = null,
+  setHomenagemEnviadaId = () => {},
+  handleEnviarHomenagem = () => {},
+  handleSimularHoje = () => {},
+  dadosAniversarios = { hoje: [], semana: [], mes: [] },
+  obterInfoTurma = () => ({ id: '', nome: 'Turma', turno: 'Manhã' }),
+}: Partial<AniversariantesSectionProps> = {}) {
+  // Safe-guards para garantir que arrays existam mesmo se dadosAniversarios for parcial
+  const safeHoje = dadosAniversarios?.hoje || [];
+  const safeSemana = dadosAniversarios?.semana || [];
+  const safeMes = dadosAniversarios?.mes || [];
   return (
     <div className="overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 via-white to-rose-50/40 p-6 shadow-sm dark:border-amber-900/40 dark:bg-gradient-to-br dark:from-amber-950/20 dark:via-school-dark-surface dark:to-rose-950/20 dark:bg-school-dark-surface">
       {/* Cabeçalho do Bloco */}
@@ -92,11 +96,11 @@ export function AniversariantesSection({
             <PartyPopper className="h-3.5 w-3.5 text-amber-500" />
             <span>Hoje</span>
             <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-extrabold ${
-              dadosAniversarios.hoje.length > 0
+              safeHoje.length > 0
                 ? 'bg-amber-500 text-white'
                 : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
             }`}>
-              {dadosAniversarios.hoje.length}
+              {safeHoje.length}
             </span>
           </button>
           <button
@@ -110,7 +114,7 @@ export function AniversariantesSection({
             <Clock className="h-3.5 w-3.5 text-school-blue-500" />
             <span>Próximos 7 dias</span>
             <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-1.5 py-0.2 text-[10px] font-extrabold text-slate-600 dark:text-slate-300">
-              {dadosAniversarios.semana.length}
+              {safeSemana.length}
             </span>
           </button>
           <button
@@ -124,7 +128,7 @@ export function AniversariantesSection({
             <Calendar className="h-3.5 w-3.5 text-purple-500" />
             <span>No Mês</span>
             <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-1.5 py-0.2 text-[10px] font-extrabold text-slate-600 dark:text-slate-300">
-              {dadosAniversarios.mes.length}
+              {safeMes.length}
             </span>
           </button>
         </div>
@@ -150,7 +154,7 @@ export function AniversariantesSection({
       <div className="mt-5">
         {abaAniversario === 'hoje' && (
           <>
-            {dadosAniversarios.hoje.length === 0 ? (
+            {safeHoje.length === 0 ? (
               /* Estado Vazio Amigável para Hoje */
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-amber-200 bg-white/70 py-10 px-4 text-center dark:border-slate-800 dark:bg-slate-900/40">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100/70 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400 mb-3">
@@ -163,13 +167,13 @@ export function AniversariantesSection({
                   Não há comemorações registradas para a data de hoje. Você pode acompanhar os aniversariantes previstos para os próximos dias ou definir um estudante de teste.
                 </p>
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
-                  {dadosAniversarios.semana.length > 0 && (
+                  {safeSemana.length > 0 && (
                     <button
                       onClick={() => setAbaAniversario('semana')}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-600 transition-colors"
                     >
                       <Clock className="h-3.5 w-3.5" />
-                      Ver {dadosAniversarios.semana.length} aniversariante(s) desta semana
+                      Ver {safeSemana.length} aniversariante(s) desta semana
                     </button>
                   )}
                   <button
@@ -184,7 +188,7 @@ export function AniversariantesSection({
             ) : (
               /* Grid de Aniversariantes de Hoje */
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {dadosAniversarios.hoje.map(({ estudante, info }) => {
+                {safeHoje.map(({ estudante, info }) => {
                   const turmaInfo = obterInfoTurma(estudante.turma_id, estudante.turma_nome);
                   return (
                     <div
@@ -289,13 +293,13 @@ export function AniversariantesSection({
         {abaAniversario === 'semana' && (
           /* Lista dos Próximos 7 Dias */
           <div className="space-y-3">
-            {dadosAniversarios.semana.length === 0 ? (
+            {safeSemana.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500">
                 Nenhum aniversariante previsto para os próximos 7 dias.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {dadosAniversarios.semana.map(({ estudante, info }) => {
+                {safeSemana.map(({ estudante, info }) => {
                   const turmaInfo = obterInfoTurma(estudante.turma_id, estudante.turma_nome);
                   return (
                     <div
@@ -342,13 +346,13 @@ export function AniversariantesSection({
         {abaAniversario === 'mes' && (
           /* Lista de Todos do Mês */
           <div className="space-y-3">
-            {dadosAniversarios.mes.length === 0 ? (
+            {safeMes.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500">
                 Nenhum aniversariante cadastrado neste mês.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {dadosAniversarios.mes.map(({ estudante, info }) => {
+                {safeMes.map(({ estudante, info }) => {
                   const turmaInfo = obterInfoTurma(estudante.turma_id, estudante.turma_nome);
                   return (
                     <div

@@ -49,8 +49,19 @@ function SecaoEquipeTurmaForm({
   onRemoverProfessorHistorico,
   onRemoverApoioHistorico,
 }: SecaoEquipeTurmaFormProps) {
-  // Apenas professores com status ativo podem ser disponibilizados para seleção
+  // Apenas professores com status ativo podem ser disponibilizados para seleção de regência
   const professoresAtivos = professores.filter((p) => p.ativo !== false);
+
+  // Equipe de Apoio & Inclusão: estritamente colaboradores com perfil de Apoio (eh_apoio === true / is_apoio === true / role === 'apoio')
+  const equipeApoioElegivel = professores.filter(
+    (p) =>
+      p.ativo !== false &&
+      (p.eh_apoio === true ||
+        (p as any).is_apoio === true ||
+        (p as any).role === 'apoio' ||
+        p.formacao?.toLowerCase().includes('apoio') ||
+        p.disciplinas?.some((d) => d.toLowerCase().includes('apoio')))
+  );
 
   // Vínculos históricos de professores inativos preservados
   const profsHistoricoInativo = professoresSelecionados
@@ -148,10 +159,6 @@ function SecaoEquipeTurmaForm({
                       </p>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 shrink-0 border border-emerald-200 dark:border-emerald-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Ativo
-                  </span>
                 </div>
               );
             })
@@ -209,14 +216,14 @@ function SecaoEquipeTurmaForm({
           </div>
         )}
 
-        {/* Lista de Checkboxes (Apenas Colaboradores/Professores Ativos) */}
+        {/* Lista de Checkboxes (Estritamente Colaboradores de Apoio Elegíveis) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-          {professoresAtivos.length === 0 ? (
+          {equipeApoioElegivel.length === 0 ? (
             <p className="text-xs text-slate-400 italic py-2 col-span-2 text-center">
-              Nenhum colaborador/professor ativo disponível para apoio.
+              Nenhum colaborador com perfil de apoio ativo disponível no sistema.
             </p>
           ) : (
-            professoresAtivos.map((prof) => {
+            equipeApoioElegivel.map((prof) => {
               const isSelected = apoioSelecionados.includes(prof.id);
               return (
                 <div
@@ -243,10 +250,6 @@ function SecaoEquipeTurmaForm({
                       </p>
                     </div>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 shrink-0 border border-emerald-200 dark:border-emerald-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Ativo
-                  </span>
                 </div>
               );
             })
@@ -867,12 +870,7 @@ export default function TurmasPage() {
                                 </p>
                               </div>
                             </div>
-                            {prof.ativo !== false ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 shrink-0 border border-emerald-200 dark:border-emerald-800">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                Ativo
-                              </span>
-                            ) : (
+                            {prof.ativo === false && (
                               <span
                                 className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-200 shrink-0 border border-amber-300 dark:border-amber-900"
                                 title="Docente inativo no quadro funcional - histórico preservado"
@@ -932,12 +930,7 @@ export default function TurmasPage() {
                                 </p>
                               </div>
                             </div>
-                            {prof.ativo !== false ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 shrink-0 border border-emerald-200 dark:border-emerald-800">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                Ativo
-                              </span>
-                            ) : (
+                            {prof.ativo === false && (
                               <span
                                 className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-200 shrink-0 border border-amber-300 dark:border-amber-900"
                                 title="Colaborador inativo no quadro funcional - histórico preservado"

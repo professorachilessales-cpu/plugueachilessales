@@ -38,7 +38,7 @@ const MODELOS_WHATSAPP_PADRAO = {
   elogio: 'Olá {Responsável}! Temos a imensa alegria de parabenizar {Aluno} pelo admirável desempenho, postura participativa e dedicação nas aulas da turma {Turma}. O esforço da família reflete neste sucesso! Parabéns!',
   livre: 'Olá {Responsável}, aqui é a coordenação escolar referente ao estudante {Aluno} ({Turma}). ',
   inclusao_aee: 'Olá {Responsável}, tudo bem? Aqui é da coordenação de Inclusão Escolar (PLUGUE). Estamos entrando em contato para compartilhar o andamento do plano pedagógico e atendimento AEE de {Aluno} ({Turma}). Gostaríamos de alinhar os próximos passos com a família. Contamos com sua parceria!',
-  inclusao_laudo: 'Prezado(a) {Responsável}, tudo bem? Solicitamos a gentileza de apresentar na secretaria ou nos encaminhar a atualização do laudo médico / relatório clínico de {Aluno} ({Turma}) para manutenção do prontuário pedagógico. Atenciosamente, Equipe de Inclusão (PLUGUE).',
+  inclusao_laudo: 'Prezado(a) {Responsável}, tudo bem? Solicitamos a gentileza de apresentar na secretaria ou nos encaminhar a atualização do laudo médico / relatório clínico de {Aluno} ({Turma}) para manutenção da ficha pedagógica. Atenciosamente, Equipe de Inclusão (PLUGUE).',
   inclusao_reuniao: 'Olá {Responsável}, gostaríamos de agendar uma reunião de acompanhamento multidisciplinar referente ao estudante {Aluno} ({Turma}), referente ao laudo ({Laudo}). Qual o melhor dia e horário para você nesta semana?',
   inclusao_livre: 'Olá {Responsável}, aqui é a coordenação de Inclusão da Plataforma Unificada de Gestão Educacional (PLUGUE) sobre o(a) estudante {Aluno} ({Turma}). ',
 };

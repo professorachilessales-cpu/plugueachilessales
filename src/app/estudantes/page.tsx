@@ -33,8 +33,13 @@ import {
   Sparkles,
   Bookmark,
   Camera,
-  Download
+  Download,
+  MessageSquare,
+  Folder
 } from 'lucide-react';
+import { PainelRelatoriosEstudante } from '@/components/relatorios/PainelRelatoriosEstudante';
+import { TimelineObservacoesAluno } from '@/components/estudantes/TimelineObservacoesAluno';
+import { RepositorioDriveAluno } from '@/components/estudantes/RepositorioDriveAluno';
 import { Estudante, TipoMovimentacao, StatusMatricula, PercentualCota, TipoHistoricoEscolar } from '@/lib/types';
 import { formatarTelefone, formatarCPF, validarCPF } from '@/lib/validations';
 
@@ -86,6 +91,7 @@ export default function EstudantesPage() {
   const [modalUploadAberto, setModalUploadAberto] = useState(false);
   const [modalFichaAberto, setModalFichaAberto] = useState(false);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<Estudante | null>(null);
+  const [abaFicha, setAbaFicha] = useState<'cadastro' | 'relatorios' | 'observacoes' | 'drive'>('cadastro');
 
   // Estados de Upload para Google Drive
   const [uploadTipoDoc, setUploadTipoDoc] = useState<'rg' | 'comprovante_residencia' | 'laudo_medico' | 'certidao_nascimento' | 'outro'>('rg');
@@ -577,7 +583,7 @@ export default function EstudantesPage() {
     <div className="space-y-6">
       {/* Cabeçalho Oficial de Impressão (Visível apenas em @media print) */}
       <PrintHeader
-        documentTitle="FICHA CADASTRAL E PRONTUÁRIO DO ESTUDANTE"
+        documentTitle="FICHA CADASTRAL DO ESTUDANTE"
         documentSubtitle="Registros Oficiais da Secretaria Escolar • PLUGUE"
       />
 
@@ -593,7 +599,7 @@ export default function EstudantesPage() {
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
             <Users className="h-7 w-7 text-school-blue-600 dark:text-school-gold-400" />
-            Gestão de Estudantes & Prontuários
+            Gestão de Estudantes
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Cadastros civis completos, RG, SUS, Bolsa Família, cotas, múltiplos contatos e AEE
@@ -801,9 +807,46 @@ export default function EstudantesPage() {
                           <button
                             onClick={() => {
                               setEstudanteSelecionado(est);
+                              setAbaFicha('relatorios');
                               setModalFichaAberto(true);
                             }}
-                            title="Visualizar Ficha e Imprimir Prontuário"
+                            title="Relatórios Pedagógicos Colaborativos com IA"
+                            className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/50 transition-colors"
+                          >
+                            <Sparkles className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setEstudanteSelecionado(est);
+                              setAbaFicha('observacoes');
+                              setModalFichaAberto(true);
+                            }}
+                            title="Observações Contínuas (Timeline)"
+                            className="rounded-lg p-1.5 text-school-blue-600 hover:bg-school-blue-50 dark:text-school-gold-400 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setEstudanteSelecionado(est);
+                              setAbaFicha('drive');
+                              setModalFichaAberto(true);
+                            }}
+                            title="Repositório Google Drive"
+                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/50 transition-colors"
+                          >
+                            <Folder className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setEstudanteSelecionado(est);
+                              setAbaFicha('cadastro');
+                              setModalFichaAberto(true);
+                            }}
+                            title="Visualizar e Imprimir Ficha do Estudante"
                             className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-school-blue-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-school-gold-400"
                           >
                             <Printer className="h-4 w-4" />
@@ -912,7 +955,7 @@ export default function EstudantesPage() {
                         Foto do Estudante (Formato 3x4)
                       </label>
                       <span className="text-[10px] font-bold text-school-blue-700 dark:text-school-gold-400 bg-school-blue-100 dark:bg-school-blue-950/70 px-2 py-0.5 rounded-full uppercase">
-                        1ª Informação do Prontuário
+                        1ª Informação da Ficha Cadastral
                       </span>
                     </div>
 
@@ -1615,7 +1658,7 @@ export default function EstudantesPage() {
                 ) : (
                   <>
                     <UploadCloud className="h-4 w-4" />
-                    <span>Fazer Upload e Vincular ao Prontuário</span>
+                    <span>Fazer Upload e Vincular à Ficha</span>
                   </>
                 )}
               </button>
@@ -1673,35 +1716,91 @@ export default function EstudantesPage() {
       {/* MODAL 3: Visualização Completa da Ficha e Impressão Timbrada */}
       {modalFichaAberto && estudanteSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto card-print border border-slate-200 dark:border-slate-800">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto card-print border border-slate-200 dark:border-slate-800">
             {/* Cabeçalho da Ficha Timbrada */}
             <PrintHeader
               documentTitle="FICHA INDIVIDUAL DO ESTUDANTE"
               documentSubtitle={`Registro Geral: ${estudanteSelecionado.id} • PLUGUE`}
             />
 
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800 print:hidden">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Ficha Cadastral Oficial do Estudante
-              </h3>
-              <div className="flex items-center gap-2">
+            {/* Barra Superior de Navegação da Ficha Escolar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800 print:hidden">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                 <button
-                  onClick={() => {
-                    handleAbrirEditar(estudanteSelecionado);
-                    setModalFichaAberto(false);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  type="button"
+                  onClick={() => setAbaFicha('cadastro')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
+                    abaFicha === 'cadastro'
+                      ? 'bg-school-blue-700 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
                 >
-                  <Edit3 className="h-3.5 w-3.5" />
-                  <span>Editar</span>
+                  <FileText className="h-3.5 w-3.5" />
+                  <span>Ficha Cadastral</span>
                 </button>
+
                 <button
-                  onClick={() => window.print()}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700"
+                  type="button"
+                  onClick={() => setAbaFicha('relatorios')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
+                    abaFicha === 'relatorios'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
                 >
-                  <Printer className="h-3.5 w-3.5" />
-                  <span>Imprimir Ficha Individual</span>
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Relatórios Pedagógicos & IA</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAbaFicha('observacoes')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
+                    abaFicha === 'observacoes'
+                      ? 'bg-school-blue-700 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span>Observações (Timeline)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAbaFicha('drive')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
+                    abaFicha === 'drive'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  <Folder className="h-3.5 w-3.5" />
+                  <span>Google Drive</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                {abaFicha === 'cadastro' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        handleAbrirEditar(estudanteSelecionado);
+                        setModalFichaAberto(false);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                      <span>Editar</span>
+                    </button>
+                    <button
+                      onClick={() => window.print()}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      <span>Imprimir</span>
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => setModalFichaAberto(false)}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -1711,8 +1810,9 @@ export default function EstudantesPage() {
               </div>
             </div>
 
-            {/* Conteúdo Detalhado da Ficha do Aluno */}
-            <div className="mt-6 space-y-6 text-xs text-slate-700 dark:text-slate-300">
+            {/* Conteúdo da Aba 1: Ficha Cadastral do Aluno */}
+            {abaFicha === 'cadastro' && (
+              <div className="mt-6 space-y-6 text-xs text-slate-700 dark:text-slate-300">
               {/* Seção 1: Identificação & Foto */}
               <div className="flex flex-col sm:flex-row items-start gap-5">
                 {estudanteSelecionado.foto_url ? (
@@ -1880,7 +1980,7 @@ export default function EstudantesPage() {
                 </div>
               )}
 
-              {/* Assinatura de Prontuário */}
+              {/* Assinatura da Ficha Cadastral */}
               <div className="pt-8 grid grid-cols-2 gap-8 text-center text-[10px]">
                 <div className="border-t border-slate-400 pt-1 text-slate-600 dark:text-slate-400">
                   Secretaria Escolar
@@ -1890,6 +1990,28 @@ export default function EstudantesPage() {
                 </div>
               </div>
             </div>
+            )}
+
+            {/* Conteúdo da Aba 2: Relatórios Pedagógicos & Pareceres com IA */}
+            {abaFicha === 'relatorios' && (
+              <div className="mt-6">
+                <PainelRelatoriosEstudante estudante={estudanteSelecionado} />
+              </div>
+            )}
+
+            {/* Conteúdo da Aba 3: Observações Contínuas (Timeline) */}
+            {abaFicha === 'observacoes' && (
+              <div className="mt-6">
+                <TimelineObservacoesAluno estudante={estudanteSelecionado} />
+              </div>
+            )}
+
+            {/* Conteúdo da Aba 4: Repositório Google Drive */}
+            {abaFicha === 'drive' && (
+              <div className="mt-6">
+                <RepositorioDriveAluno estudante={estudanteSelecionado} />
+              </div>
+            )}
           </div>
         </div>
       )}

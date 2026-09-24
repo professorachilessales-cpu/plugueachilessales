@@ -27,25 +27,48 @@ import {
   Send,
   X,
   BarChart3,
-  Edit3
+  Edit3,
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import Link from 'next/link';
 import { AniversariantesSection } from '@/components/dashboard/AniversariantesSection';
+import { ProfessorDashboard } from '@/components/dashboard/ProfessorDashboard';
 import { formatarTelefone } from '@/lib/validations';
 
 const MODELOS_WHATSAPP_INCLUSAO_PADRAO = {
   inclusao_aee: 'Olá {Responsável}, tudo bem? Aqui é da coordenação de Inclusão Escolar (PLUGUE). Estamos entrando em contato para compartilhar o andamento do plano pedagógico e atendimento AEE de {Aluno} ({Turma}). Gostaríamos de alinhar os próximos passos com a família. Contamos com sua parceria!',
-  inclusao_laudo: 'Prezado(a) {Responsável}, tudo bem? Solicitamos a gentileza de apresentar na secretaria ou nos encaminhar a atualização do laudo médico / relatório clínico de {Aluno} ({Turma}) para manutenção do prontuário pedagógico. Atenciosamente, Equipe de Inclusão (PLUGUE).',
+  inclusao_laudo: 'Prezado(a) {Responsável}, tudo bem? Solicitamos a gentileza de apresentar na secretaria ou nos encaminhar a atualização do laudo médico / relatório clínico de {Aluno} ({Turma}) para manutenção da ficha pedagógica. Atenciosamente, Equipe de Inclusão (PLUGUE).',
   inclusao_reuniao: 'Olá {Responsável}, gostaríamos de agendar uma reunião de acompanhamento multidisciplinar referente ao estudante {Aluno} ({Turma}), referente ao laudo ({Laudo}). Qual o melhor dia e horário para você nesta semana?',
   inclusao_livre: 'Olá {Responsável}, aqui é a coordenação de Inclusão da Plataforma Unificada de Gestão Educacional (PLUGUE) sobre o(a) estudante {Aluno} ({Turma}). ',
 };
 
 export default function DashboardPage() {
-  const { estudantes, turmas, faltasProfessores, eventos, role, updateEstudante, escolaConfig } = useApp();
+  const { 
+    estudantes, 
+    turmas, 
+    faltasProfessores, 
+    eventos, 
+    role, 
+    updateEstudante, 
+    escolaConfig,
+    professores,
+    reposicoesAulas,
+    atestadosProfessor,
+    solicitacoesRelatorio,
+    relatoriosProfessores,
+    homologarReposicaoAula
+  } = useApp();
 
   // Estados do Bloco de Aniversariantes
   const [abaAniversario, setAbaAniversario] = useState<'hoje' | 'semana' | 'mes'>('hoje');
   const [homenagemEnviadaId, setHomenagemEnviadaId] = useState<string | null>(null);
+
+  // Estados de Expansão e Recolhimento do Bloco de Inclusão
+  const [inclusaoRecolhido, setInclusaoRecolhido] = useState(false);
+  const [inclusaoExpandido, setInclusaoExpandido] = useState(false);
 
   // Extrair e calcular dados de aniversário de forma segura (sem desvio de fuso horário UTC)
   const extrairDadosAniversario = (dataNascimento: string) => {
@@ -521,24 +544,13 @@ export default function DashboardPage() {
     return faltasProfessores.filter(f => f.data_falta === hojeStr || f.data_falta.startsWith(hojeStr));
   }, [faltasProfessores, hojeStr]);
 
+  // Se o usuário ativo for Professor, exibe o painel docente exclusivo com Banner de Alertas Críticos
+  if (role === 'professor') {
+    return <ProfessorDashboard />;
+  }
+
   return (
     <div className="space-y-6">
-      {/* Banner de Boas-Vindas */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-school-blue-900 via-school-blue-800 to-slate-900 p-6 sm:p-8 text-white shadow-lg">
-        <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-school-gold-400/20 px-3 py-1 text-xs font-semibold text-school-gold-300 backdrop-blur-md mb-3 border border-school-gold-400/30">
-            <Sparkles className="h-3.5 w-3.5" />
-            PLUGUE • Plataforma Unificada de Gestão Educacional
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-            Visão Geral & Indicadores de Gestão
-          </h2>
-          <p className="mt-2 text-sm text-slate-200 leading-relaxed">
-            Monitoramento em tempo real de matrículas, auditoria cadastral (AEE e pendências), alocação de turmas por turno e controle funcional de corpo docente.
-          </p>
-        </div>
-        <div className="absolute -right-10 -bottom-10 h-64 w-64 rounded-full bg-school-gold-500/10 blur-3xl pointer-events-none" />
-      </div>
 
       {/* Cartões Rápidos de Métricas (KPIs) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -637,10 +649,178 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Módulo de Gestão: Relatórios Pedagógicos Colaborativos com IA & Reposições Docentes */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Card 1: Relatórios Pedagógicos Colaborativos com IA */}
+        <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/50 via-white to-purple-50/30 p-6 shadow-sm dark:border-indigo-900/50 dark:bg-school-dark-surface dark:from-slate-900/50">
+          <div className="flex items-center justify-between border-b border-indigo-100 pb-4 dark:border-indigo-950">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Relatórios Pedagógicos Colaborativos (IA)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pareceres docentes com polimento e consolidação automatizada
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/estudantes"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:text-indigo-300 dark:hover:bg-indigo-900 transition-colors"
+            >
+              <span>Gerenciar</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-indigo-100 bg-white/80 p-3.5 dark:border-indigo-900/40 dark:bg-slate-800/60">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                Solicitações
+              </span>
+              <div className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
+                {solicitacoesRelatorio?.length || 0}
+              </div>
+              <span className="text-[10px] text-slate-500">Processos ativos</span>
+            </div>
+
+            <div className="rounded-xl border border-emerald-100 bg-white/80 p-3.5 dark:border-emerald-900/40 dark:bg-slate-800/60">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                Entregues
+              </span>
+              <div className="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                {relatoriosProfessores?.filter(r => r.status === 'enviado').length || 0}
+              </div>
+              <span className="text-[10px] text-slate-500">Pareceres recebidos</span>
+            </div>
+
+            <div className="rounded-xl border border-amber-100 bg-white/80 p-3.5 dark:border-amber-900/40 dark:bg-slate-800/60">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                Pendentes
+              </span>
+              <div className="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
+                {relatoriosProfessores?.filter(r => r.status === 'pendente').length || 0}
+              </div>
+              <span className="text-[10px] text-slate-500">Aguardando docente</span>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl bg-indigo-50/70 p-3 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between text-xs">
+            <span className="text-indigo-900 dark:text-indigo-200">
+              ⚡ Consolidação de pareceres com Gemini API e exportação direta em padrão DOCX institucional.
+            </span>
+            <Link 
+              href="/estudantes"
+              className="text-xs font-bold text-indigo-700 dark:text-indigo-300 hover:underline flex-shrink-0 ml-2"
+            >
+              Acessar Módulo &rarr;
+            </Link>
+          </div>
+        </div>
+
+        {/* Card 2: Frequência Docente & Reposições (Regra 30 Dias) */}
+        <div className="rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50/40 via-white to-amber-50/30 p-6 shadow-sm dark:border-rose-900/50 dark:bg-school-dark-surface dark:from-slate-900/50">
+          <div className="flex items-center justify-between border-b border-rose-100 pb-4 dark:border-rose-950">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-600 text-white shadow-md shadow-rose-600/30">
+                <Clock className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Frequência Docente & Reposições (Regra 30d)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Tolerância de 30 dias para aulas de reposição e atestados
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/professores"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 dark:bg-rose-950/80 dark:text-rose-300 dark:hover:bg-rose-900 transition-colors"
+            >
+              <span>Ver Docentes</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-rose-100 bg-white/80 p-3.5 dark:border-rose-900/40 dark:bg-slate-800/60">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">
+                A Repor
+              </span>
+              <div className="mt-1 text-2xl font-black text-rose-600 dark:text-rose-400">
+                {reposicoesAulas?.filter(r => r.status === 'pendente').reduce((acc, curr) => acc + curr.aulas_total, 0) || 0}
+              </div>
+              <span className="text-[10px] text-slate-500">Aulas pendentes</span>
+            </div>
+
+            <div className="rounded-xl border border-amber-100 bg-white/80 p-3.5 dark:border-amber-900/40 dark:bg-slate-800/60">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                Vencendo
+              </span>
+              <div className="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
+                {reposicoesAulas?.filter(r => {
+                  if (r.status !== 'pendente') return false;
+                  const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  return diff >= 0 && diff <= 5;
+                }).length || 0}
+              </div>
+              <span className="text-[10px] text-slate-500">≤ 5 dias restantes</span>
+            </div>
+
+            <div className="rounded-xl border border-red-200 bg-red-50/60 p-3.5 dark:border-red-900/50 dark:bg-red-950/40">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+                Vencidas
+              </span>
+              <div className="mt-1 text-2xl font-black text-red-600 dark:text-red-400">
+                {reposicoesAulas?.filter(r => {
+                  if (r.status !== 'pendente') return false;
+                  const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  return diff < 0;
+                }).length || 0}
+              </div>
+              <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">Prazo expirado</span>
+            </div>
+          </div>
+
+          {/* Reposições aguardando homologação */}
+          <div className="mt-4 space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Reposições Pendentes de Homologação:
+            </span>
+            {reposicoesAulas?.filter(r => r.status === 'pendente').slice(0, 2).map((rep) => {
+              const prof = professores.find(p => p.id === rep.professor_id);
+              const diffDias = Math.ceil((new Date(rep.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              const vencida = diffDias < 0;
+              return (
+                <div key={rep.id} className="flex items-center justify-between rounded-xl bg-white/90 p-2.5 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{prof?.nome || 'Professor'}</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                      {rep.aulas_total} aula(s) • Limite: {new Date(rep.data_limite + 'T00:00:00').toLocaleDateString('pt-BR')} 
+                      {' '}({vencida ? <strong className="text-red-600">Vencido</strong> : `${diffDias}d restantes`})
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => homologarReposicaoAula(rep.id, true)}
+                    className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition-colors"
+                  >
+                    Homologar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* Seção Gráfica: Gráfico 1 (Barras) e Gráfico 2 (Donut / Rosca) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Gráfico 1 (Barras): Distribuição por Turma e por Turno Agrupada por Grupo (7 Colunas) */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface lg:col-span-7">
+        {/* Gráfico 1 (Barras): Distribuição por Turma e por Turno Agrupada por Grupo (Oculto se Inclusão estiver em Área Expandida) */}
+        <div className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 ${inclusaoExpandido ? 'hidden' : 'lg:col-span-7'}`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -783,12 +963,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Bloco: Inclusão (Estudantes com Laudo Médico & Disparo WhatsApp) */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface lg:col-span-5 flex flex-col justify-between">
+        {/* Bloco: Inclusão (Estudantes com Laudo Médico & Disparo WhatsApp) - Suporte a Expansão e Recolhimento */}
+        <div className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 flex flex-col justify-between ${
+          inclusaoExpandido ? 'lg:col-span-12 ring-2 ring-emerald-500/25 shadow-md' : 'lg:col-span-5'
+        }`}>
           <div>
-            <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex items-center justify-between gap-2">
+            <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
                   <HeartHandshake className="h-5 w-5" />
                 </div>
                 <div>
@@ -801,83 +983,130 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
-                {totalLaudoMarcado} laudo(s) ({pctAlunadoComLaudoMarcado}%)
-              </span>
-            </div>
-
-            {/* Banner Informativo Rápido: Contando % do alunado apenas com laudo marcado */}
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-emerald-50/70 p-3 text-xs dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50">
               <div className="flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-semibold text-emerald-900 dark:text-emerald-200">
-                  Laudo Médico Homologado
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
+                  {totalLaudoMarcado} laudo(s) ({pctAlunadoComLaudoMarcado}%)
                 </span>
+
+                {/* Controles: Área Estendida (Maximize/Minimize) & Recolher/Expandir (Accordion) */}
+                <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/60">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInclusaoExpandido((prev) => !prev);
+                      if (inclusaoRecolhido) setInclusaoRecolhido(false);
+                    }}
+                    className={`rounded-lg p-1.5 transition-all ${
+                      inclusaoExpandido
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white'
+                    }`}
+                    title={inclusaoExpandido ? 'Restaurar layout padrão (5 colunas)' : 'Expandir bloco de Inclusão (Área Estendida 12 colunas)'}
+                    aria-label={inclusaoExpandido ? 'Restaurar layout padrão' : 'Expandir bloco'}
+                  >
+                    {inclusaoExpandido ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setInclusaoRecolhido((prev) => !prev)}
+                    className={`rounded-lg p-1.5 transition-all ${
+                      inclusaoRecolhido
+                        ? 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
+                        : 'text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white'
+                    }`}
+                    title={inclusaoRecolhido ? 'Expandir conteúdo do bloco' : 'Recolher conteúdo do bloco (Accordion)'}
+                    aria-label={inclusaoRecolhido ? 'Expandir conteúdo' : 'Recolher conteúdo'}
+                  >
+                    {inclusaoRecolhido ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-              <span className="font-bold text-emerald-700 dark:text-emerald-300">
-                {pctAlunadoComLaudoMarcado}% do alunado ({totalLaudoMarcado} estudantes)
-              </span>
             </div>
 
-            {/* Lista dos Estudantes com Laudo Médico */}
-            <div className="mt-4">
-              {estudantesComLaudo.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-2" />
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                    Nenhum estudante com laudo cadastrado
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Todos os cadastros estão regulares no setor pedagógico.
-                  </p>
+            {/* Conteúdo Expansível / Recolhível */}
+            {!inclusaoRecolhido && (
+              <div className="transition-all duration-300">
+                {/* Banner Informativo Rápido */}
+                <div className="mt-4 flex items-center justify-between rounded-xl bg-emerald-50/70 p-3 text-xs dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-semibold text-emerald-900 dark:text-emerald-200">
+                      Laudo Médico Homologado
+                    </span>
+                  </div>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                    {pctAlunadoComLaudoMarcado}% do alunado ({totalLaudoMarcado} estudantes)
+                  </span>
                 </div>
-              ) : (
-                <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                  {estudantesComLaudo.map((est) => {
-                    const turmaInfo = obterInfoTurma(est.turma_id, est.turma_nome);
-                    const temTelefone = Boolean(est.telefone_responsavel && est.telefone_responsavel.trim() !== '');
 
-                    return (
-                      <div
-                        key={est.id}
-                        onClick={() => handleAbrirWhatsAppInclusao(est)}
-                        className="group relative cursor-pointer rounded-2xl border border-emerald-200/80 bg-white p-4 transition-all hover:border-emerald-500 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-emerald-600"
-                        title="Clique para abrir a tela de envio do WhatsApp"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            {/* Nome Completo e Turma */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                                {est.nome_completo}
-                              </h4>
-                              <span className="inline-flex items-center gap-1 rounded-md bg-school-blue-50 px-2 py-0.5 text-[10px] font-bold text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300 border border-school-blue-200/60 dark:border-school-blue-800/60">
-                                <GraduationCap className="h-3 w-3" />
-                                {turmaInfo.nome}
-                              </span>
-                              {est.aee && (
-                                <span className="rounded-md bg-purple-100 px-1.5 py-0.5 text-[10px] font-extrabold text-purple-700 dark:bg-purple-950 dark:text-purple-300">
-                                  AEE
-                                </span>
-                              )}
+                {/* Lista dos Estudantes com Laudo Médico */}
+                <div className="mt-4">
+                  {estudantesComLaudo.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-2" />
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                        Nenhum estudante com laudo cadastrado
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Todos os cadastros estão regulares no setor pedagógico.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className={
+                      inclusaoExpandido
+                        ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 max-h-[620px] overflow-y-auto pr-1"
+                        : "space-y-3 max-h-[380px] overflow-y-auto pr-1"
+                    }>
+                      {estudantesComLaudo.map((est) => {
+                        const turmaInfo = obterInfoTurma(est.turma_id, est.turma_nome);
+                        const temTelefone = Boolean(est.telefone_responsavel && est.telefone_responsavel.trim() !== '');
+
+                        return (
+                          <div
+                            key={est.id}
+                            onClick={() => handleAbrirWhatsAppInclusao(est)}
+                            className="group relative cursor-pointer rounded-2xl border border-emerald-200/80 bg-white p-4 transition-all hover:border-emerald-500 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-emerald-600 flex flex-col justify-between"
+                            title="Clique para abrir a tela de envio do WhatsApp"
+                          >
+                            <div>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  {/* Nome Completo e Turma */}
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                                      {est.nome_completo}
+                                    </h4>
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-school-blue-50 px-2 py-0.5 text-[10px] font-bold text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300 border border-school-blue-200/60 dark:border-school-blue-800/60">
+                                      <GraduationCap className="h-3 w-3" />
+                                      {turmaInfo.nome}
+                                    </span>
+                                    {est.aee && (
+                                      <span className="rounded-md bg-purple-100 px-1.5 py-0.5 text-[10px] font-extrabold text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                                        AEE
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Informações Rápidas: Laudo Médico */}
+                                  <div className="mt-2 rounded-xl bg-slate-50 p-2.5 text-xs text-slate-700 dark:bg-slate-800/70 dark:text-slate-300 border border-slate-100 dark:border-slate-700/50">
+                                    <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                      Laudo:{' '}
+                                    </span>
+                                    <span>{est.laudo_descricao || 'Laudo médico registrado na ficha do estudante'}</span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
 
-                            {/* Informações Rápidas: Laudo Médico */}
-                            <div className="mt-2 rounded-xl bg-slate-50 p-2.5 text-xs text-slate-700 dark:bg-slate-800/70 dark:text-slate-300 border border-slate-100 dark:border-slate-700/50">
-                              <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                                Laudo:{' '}
-                              </span>
-                              <span>{est.laudo_descricao || 'Laudo médico registrado na ficha do estudante'}</span>
-                            </div>
-
-                            {/* Telefone de Contato */}
-                            <div className="mt-2.5 flex items-center justify-between text-xs flex-wrap gap-2">
+                            {/* Telefone de Contato e Ação WhatsApp */}
+                            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs flex-wrap gap-2">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[11px] text-slate-500 dark:text-slate-400">
                                   Contato:
                                 </span>
                                 {temTelefone ? (
-                                  <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-lg border border-emerald-200/60 dark:border-emerald-800/60 font-mono">
+                                  <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-lg border border-emerald-200/60 dark:border-emerald-800/60 font-mono text-[11px]">
                                     <Phone className="h-3 w-3 text-emerald-600" />
                                     {est.telefone_responsavel}
                                   </span>
@@ -887,7 +1116,7 @@ export default function DashboardPage() {
                                   </span>
                                 )}
                                 {est.nome_responsavel && (
-                                  <span className="text-[11px] text-slate-400 truncate max-w-[140px]">
+                                  <span className="text-[11px] text-slate-400 truncate max-w-[130px]">
                                     ({est.nome_responsavel})
                                   </span>
                                 )}
@@ -907,21 +1136,23 @@ export default function DashboardPage() {
                               </button>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Clique no card ou no botão para abrir o WhatsApp</span>
-            <Link href="/estudantes?filtroAee=com_aee" className="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">
-              Ver Todos da Inclusão →
-            </Link>
-          </div>
+          {!inclusaoRecolhido && (
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>Clique no card ou no botão para abrir o WhatsApp</span>
+              <Link href="/estudantes?filtroAee=com_aee" className="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">
+                Ver Todos da Inclusão →
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1453,7 +1684,7 @@ export default function DashboardPage() {
                 />
               </div>
               <p className="text-[10px] text-emerald-700 dark:text-emerald-400 pt-0.5">
-                Histórico escolar completo arquivado no prontuário do aluno.
+                Histórico escolar completo arquivado na pasta do aluno.
               </p>
             </div>
           </div>

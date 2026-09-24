@@ -40,3 +40,8 @@ next-env.d.ts
 _tmp_*
 node_modules_old/
 package/
+backup_*.json
+synced_*.json
+*.sqlite
+*.db
+

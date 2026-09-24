@@ -75,10 +75,16 @@ export default function ProfessoresPage() {
     toggleProfessorApoio, 
     addFaltaProfessor, 
     toggleHomologarFalta, 
-    turmas 
+    turmas,
+    reposicoesAulas,
+    atestadosProfessor,
+    homologarReposicaoAula,
+    aprovarAtestadoProfessor,
+    deleteReposicaoAula,
+    deleteAtestadoProfessor
   } = useApp();
 
-  const [abaAtiva, setAbaAtiva] = useState<'docentes' | 'faltas'>('docentes');
+  const [abaAtiva, setAbaAtiva] = useState<'docentes' | 'faltas' | 'reposicoes' | 'atestados'>('docentes');
   // Controle de filtro de visualização: 'ativos' (padrão inicial), 'inativos', 'todos'
   const [filtroStatus, setFiltroStatus] = useState<'ativos' | 'inativos' | 'todos'>('ativos');
 
@@ -308,10 +314,10 @@ export default function ProfessoresPage() {
       </div>
 
       {/* Alternador de Abas */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-0.5">
         <button
           onClick={() => setAbaAtiva('docentes')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all shrink-0 ${
             abaAtiva === 'docentes'
               ? 'border-school-blue-600 text-school-blue-600 dark:border-school-gold-400 dark:text-school-gold-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -323,14 +329,38 @@ export default function ProfessoresPage() {
 
         <button
           onClick={() => setAbaAtiva('faltas')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all shrink-0 ${
             abaAtiva === 'faltas'
               ? 'border-school-blue-600 text-school-blue-600 dark:border-school-gold-400 dark:text-school-gold-400'
               : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           <Calendar className="h-4 w-4" />
-          <span>Registro de Faltas & Atestados ({faltasProfessores.length})</span>
+          <span>Registro de Faltas ({faltasProfessores.length})</span>
+        </button>
+
+        <button
+          onClick={() => setAbaAtiva('reposicoes')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all shrink-0 ${
+            abaAtiva === 'reposicoes'
+              ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Clock className="h-4 w-4" />
+          <span>Reposições (Regra 30d) ({reposicoesAulas.length})</span>
+        </button>
+
+        <button
+          onClick={() => setAbaAtiva('atestados')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all shrink-0 ${
+            abaAtiva === 'atestados'
+              ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <FileText className="h-4 w-4" />
+          <span>Atestados Médicos ({atestadosProfessor.length})</span>
         </button>
       </div>
 
@@ -601,6 +631,395 @@ export default function ProfessoresPage() {
           </div>
         </div>
       )}
+
+      {/* ABA 3: Gestão de Reposições de Aulas (Regra dos 30 Dias) */}
+      {abaAtiva === 'reposicoes' && (() => {
+        const totalAulasARepor = reposicoesAulas.filter(r => r.status === 'pendente').reduce((a, c) => a + c.aulas_total, 0);
+        const reposicoesPendentes = reposicoesAulas.filter(r => r.status === 'pendente');
+        const reposicoesVencidas = reposicoesPendentes.filter(r => {
+          const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          return diff < 0;
+        });
+        const reposicoesAlerta = reposicoesPendentes.filter(r => {
+          const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          return diff >= 0 && diff <= 5;
+        });
+        const reposicoesRegulares = reposicoesPendentes.filter(r => {
+          const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          return diff > 5;
+        });
+        const reposicoesHomologadas = reposicoesAulas.filter(r => r.status === 'reposta' || r.homologado_por_admin);
+
+        return (
+          <div className="space-y-6">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-school-dark-surface">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Total de Aulas a Repor
+                </span>
+                <div className="mt-2 text-3xl font-black text-slate-900 dark:text-white">
+                  {totalAulasARepor}
+                </div>
+                <span className="text-[10px] text-slate-400">em aberto</span>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                  No Prazo (&gt; 5 dias)
+                </span>
+                <div className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-300">
+                  {reposicoesRegulares.length}
+                </div>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400">🟢 Situação Regular</span>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                  Vencendo (≤ 5 dias)
+                </span>
+                <div className="mt-2 text-3xl font-black text-amber-700 dark:text-amber-300">
+                  {reposicoesAlerta.length}
+                </div>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400">🟡 Alerta Próximo</span>
+              </div>
+
+              <div className="rounded-2xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-red-800 dark:text-red-300">
+                  Vencidas (&gt; 30 dias)
+                </span>
+                <div className="mt-2 text-3xl font-black text-red-700 dark:text-red-300">
+                  {reposicoesVencidas.length}
+                </div>
+                <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">🔴 Débito Crítico</span>
+              </div>
+
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                  Homologadas
+                </span>
+                <div className="mt-2 text-3xl font-black text-blue-700 dark:text-blue-300">
+                  {reposicoesHomologadas.length}
+                </div>
+                <span className="text-[10px] text-blue-600 dark:text-blue-400">Aulas validadas</span>
+              </div>
+            </div>
+
+            {/* Ranking de Débito de Reposições por Professor */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-school-dark-surface space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-rose-600" />
+                Ranking de Débito de Reposições por Docente (Regra dos 30 Dias)
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {professores.map((prof) => {
+                  const repsProf = reposicoesAulas.filter(r => r.professor_id === prof.id && r.status === 'pendente');
+                  const totalAulas = repsProf.reduce((a, c) => a + c.aulas_total, 0);
+                  const vencidas = repsProf.filter(r => {
+                    const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    return diff < 0;
+                  }).length;
+
+                  return (
+                    <div key={prof.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50 flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-slate-900 dark:text-white text-xs block">
+                          {prof.nome_completo}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {prof.disciplinas?.join(', ') || 'Polivalente'}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-base font-black ${totalAulas > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          {totalAulas} aula(s)
+                        </span>
+                        {vencidas > 0 && (
+                          <span className="text-[9px] font-bold text-red-600 block">
+                            {vencidas} vencida(s)!
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Tabela de Reposições */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-school-dark-surface">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">Docente</th>
+                    <th className="px-4 py-3">Data Falta</th>
+                    <th className="px-4 py-3">Data Limite (30d)</th>
+                    <th className="px-4 py-3">Tolerância</th>
+                    <th className="px-4 py-3">Aulas</th>
+                    <th className="px-4 py-3">Conteúdo Previsto</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Ação Direção</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {reposicoesAulas.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400">
+                        Nenhuma reposição de aula registrada.
+                      </td>
+                    </tr>
+                  ) : (
+                    reposicoesAulas.map((rep) => {
+                      const prof = professores.find(p => p.id === rep.professor_id);
+                      const diff = Math.ceil((new Date(rep.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                      const vencida = diff < 0;
+                      const alerta = diff >= 0 && diff <= 5;
+                      const homologada = rep.status === 'reposta' || rep.homologado_por_admin;
+
+                      return (
+                        <tr key={rep.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
+                            {prof?.nome_completo || 'Docente'}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                            {new Date(rep.data_falta + 'T00:00:00').toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
+                            {new Date(rep.data_limite + 'T00:00:00').toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {homologada ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-extrabold text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Reposta
+                              </span>
+                            ) : vencida ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-extrabold text-red-800 dark:bg-red-950 dark:text-red-300">
+                                <AlertTriangle className="h-3 w-3" />
+                                🔴 Vencida ({Math.abs(diff)}d em atraso)
+                              </span>
+                            ) : alerta ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                <Clock className="h-3 w-3" />
+                                🟡 Vencendo ({diff}d restantes)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                🟢 No prazo ({diff}d restantes)
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 font-bold">
+                            {rep.aulas_total} aula(s)
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 max-w-xs truncate">
+                            {rep.conteudo_programatico || 'Reposição curricular'}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="uppercase text-[10px] font-black tracking-wider text-slate-600 dark:text-slate-300">
+                              {rep.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => homologarReposicaoAula(rep.id, !homologada)}
+                                className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                                  homologada
+                                    ? 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                                }`}
+                              >
+                                {homologada ? 'Reabrir' : 'Homologar'}
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  if (confirm('Excluir este registro de reposição de aula?')) {
+                                    deleteReposicaoAula(rep.id);
+                                  }
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ABA 4: Gestão de Atestados Médicos dos Professores */}
+      {abaAtiva === 'atestados' && (() => {
+        const totalAtestados = atestadosProfessor.length;
+        const totalDiasAbonados = atestadosProfessor.reduce((a, c) => a + c.dias_afastamento, 0);
+        const aprovados = atestadosProfessor.filter(a => a.status === 'aprovado').length;
+        const pendentes = atestadosProfessor.filter(a => a.status === 'pendente').length;
+
+        return (
+          <div className="space-y-6">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-school-dark-surface">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Total de Atestados
+                </span>
+                <div className="mt-2 text-3xl font-black text-slate-900 dark:text-white">
+                  {totalAtestados}
+                </div>
+                <span className="text-[10px] text-slate-400">registrados no Drive</span>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                  Dias Abonados
+                </span>
+                <div className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-300">
+                  {totalDiasAbonados}
+                </div>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400">afastamentos justificados</span>
+              </div>
+
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                  Homologados
+                </span>
+                <div className="mt-2 text-3xl font-black text-blue-700 dark:text-blue-300">
+                  {aprovados}
+                </div>
+                <span className="text-[10px] text-blue-600 dark:text-blue-400">validados pela direção</span>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                  Aguardando Validação
+                </span>
+                <div className="mt-2 text-3xl font-black text-amber-700 dark:text-amber-300">
+                  {pendentes}
+                </div>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400">análise pendente</span>
+              </div>
+            </div>
+
+            {/* Tabela de Atestados */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-school-dark-surface">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">Docente</th>
+                    <th className="px-4 py-3">CID & Motivo</th>
+                    <th className="px-4 py-3">Período</th>
+                    <th className="px-4 py-3">Dias</th>
+                    <th className="px-4 py-3">CRM / Médico</th>
+                    <th className="px-4 py-3">Documento (Drive)</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Ação Direção</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {atestadosProfessor.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400">
+                        Nenhum atestado médico registrado.
+                      </td>
+                    </tr>
+                  ) : (
+                    atestadosProfessor.map((atest) => {
+                      const prof = professores.find(p => p.id === atest.professor_id);
+                      return (
+                        <tr key={atest.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
+                            {prof?.nome_completo || 'Docente'}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">CID: {atest.cid || 'N/I'}</span>
+                            <span className="text-[11px] text-slate-500 block truncate max-w-xs">{atest.motivo || 'Licença médica'}</span>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                            {new Date(atest.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(atest.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="px-4 py-3.5 font-black text-slate-900 dark:text-white">
+                            {atest.dias_afastamento} dia(s)
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
+                            {atest.crm_medico ? `CRM ${atest.crm_medico}` : 'Não informado'}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {atest.drive_view_url ? (
+                              <a
+                                href={atest.drive_view_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 font-bold text-school-blue-600 hover:underline dark:text-school-gold-400"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                <span>Ver Atestado</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 italic">Sem link</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${
+                              atest.status === 'aprovado'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : atest.status === 'rejeitado'
+                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                            }`}>
+                              {atest.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {atest.status !== 'aprovado' ? (
+                                <button
+                                  onClick={() => aprovarAtestadoProfessor(atest.id, true)}
+                                  className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 shadow-sm transition-colors"
+                                >
+                                  Aprovar
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => aprovarAtestadoProfessor(atest.id, false)}
+                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
+                                >
+                                  Revogar
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  if (confirm('Excluir este atestado médico?')) {
+                                    deleteAtestadoProfessor(atest.id);
+                                  }
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL 1: Cadastrar Novo Professor (Em Caixa Alta) */}
       {modalNovoProfAberto && (

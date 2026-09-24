@@ -224,21 +224,138 @@ BEGIN
 END;
 
 -- ==========================================================
+-- 10. MÓDULO: RELATÓRIOS PEDAGÓGICOS COLABORATIVOS COM IA
+-- ==========================================================
+CREATE TABLE IF NOT EXISTS solicitacoes_relatorio (
+    id TEXT PRIMARY KEY,
+    aluno_id TEXT NOT NULL REFERENCES estudantes(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'concluido')),
+    data_solicitacao TEXT NOT NULL,
+    admin_solicitante_id TEXT REFERENCES users(id),
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS relatorios_professores (
+    id TEXT PRIMARY KEY,
+    solicitacao_id TEXT NOT NULL REFERENCES solicitacoes_relatorio(id) ON DELETE CASCADE,
+    professor_id TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
+    rascunho_original TEXT,
+    texto_ia TEXT,
+    texto_final TEXT,
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'enviado')),
+    data_envio TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS relatorios_consolidados (
+    id TEXT PRIMARY KEY,
+    solicitacao_id TEXT NOT NULL REFERENCES solicitacoes_relatorio(id) ON DELETE CASCADE,
+    conteudo_final TEXT NOT NULL,
+    data_geracao TEXT NOT NULL,
+    arquivo_docx_url TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS notificacoes_admin (
+    id TEXT PRIMARY KEY,
+    relatorio_professor_id TEXT REFERENCES relatorios_professores(id) ON DELETE CASCADE,
+    solicitacao_id TEXT,
+    professor_id TEXT,
+    professor_nome TEXT,
+    aluno_nome TEXT,
+    lido INTEGER NOT NULL DEFAULT 0,
+    data_criacao TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 11. OBSERVAÇÕES CONTÍNUAS DO ESTUDANTE (FICHA DO ALUNO)
+CREATE TABLE IF NOT EXISTS observacoes_aluno (
+    id TEXT PRIMARY KEY,
+    aluno_id TEXT NOT NULL REFERENCES estudantes(id) ON DELETE CASCADE,
+    autor_id TEXT NOT NULL,
+    autor_nome TEXT,
+    autor_cargo TEXT,
+    tipo TEXT NOT NULL CHECK (tipo IN ('comportamental', 'pedagogico', 'saude', 'geral')),
+    texto TEXT NOT NULL,
+    data_registro TEXT NOT NULL
+);
+
+-- 12. REPOSITÓRIO DE DOCUMENTOS DO ESTUDANTE NO GOOGLE DRIVE
+CREATE TABLE IF NOT EXISTS documentos_estudante (
+    id TEXT PRIMARY KEY,
+    aluno_id TEXT NOT NULL REFERENCES estudantes(id) ON DELETE CASCADE,
+    drive_file_id TEXT,
+    nome_arquivo TEXT NOT NULL,
+    url_visualizacao TEXT,
+    tipo_documento TEXT NOT NULL CHECK (tipo_documento IN ('Historico', 'Ficha Cadastral', 'Documentos Pessoais', 'Atestado', 'Outros')),
+    uploader_id TEXT,
+    data_upload TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 13. GESTÃO DE ATESTADOS DOS PROFESSORES (GOOGLE DRIVE)
+CREATE TABLE IF NOT EXISTS atestados_professor (
+    id TEXT PRIMARY KEY,
+    professor_id TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
+    drive_file_id TEXT,
+    nome_arquivo TEXT,
+    data_inicio TEXT NOT NULL,
+    data_fim TEXT NOT NULL,
+    dias_afastamento INTEGER NOT NULL DEFAULT 1,
+    motivo_cid TEXT,
+    data_upload TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    permite_exclusao INTEGER NOT NULL DEFAULT 1
+);
+
+-- 14. LÓGICA DE DÉBITO & REPOSIÇÃO DE AULAS (REGRA DOS 30 DIAS)
+CREATE TABLE IF NOT EXISTS reposicoes_aulas (
+    id TEXT PRIMARY KEY,
+    professor_id TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
+    data_falta TEXT NOT NULL,
+    qtd_aulas_faltantes INTEGER NOT NULL DEFAULT 1,
+    data_limite_reposicao TEXT NOT NULL, -- Calculado: data_falta + 30 dias
+    data_execucao_reposicao TEXT,
+    horario_reposicao TEXT,
+    conteudo_lecionado TEXT,
+    turma_id TEXT REFERENCES turmas(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'Pendente' CHECK (status IN ('Pendente', 'Reposta', 'Vencida')),
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 15. SEGURANÇA: RATE LIMITING & TENTATIVAS DE LOGIN
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id TEXT PRIMARY KEY,
+    ip_address TEXT NOT NULL,
+    failed_attempts INTEGER NOT NULL DEFAULT 1,
+    blocked_until TEXT,
+    last_attempt TEXT NOT NULL
+);
+
+-- ==========================================================
 -- ÍNDICES PARA PERFORMANCE NO TURSO / SQLITE
 -- ==========================================================
 CREATE INDEX IF NOT EXISTS idx_estudantes_turma ON estudantes(turma_id);
 CREATE INDEX IF NOT EXISTS idx_estudantes_status ON estudantes(status_matricula);
 CREATE INDEX IF NOT EXISTS idx_documentos_estudante ON documentos_estudantes(estudante_id);
+CREATE INDEX IF NOT EXISTS idx_documentos_estudante_aluno ON documentos_estudante(aluno_id);
 CREATE INDEX IF NOT EXISTS idx_faltas_prof_data ON faltas_professores(data_falta);
 CREATE INDEX IF NOT EXISTS idx_eventos_inicio ON eventos(data_inicio);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action_type);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_class ON activity_logs(target_class_id);
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_aluno ON solicitacoes_relatorio(aluno_id);
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_status ON solicitacoes_relatorio(status);
+CREATE INDEX IF NOT EXISTS idx_relatorios_prof_solic ON relatorios_professores(solicitacao_id);
+CREATE INDEX IF NOT EXISTS idx_relatorios_prof_id ON relatorios_professores(professor_id);
+CREATE INDEX IF NOT EXISTS idx_notificacoes_admin_lido ON notificacoes_admin(lido);
+CREATE INDEX IF NOT EXISTS idx_observacoes_aluno ON observacoes_aluno(aluno_id);
+CREATE INDEX IF NOT EXISTS idx_atestados_prof ON atestados_professor(professor_id);
+CREATE INDEX IF NOT EXISTS idx_reposicoes_prof ON reposicoes_aulas(professor_id);
+CREATE INDEX IF NOT EXISTS idx_reposicoes_status ON reposicoes_aulas(status);
 
 -- ==========================================================
 -- DADOS INICIAIS DE DEMONSTRAÇÃO (SEED)
 -- ==========================================================
 INSERT OR IGNORE INTO config_escola (id, nome_escola, codigo_inep, cnpj, endereco, telefone, email)
 VALUES ('cfg-001', 'Colégio Integrado PLUGUE', '35019827', '12.345.678/0001-90', 'Av. Central do Saber, 1500 - Bairro Universitário', '(11) 4002-8922', 'secretaria@plugue.edu.br');
+
 

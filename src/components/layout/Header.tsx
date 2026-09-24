@@ -17,7 +17,8 @@ import {
   CheckCheck,
   FileText,
   Clock,
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -38,7 +39,8 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
     setCurrentUser,
     notificacoesAdmin,
     marcarNotificacaoLida,
-    marcarTodasNotificacoesLidas
+    marcarTodasNotificacoesLidas,
+    logout
   } = useApp();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
@@ -179,6 +181,18 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
                   );
                 })}
               </div>
+              <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => {
+                    setUserDropdownOpen(false);
+                    logout();
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 p-2 text-xs font-bold border border-rose-200 dark:border-rose-900/60 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sair do Sistema</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -302,6 +316,17 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
           ) : (
             <Moon className="h-4 w-4 transition-transform -rotate-12 hover:rotate-0" />
           )}
+        </button>
+
+        {/* Botão de Sair / Deslogar do Sistema */}
+        <button
+          onClick={logout}
+          aria-label="Sair do Sistema"
+          title="Encerrar Sessão e Sair do Sistema"
+          className="relative flex items-center gap-1.5 h-9 rounded-xl border border-rose-200 bg-rose-50/80 px-2.5 sm:px-3 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 shadow-sm transition-all active:scale-95"
+        >
+          <LogOut className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          <span className="hidden sm:inline">Sair</span>
         </button>
       </div>
     </header>

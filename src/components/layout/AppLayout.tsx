@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useApp } from '@/context/AppContext';
@@ -10,12 +10,35 @@ import { MustChangePasswordModal } from '@/components/auth/MustChangePasswordMod
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const { sidebarCollapsed } = useApp();
+  const { sidebarCollapsed, isAuthenticated, isInitialized } = useApp();
   const pathname = usePathname();
+  const router = useRouter();
 
   // Rotas de autenticação (como /login) ocupam a tela inteira com layout imersivo
   if (pathname === '/login') {
     return <main className="w-full min-h-screen">{children}</main>;
+  }
+
+  // Toda vez que iniciar o sistema tem que solicitar o login:
+  // Redireciona imediatamente para /login caso não haja sessão ativa
+  useEffect(() => {
+    if (isInitialized && !isAuthenticated && pathname !== '/login') {
+      router.replace('/login');
+    }
+  }, [isInitialized, isAuthenticated, pathname, router]);
+
+  // Se ainda estiver inicializando ou não autenticado em rota protegida, exibe transição suave
+  if (!isInitialized || !isAuthenticated) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-9 w-9 animate-spin rounded-full border-4 border-school-gold-400 border-t-transparent shadow-lg shadow-school-gold-500/20" />
+          <span className="text-xs text-slate-400 font-medium tracking-wide">
+            Verificando credenciais de acesso ao PLUGUE OS...
+          </span>
+        </div>
+      </div>
+    );
   }
 
   return (

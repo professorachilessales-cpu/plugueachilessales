@@ -214,10 +214,15 @@ export default function LoginPage() {
       if (data.user) {
         setCurrentUser({
           id: data.user.id,
-          nome: data.user.name,
-          email: data.user.email,
+          name: data.user.name,
+          email: data.user.email || '',
           role: data.user.role,
           cpf: data.user.cpf,
+          password_hash: '',
+          allowed_modules: data.user.allowed_modules || ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'],
+          must_change_password: Boolean(data.user.must_change_password),
+          is_active: true,
+          created_at: new Date().toISOString(),
         });
         setRole(data.user.role);
       }

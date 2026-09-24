@@ -59,6 +59,11 @@ interface AppContextType {
   toggleSidebarCollapsed: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
 
+  // Autenticação & Sessão
+  isAuthenticated: boolean;
+  isInitialized: boolean;
+  logout: () => Promise<void>;
+
   // Gestão de Usuários & RBAC
   users: SystemUser[];
   currentUser: SystemUser;
@@ -173,6 +178,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(false);
   const [users, setUsers] = useState<SystemUser[]>(initialUsers);
   const [currentUser, setCurrentUserState] = useState<SystemUser>(initialUsers[0]);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Inicialização com LocalStorage
@@ -215,14 +221,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Usuário Atual
-      const savedCurrentUserId = localStorage.getItem('school_os_current_user_id');
-      if (savedCurrentUserId) {
-        const found = loadedUsers.find(u => u.id === savedCurrentUserId);
-        if (found) {
-          setCurrentUserState(found);
-          setRoleState(found.role);
+      // -------------------------------------------------------------
+      // Autenticação & Sessão:
+      // Regra: "Toda vez que iniciar o sistema tem que solicitar o login"
+      // Verifica se existe sessão ativa em sessionStorage
+      // -------------------------------------------------------------
+      const isSessionActive = sessionStorage.getItem('plugue_session_active');
+      const sessionUserJson = sessionStorage.getItem('plugue_session_user');
+
+      if (isSessionActive === 'true' && sessionUserJson) {
+        try {
+          const parsedUser = JSON.parse(sessionUserJson);
+          setCurrentUserState(parsedUser);
+          setRoleState(parsedUser.role);
+          setIsAuthenticated(true);
+        } catch {
+          setIsAuthenticated(false);
         }
+      } else {
+        // Nenhuma sessão ativa no momento da inicialização -> exige login
+        setIsAuthenticated(false);
       }
 
       // Tema
@@ -627,8 +645,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setCurrentUser = (user: SystemUser) => {
     setCurrentUserState(user);
     setRoleState(user.role);
-    localStorage.setItem('school_os_current_user_id', user.id);
-    localStorage.setItem('school_os_role', user.role);
+    setIsAuthenticated(true);
+    try {
+      sessionStorage.setItem('plugue_session_active', 'true');
+      sessionStorage.setItem('plugue_session_user', JSON.stringify(user));
+      localStorage.setItem('school_os_current_user_id', user.id);
+      localStorage.setItem('school_os_role', user.role);
+    } catch (e) {
+      console.error('Falha ao salvar sessão:', e);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Falha ao deslogar da API:', err);
+    }
+
+    try {
+      sessionStorage.removeItem('plugue_session_active');
+      sessionStorage.removeItem('plugue_session_user');
+      localStorage.removeItem('school_os_current_user_id');
+      localStorage.removeItem('plugue_lembrar_usuario');
+    } catch (e) {
+      // ignore
+    }
+
+    setIsAuthenticated(false);
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
   };
 
   const setRole = (newRole: UserRole) => {
@@ -1492,6 +1539,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         users,
         currentUser,
         setCurrentUser,
+        isAuthenticated,
+        isInitialized,
+        logout,
         addUser,
         updateUser,
         resetUserPassword,

@@ -20,6 +20,7 @@ import {
   UserCog,
   GraduationCap,
   Sparkles,
+  LogOut,
 } from 'lucide-react';
 import { AllowedModule } from '@/lib/types';
 
@@ -30,7 +31,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
   const pathname = usePathname() || '';
-  const { role, sidebarCollapsed, toggleSidebarCollapsed, currentUser } = useApp();
+  const { role, sidebarCollapsed, toggleSidebarCollapsed, currentUser, logout } = useApp();
 
   const allNavItems = [
     {
@@ -301,7 +302,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
         </nav>
 
         {/* Rodapé da Sidebar */}
-        <div className="border-t border-slate-200 p-3 dark:border-school-dark-border">
+        <div className="border-t border-slate-200 p-3 dark:border-school-dark-border space-y-2">
           {!sidebarCollapsed ? (
             <div className="rounded-xl bg-gradient-to-br from-school-blue-900 to-slate-900 p-3 text-white shadow-sm">
               <div className="flex items-center gap-2">
@@ -329,6 +330,20 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
               </button>
             </div>
           )}
+
+          {/* Botão de Sair / Deslogar no Rodapé da Barra Lateral */}
+          <button
+            onClick={logout}
+            title="Encerrar Sessão e Sair do Sistema"
+            className={`w-full flex items-center rounded-xl p-2.5 text-xs font-bold transition-all ${
+              sidebarCollapsed
+                ? 'justify-center text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/60'
+                : 'gap-2.5 bg-rose-50/70 text-rose-700 hover:bg-rose-100 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/50 dark:hover:bg-rose-900/60 shadow-sm'
+            }`}
+          >
+            <LogOut className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+            {!sidebarCollapsed && <span>Sair do Sistema</span>}
+          </button>
         </div>
       </aside>
     </>

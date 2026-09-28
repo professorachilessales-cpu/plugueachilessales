@@ -337,12 +337,45 @@ export function FotoEstudanteField({
             </span>
           </div>
 
-          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-            Armazenamento automático e seguro no Google Drive em: <br />
-            <code className="text-[11px] font-bold text-school-blue-700 dark:text-school-blue-300 bg-white/70 dark:bg-slate-800/80 px-2 py-0.5 rounded-md border border-school-blue-200 dark:border-slate-700">
-              PLUGUE / FICHA DOS ESTUDANTES / {nomeEstudante ? nomeEstudante.toUpperCase() : '{NOME DO ALUNO}'}
-            </code>
-          </p>
+          {/* Árvore de Diretórios Padronizada do Google Drive */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+              Estrutura Oficial de Diretórios no Google Drive:
+            </span>
+            <div className="rounded-xl bg-slate-900 dark:bg-slate-950 p-2.5 sm:p-3 text-slate-300 font-mono text-[11px] border border-slate-700/60 shadow-inner">
+              <div className="flex items-center gap-1.5 text-school-gold-400 font-bold">
+                <FolderOpen className="h-3.5 w-3.5 text-school-gold-400 shrink-0" />
+                <span>FICHA DOS ESTUDANTES/</span>
+              </div>
+              <div className="pl-3 sm:pl-4 border-l border-slate-700/70 ml-1.5 mt-1 space-y-0.5">
+                <div className="flex items-center gap-1.5 text-amber-300">
+                  <span className="text-slate-500">└──</span>
+                  <span className="font-bold">[{nomeEstudante ? (nomeEstudante.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').charAt(0).toUpperCase() || 'A') : 'A'}]/</span>
+                </div>
+                <div className="pl-3 sm:pl-4 border-l border-slate-700/70 ml-1.5 mt-0.5 space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-blue-300">
+                    <span className="text-slate-500">└──</span>
+                    <span className="font-bold truncate max-w-[280px]">[{nomeEstudante ? nomeEstudante.trim().toUpperCase() : 'NOME COMPLETO DO ESTUDANTE'}]/</span>
+                  </div>
+                  <div className="pl-3 sm:pl-4 ml-1.5 mt-0.5 space-y-0.5 text-[10px]">
+                    <div className="flex items-center gap-1.5 text-emerald-400">
+                      <span className="text-slate-500">├──</span>
+                      <span className="font-semibold text-emerald-300">foto_perfil_3x4.jpg</span>
+                      {fotoUrl && (
+                        <span className="text-[9px] bg-emerald-950/80 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-800/60 font-bold">
+                          ✓ Sincronizada
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-400">
+                      <span className="text-slate-500">└──</span>
+                      <span>[Documentos / Repositório Geral]</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Botões de Ação Rápida */}
           <div className="flex items-center gap-2.5 flex-wrap pt-1">

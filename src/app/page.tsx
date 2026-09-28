@@ -350,33 +350,61 @@ export default function DashboardPage() {
     }
   };
 
-  // Estudantes com Laudo Médico / AEE para o Bloco de Inclusão e Totais
+  // Helpers para validação estrita conforme critérios de banco de dados
+  // Critério Laudo: possui_laudo = true OR possui_laudo = 1 OR possui_laudo = 'sim'
+  const checarPossuiLaudo = (e: typeof estudantes[0]): boolean => {
+    if (!e) return false;
+    const val = (e as any).possui_laudo;
+    if (val === true || val === 1 || val === '1') return true;
+    if (typeof val === 'string') {
+      const s = val.trim().toLowerCase();
+      return s === 'true' || s === 'sim' || s === '1';
+    }
+    return false;
+  };
+
+  // Critério AEE: aee = true OR aee = 1 OR aee = 'sim'
+  const checarAee = (e: typeof estudantes[0]): boolean => {
+    if (!e) return false;
+    const val = (e as any).aee;
+    if (val === true || val === 1 || val === '1') return true;
+    if (typeof val === 'string') {
+      const s = val.trim().toLowerCase();
+      return s === 'true' || s === 'sim' || s === '1';
+    }
+    return false;
+  };
+
+  // 1. Bloco de Inclusão: Exibe ESTRITAMENTE estudantes com laudo médico confirmado
   const estudantesComLaudo = useMemo(() => {
-    return estudantes.filter(
-      e => e.possui_laudo || e.aee || (e.laudo_descricao && e.laudo_descricao.trim() !== '')
-    );
+    return estudantes.filter(checarPossuiLaudo);
   }, [estudantes]);
 
-  // Contagem estrita do alunado que tem laudo médico marcado (possui_laudo === true)
+  // Contagem estrita do alunado que tem laudo médico formalizado
   const totalLaudoMarcado = useMemo(() => {
-    return estudantes.filter(e => Boolean(e.possui_laudo)).length;
-  }, [estudantes]);
+    return estudantesComLaudo.length;
+  }, [estudantesComLaudo]);
 
   const pctAlunadoComLaudoMarcado = useMemo(() => {
     if (totalEstudantes === 0) return 0;
     return Math.round((totalLaudoMarcado / totalEstudantes) * 100);
   }, [totalLaudoMarcado, totalEstudantes]);
 
+  // 2. Bloco "Laudados & Elegíveis"
+  // Total de estudantes com Laudo Médico confirmado
   const totalLaudados = useMemo(() => {
-    return estudantes.filter(e => e.possui_laudo || (e.laudo_descricao && e.laudo_descricao.trim() !== '')).length;
+    return estudantes.filter(checarPossuiLaudo).length;
   }, [estudantes]);
 
+  // Total de estudantes atendidos pelo AEE
   const totalElegiveisAee = useMemo(() => {
-    return estudantes.filter(e => e.aee).length;
+    return estudantes.filter(checarAee).length;
   }, [estudantes]);
 
+  // Total Geral Atendido: exclusivamente estudantes categorizados como Laudados e/ou AEE:
+  // (possui_laudo = true OR possui_laudo = 1) OR (aee = true OR aee = 1)
   const totalLaudadosEElegiveis = useMemo(() => {
-    return estudantes.filter(e => e.possui_laudo || e.aee || (e.laudo_descricao && e.laudo_descricao.trim() !== '')).length;
+    return estudantes.filter(e => checarPossuiLaudo(e) || checarAee(e)).length;
   }, [estudantes]);
 
   // 10 Próximos Eventos Cadastrados
@@ -639,12 +667,17 @@ export default function DashboardPage() {
             <span className="text-3xl font-black text-slate-900 dark:text-white">
               {totalLaudadosEElegiveis}
             </span>
-            <span className="text-xs font-bold text-red-600 dark:text-red-400">
-              estudantes
+            <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
+              Total Geral Atendido
             </span>
           </div>
-          <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-            <strong className="text-red-600 dark:text-red-400">{totalLaudados} com laudo</strong> • {totalElegiveisAee} elegíveis ao AEE
+          <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1 flex-wrap">
+            <span>
+              <strong className="text-rose-600 dark:text-rose-400">{totalLaudados} Laudados</strong> • <strong className="text-purple-600 dark:text-purple-400">{totalElegiveisAee} em AEE</strong>
+            </span>
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+              ({totalLaudadosEElegiveis} atendidos)
+            </span>
           </p>
         </div>
       </div>
@@ -982,7 +1015,7 @@ export default function DashboardPage() {
                     Inclusão
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Estudantes com laudo médico, AEE e contato direto
+                    Estudantes com laudo médico confirmado e contato direto
                   </p>
                 </div>
               </div>
@@ -1036,7 +1069,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2">
                     <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="font-semibold text-emerald-900 dark:text-emerald-200">
-                      Laudo Médico Homologado
+                      Laudo Médico Confirmado
                     </span>
                   </div>
                   <span className="font-bold text-emerald-700 dark:text-emerald-300">

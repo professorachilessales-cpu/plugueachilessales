@@ -42,9 +42,16 @@ export function ProfessorDashboard() {
 
   // Localiza o perfil de professor conectado
   const professorAtual = useMemo(() => {
+    const cpfLimpoUser = currentUser?.cpf?.replace(/\D/g, '');
     return (
-      professores.find(p => p.email === currentUser.email || p.cpf === currentUser.cpf) ||
-      professores.find(p => p.id === 'prof-1') ||
+      professores.find(p => {
+        const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
+        if (cpfLimpoUser && cpfLimpoProf && cpfLimpoUser === cpfLimpoProf) return true;
+        if (currentUser?.id && (p.id === currentUser.id || (p as any).user_id === currentUser.id)) return true;
+        if (currentUser?.email && p.email?.toLowerCase() === currentUser.email.toLowerCase()) return true;
+        if (currentUser?.name && p.nome_completo?.toLowerCase() === currentUser.name.toLowerCase()) return true;
+        return false;
+      }) ||
       professores[0]
     );
   }, [professores, currentUser]);

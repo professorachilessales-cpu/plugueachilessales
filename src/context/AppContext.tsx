@@ -212,12 +212,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Usuários
       const savedUsers = localStorage.getItem('school_os_users');
-      let loadedUsers = initialUsers;
+      let loadedUsers = initialUsers.filter((u: SystemUser) => !['user-prof-1', 'user-prof-2', 'user-prof-3'].includes(u.id));
       if (savedUsers) {
         try {
           const parsed = JSON.parse(savedUsers);
           const validModules: AllowedModule[] = ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'];
-          loadedUsers = parsed.map((u: SystemUser) => {
+          loadedUsers = parsed
+            .filter((u: SystemUser) => !['user-prof-1', 'user-prof-2', 'user-prof-3'].includes(u.id))
+            .map((u: SystemUser) => {
             const currentMods = u.allowed_modules || [];
             // Remove módulos obsoletos (ATTENDANCE, GRADES, LESSONS)
             let cleanMods = currentMods.filter((m: any) => validModules.includes(m));
@@ -303,7 +305,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           const parsedEst: Estudante[] = JSON.parse(savedEstudantes);
           const hasLegacyDummy = parsedEst.some(e => ['est-1', 'est-2', 'est-3', 'est-4', 'est-5'].includes(e.id));
-          if (hasLegacyDummy || parsedEst.length < 50) {
+          const allLaudadosCorrupted = parsedEst.length > 50 && parsedEst.filter(e => Boolean(e.possui_laudo)).length > 50;
+          if (hasLegacyDummy || parsedEst.length < 50 || allLaudadosCorrupted) {
             setEstudantes(initialEstudantes);
             localStorage.setItem('school_os_estudantes', JSON.stringify(initialEstudantes));
           } else {
@@ -446,24 +449,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('school_os_config', JSON.stringify(tConfig));
           }
           if (tUsers && tUsers.length > 0) {
-            setUsers(tUsers);
-            localStorage.setItem('school_os_users', JSON.stringify(tUsers));
+            const cleanUsers = tUsers.filter((u: SystemUser) => !['user-prof-1', 'user-prof-2', 'user-prof-3'].includes(u.id));
+            setUsers(cleanUsers);
+            localStorage.setItem('school_os_users', JSON.stringify(cleanUsers));
             const savedId = localStorage.getItem('school_os_current_user_id');
-            const found = tUsers.find((u: SystemUser) => u.id === savedId) || tUsers[0];
+            const found = cleanUsers.find((u: SystemUser) => u.id === savedId) || cleanUsers[0];
             setCurrentUserState(found);
             setRoleState(found.role);
           }
           if (tProf && tProf.length > 0) {
-            setProfessores(tProf);
-            localStorage.setItem('school_os_professores', JSON.stringify(tProf));
+            const cleanProf = tProf.filter((p: Professor) => !p.id.startsWith('prof-'));
+            setProfessores(cleanProf);
+            localStorage.setItem('school_os_professores', JSON.stringify(cleanProf));
           }
           if (tTurmas && tTurmas.length > 0) {
             setTurmas(tTurmas);
             localStorage.setItem('school_os_turmas', JSON.stringify(tTurmas));
           }
           if (tEst && tEst.length > 0) {
-            setEstudantes(tEst);
-            localStorage.setItem('school_os_estudantes', JSON.stringify(tEst));
+            const cleanEst = tEst.map((e: Estudante) => ({
+              ...e,
+              possui_laudo: e.possui_laudo === true || (e as any).possui_laudo === 1 || (e as any).possui_laudo === '1' || String((e as any).possui_laudo).toLowerCase() === 'sim' || String((e as any).possui_laudo).toLowerCase() === 'true',
+              aee: e.aee === true || (e as any).aee === 1 || (e as any).aee === '1' || String((e as any).aee).toLowerCase() === 'sim' || String((e as any).aee).toLowerCase() === 'true',
+            }));
+            setEstudantes(cleanEst);
+            localStorage.setItem('school_os_estudantes', JSON.stringify(cleanEst));
           }
           if (tFaltas && tFaltas.length > 0) {
             setFaltasProfessores(tFaltas);

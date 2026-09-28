@@ -93,6 +93,7 @@ export default function EstudantesPage() {
   const [modalFichaAberto, setModalFichaAberto] = useState(false);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<Estudante | null>(null);
   const [abaFicha, setAbaFicha] = useState<'cadastro' | 'relatorios' | 'observacoes' | 'drive'>('cadastro');
+  const [fotoPreviewEstudante, setFotoPreviewEstudante] = useState<Estudante | null>(null);
 
   // Estados de Upload para Google Drive
   const [uploadTipoDoc, setUploadTipoDoc] = useState<'rg' | 'comprovante_residencia' | 'laudo_medico' | 'certidao_nascimento' | 'outro'>('rg');
@@ -702,22 +703,59 @@ export default function EstudantesPage() {
                       {/* Estudante Foto e Nome */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-3">
-                          {est.foto_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={est.foto_url}
-                              alt={est.nome_completo}
-                              className="h-10 w-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
-                            />
-                          ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-400 font-bold dark:bg-slate-800">
-                              {(est.nome_completo || 'AL').substring(0, 2).toUpperCase()}
-                            </div>
-                          )}
+                          {/* Miniatura com clique para Quick View e Badge de Sincronização */}
+                          <div className="relative group shrink-0">
+                            {est.foto_url ? (
+                              <button
+                                type="button"
+                                onClick={() => setFotoPreviewEstudante(est)}
+                                title="Visualizar foto 3x4 e dados no Google Drive"
+                                className="relative block h-11 w-11 rounded-xl overflow-hidden border-2 border-school-blue-300 dark:border-school-blue-700 shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-school-blue-500"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={est.foto_url}
+                                  alt={est.nome_completo}
+                                  className="h-full w-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-school-blue-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                                  <Camera className="h-4 w-4" />
+                                </div>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirEditar(est)}
+                                title="Adicionar foto 3x4 no Google Drive"
+                                className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-400 font-bold dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-700 hover:border-school-blue-500 hover:text-school-blue-600 transition-colors"
+                              >
+                                {(est.nome_completo || 'AL').substring(0, 2).toUpperCase()}
+                              </button>
+                            )}
+
+                            {/* Indicador de Foto 3x4 no Google Drive */}
+                            {est.foto_url && (
+                              <span
+                                className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white text-[8px] font-black shadow-sm ring-1 ring-white dark:ring-slate-900"
+                                title="Foto 3x4 oficial sincronizada no Google Drive"
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </div>
+
                           <div>
-                            <div className="font-bold text-slate-900 dark:text-white line-clamp-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEstudanteSelecionado(est);
+                                setAbaFicha('cadastro');
+                                setModalFichaAberto(true);
+                              }}
+                              className="text-left font-bold text-slate-900 hover:text-school-blue-600 dark:text-white dark:hover:text-school-gold-400 line-clamp-1 transition-colors"
+                            >
                               {est.nome_completo}
-                            </div>
+                            </button>
                             <div className="text-[11px] text-slate-400">
                               Nasc: {new Date(est.data_nascimento).toLocaleDateString('pt-BR')} • CPF: {est.cpf || 'Não informado'}
                             </div>
@@ -768,18 +806,34 @@ export default function EstudantesPage() {
                         )}
                       </td>
 
-                      {/* Docs Drive */}
+                      {/* Docs Drive & Pasta do Aluno */}
                       <td className="px-4 py-3.5">
-                        <button
-                          onClick={() => {
-                            setEstudanteSelecionado(est);
-                            setModalUploadAberto(true);
-                          }}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                        >
-                          <FileText className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                          <span>{est.documentos?.length || 0}</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setEstudanteSelecionado(est);
+                              setAbaFicha('drive');
+                              setModalFichaAberto(true);
+                            }}
+                            title={`Abrir Pasta no Google Drive: FICHA DOS ESTUDANTES / ${(est.nome_completo || 'A').trim().charAt(0).toUpperCase()} / ${est.nome_completo.toUpperCase()}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50/80 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 transition-colors shadow-xs"
+                          >
+                            <Folder className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                            <span>Pasta</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setEstudanteSelecionado(est);
+                              setModalUploadAberto(true);
+                            }}
+                            title="Ver e Anexar Documentos no Google Drive"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                            <span>{est.documentos?.length || 0}</span>
+                          </button>
+                        </div>
                       </td>
 
                       {/* Status */}
@@ -1974,6 +2028,141 @@ export default function EstudantesPage() {
                 <RepositorioDriveAluno estudante={estudanteSelecionado} />
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* MODAL 4: Visualização Rápida da Foto 3x4 & Google Drive */}
+      {fotoPreviewEstudante && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in-0 duration-200 print:hidden">
+          <div className="relative w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-school-blue-100 text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300">
+                  <Camera className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                    Foto Oficial 3x4 do Estudante
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Armazenada no Google Drive Institucional
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFotoPreviewEstudante(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Conteúdo: Foto em destaque + Metadados */}
+            <div className="mt-5 flex flex-col sm:flex-row items-center gap-5">
+              <div className="relative shrink-0">
+                <div className="h-52 w-40 sm:h-56 sm:w-44 rounded-2xl overflow-hidden border-2 border-school-blue-400 dark:border-school-blue-600 bg-slate-100 dark:bg-slate-800 shadow-lg flex items-center justify-center">
+                  {fotoPreviewEstudante.foto_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={fotoPreviewEstudante.foto_url}
+                      alt={fotoPreviewEstudante.nome_completo}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-center p-3 text-slate-400">
+                      <Camera className="h-10 w-10 mx-auto mb-2 text-slate-300" />
+                      <span className="text-xs font-bold uppercase">Sem Foto</span>
+                    </div>
+                  )}
+                </div>
+                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider shadow">
+                  Padrão 3x4 • JPG
+                </span>
+              </div>
+
+              <div className="flex-1 space-y-2.5 text-xs text-center sm:text-left">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Estudante</span>
+                  <h4 className="text-base font-black text-slate-900 dark:text-white uppercase leading-snug">
+                    {fotoPreviewEstudante.nome_completo}
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2">
+                    <span className="block text-[9px] font-bold text-slate-400 uppercase">Turma</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">
+                      {fotoPreviewEstudante.turma_nome || 'Regular'}
+                    </span>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2">
+                    <span className="block text-[9px] font-bold text-slate-400 uppercase">CPF</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">
+                      {fotoPreviewEstudante.cpf || 'Não informado'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Estrutura da Pasta no Google Drive */}
+                <div className="rounded-xl bg-slate-950 p-2.5 text-[10px] font-mono text-left text-slate-300 border border-slate-800">
+                  <div className="text-school-gold-400 font-bold flex items-center gap-1">
+                    <Folder className="h-3 w-3" />
+                    <span>FICHA DOS ESTUDANTES/</span>
+                  </div>
+                  <div className="pl-3 border-l border-slate-800 ml-1 space-y-0.5 mt-0.5">
+                    <div className="text-amber-300">
+                      └── [{(fotoPreviewEstudante.nome_completo || 'A').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').charAt(0).toUpperCase()}]/
+                    </div>
+                    <div className="pl-3 border-l border-slate-800 ml-1 space-y-0.5">
+                      <div className="text-blue-300 font-bold truncate max-w-[200px]">
+                        └── [{fotoPreviewEstudante.nome_completo.toUpperCase()}]/
+                      </div>
+                      <div className="pl-3 text-emerald-400 font-semibold">
+                        ├── foto_perfil_3x4.jpg
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Ações */}
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+              {fotoPreviewEstudante.foto_url && (
+                <a
+                  href={fotoPreviewEstudante.foto_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 shadow-sm"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                  <span>Abrir no Google Drive</span>
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  const est = fotoPreviewEstudante;
+                  setFotoPreviewEstudante(null);
+                  handleAbrirEditar(est);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-school-blue-600 text-white text-xs font-bold hover:bg-school-blue-700 shadow-sm transition-all"
+              >
+                <Edit3 className="h-3.5 w-3.5" />
+                <span>Alterar / Recortar Foto</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFotoPreviewEstudante(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}

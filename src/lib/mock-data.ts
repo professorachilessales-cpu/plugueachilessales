@@ -13113,37 +13113,37 @@ export const initialEstudantes: Estudante[] = [
 export const initialFaltasProfessores: FaltaProfessor[] = [
   {
     id: 'falta-1',
-    professor_id: 'prof-2',
-    professor_nome: 'Profa. Clara Siqueira',
+    professor_id: '4DCABC66',
+    professor_nome: 'ANA CRISTINA DE OLIVEIRA BARROS',
     data_falta: new Date().toISOString().split('T')[0], // Hoje
     aulas_faltadas: 3,
     justificativa: 'Consulta Médica de Emergência / Exame Oftalmológico',
-    atestado_drive_id: 'drive_atestado_clara_2026',
-    atestado_drive_link: 'https://drive.google.com/file/d/demo_atestado_clara/view',
+    atestado_drive_id: 'drive_atestado_anacristina_2026',
+    atestado_drive_link: 'https://drive.google.com/file/d/demo_atestado_anacristina/view',
     homologado: true,
     created_at: new Date().toISOString(),
   },
   {
     id: 'falta-2',
-    professor_id: 'prof-3',
-    professor_nome: 'Prof. Rodrigo Fontana',
+    professor_id: '4DCABC67',
+    professor_nome: 'ANTONIELE BALDEZ CARVALHO',
     data_falta: new Date().toISOString().split('T')[0], // Hoje
     aulas_faltadas: 2,
     justificativa: 'Acompanhamento de dependente em consulta médica (filho)',
-    atestado_drive_id: 'drive_atestado_rodrigo_2026',
-    atestado_drive_link: 'https://drive.google.com/file/d/demo_atestado_rodrigo/view',
+    atestado_drive_id: 'drive_atestado_antoniele_2026',
+    atestado_drive_link: 'https://drive.google.com/file/d/demo_atestado_antoniele/view',
     homologado: false,
     created_at: new Date().toISOString(),
   },
   {
     id: 'falta-3',
-    professor_id: 'prof-1',
-    professor_nome: 'Prof. Marcos Andrade',
+    professor_id: '4DCABC65',
+    professor_nome: 'ALEXANDRE DE JESUS RODRIGUES MALTA',
     data_falta: '2026-09-10',
     aulas_faltadas: 4,
-    justificativa: 'Participação em Congresso de Educação Matemática da USP',
+    justificativa: 'Participação em Congresso de Educação Matemática da UFPE',
     atestado_drive_id: 'drive_certificado_congresso',
-    atestado_drive_link: 'https://drive.google.com/file/d/demo_congresso_marcos/view',
+    atestado_drive_link: 'https://drive.google.com/file/d/demo_congresso_alexandre/view',
     homologado: true,
     created_at: '2026-09-10T14:00:00Z',
   },
@@ -13340,7 +13340,7 @@ export const initialRelatoriosProfessores: RelatorioProfessor[] = [
   {
     id: 'rel-prof-1',
     solicitacao_id: 'sol-1',
-    professor_id: 'prof-1', // Prof. Marcos Andrade
+    professor_id: '4DCABC65', // ALEXANDRE DE JESUS RODRIGUES MALTA
     rascunho_original: '',
     texto_ia: '',
     texto_final: '',
@@ -13350,7 +13350,7 @@ export const initialRelatoriosProfessores: RelatorioProfessor[] = [
   {
     id: 'rel-prof-2',
     solicitacao_id: 'sol-1',
-    professor_id: 'prof-3', // Prof. Rodrigo Fontana
+    professor_id: '4DCABC67', // ANTONIELE BALDEZ CARVALHO
     rascunho_original: 'O Arthur tem demonstrado bom raciocínio em Física e nas aulas práticas.',
     texto_ia: 'O estudante Arthur demonstra notável raciocínio analítico e expressivo engajamento nas atividades experimentais de Física.',
     texto_final: 'O estudante Arthur demonstra notável raciocínio analítico e expressivo engajamento nas atividades experimentais de Física, colaborando assiduamente com os pares.',
@@ -13361,7 +13361,7 @@ export const initialRelatoriosProfessores: RelatorioProfessor[] = [
   {
     id: 'rel-prof-3',
     solicitacao_id: 'sol-2',
-    professor_id: 'prof-2', // Profa. Clara Siqueira
+    professor_id: '4DCABC66', // ANA CRISTINA DE OLIVEIRA BARROS
     rascunho_original: 'Beatriz se destaca muito na redação e participa sempre.',
     texto_ia: 'A discente Beatriz evidencia desenvolvimento exemplar na expressão escrita e interpretação crítica, demonstrando assiduidade e pontualidade.',
     texto_final: 'A discente Beatriz evidencia desenvolvimento exemplar na expressão escrita e interpretação crítica, demonstrando assiduidade, liderança construtiva e pontualidade.',
@@ -13372,7 +13372,7 @@ export const initialRelatoriosProfessores: RelatorioProfessor[] = [
   {
     id: 'rel-prof-4',
     solicitacao_id: 'sol-3',
-    professor_id: 'prof-1', // Prof. Marcos Andrade
+    professor_id: '4DCABC65', // ALEXANDRE DE JESUS RODRIGUES MALTA
     rascunho_original: '',
     texto_ia: '',
     texto_final: '',
@@ -13397,8 +13397,8 @@ export const initialNotificacoesAdmin: NotificacaoAdmin[] = [
     id: 'notif-1',
     relatorio_professor_id: 'rel-prof-2',
     solicitacao_id: 'sol-1',
-    professor_id: 'prof-3',
-    professor_nome: 'Prof. Rodrigo Fontana',
+    professor_id: '4DCABC67',
+    professor_nome: 'ANTONIELE BALDEZ CARVALHO',
     aluno_nome: 'Arthur da Silva Santos',
     lido: false,
     data_criacao: '2026-09-21T11:30:00Z',
@@ -13412,9 +13412,9 @@ export const initialObservacoesAluno: ObservacaoAluno[] = [
   {
     id: 'obs-1',
     aluno_id: 'est-1',
-    autor_id: 'prof-1',
-    autor_nome: 'Prof. Marcos Andrade',
-    autor_cargo: 'Professor de Matemática',
+    autor_id: '4DCABC65',
+    autor_nome: 'ALEXANDRE DE JESUS RODRIGUES MALTA',
+    autor_cargo: 'Professor',
     tipo: 'pedagogico',
     texto: 'Demonstrou facilidade expressiva na resolução de problemas matemáticos e raciocínio lógico formal durante a oficina diagnóstica.',
     data_registro: '2026-09-15 10:30',
@@ -13432,9 +13432,9 @@ export const initialObservacoesAluno: ObservacaoAluno[] = [
   {
     id: 'obs-3',
     aluno_id: 'est-3',
-    autor_id: 'prof-1',
-    autor_nome: 'Prof. Marcos Andrade',
-    autor_cargo: 'Professor de Matemática',
+    autor_id: '4DCABC65',
+    autor_nome: 'ALEXANDRE DE JESUS RODRIGUES MALTA',
+    autor_cargo: 'Professor',
     tipo: 'comportamental',
     texto: 'Apresentou momentos de distração nas aulas expositivas matutinas, contudo demonstrou ótimo entrosamento e cooperação nos trabalhos em grupo.',
     data_registro: '2026-09-20 09:15',
@@ -13442,9 +13442,9 @@ export const initialObservacoesAluno: ObservacaoAluno[] = [
   {
     id: 'obs-4',
     aluno_id: 'est-2',
-    autor_id: 'prof-2',
-    autor_nome: 'Profa. Clara Siqueira',
-    autor_cargo: 'Professora de Língua Portuguesa',
+    autor_id: '4DCABC66',
+    autor_nome: 'ANA CRISTINA DE OLIVEIRA BARROS',
+    autor_cargo: 'Professora',
     tipo: 'pedagogico',
     texto: 'Texto selecionado para o mural de produções literárias da escola pelo excelente uso da norma culta e coesão textual.',
     data_registro: '2026-09-11 11:20',
@@ -13493,9 +13493,9 @@ export const initialDocumentosEstudanteDrive: DocumentoEstudanteDrive[] = [
 export const initialAtestadosProfessor: AtestadoProfessor[] = [
   {
     id: 'atest-1',
-    professor_id: 'prof-1', // Prof. Marcos Andrade
+    professor_id: '4DCABC65', // Alexandre de Jesus Rodrigues Malta
     drive_file_id: 'atest_prof1_01',
-    nome_arquivo: 'atestado_odontologico_marcos.pdf',
+    nome_arquivo: 'atestado_odontologico_alexandre.pdf',
     data_inicio: '2026-09-02',
     data_fim: '2026-09-03',
     dias_afastamento: 2,
@@ -13505,9 +13505,9 @@ export const initialAtestadosProfessor: AtestadoProfessor[] = [
   },
   {
     id: 'atest-2',
-    professor_id: 'prof-3', // Prof. Rodrigo Fontana
+    professor_id: '4DCABC67', // Antoniele Baldez Carvalho
     drive_file_id: 'atest_prof3_01',
-    nome_arquivo: 'atestado_medico_rodrigo_fontana.pdf',
+    nome_arquivo: 'atestado_medico_antoniele.pdf',
     data_inicio: '2026-09-12',
     data_fim: '2026-09-14',
     dias_afastamento: 3,
@@ -13523,7 +13523,7 @@ export const initialAtestadosProfessor: AtestadoProfessor[] = [
 export const initialReposicoesAulas: ReposicaoAula[] = [
   {
     id: 'rep-1',
-    professor_id: 'prof-1', // Prof. Marcos Andrade
+    professor_id: '4DCABC65', // Alexandre de Jesus Rodrigues Malta
     data_falta: '2026-09-02',
     qtd_aulas_faltantes: 2,
     data_limite_reposicao: '2026-10-02', // Falta em 02/09 + 30 dias = 02/10
@@ -13533,7 +13533,7 @@ export const initialReposicoesAulas: ReposicaoAula[] = [
   },
   {
     id: 'rep-2',
-    professor_id: 'prof-2', // Profa. Clara Siqueira
+    professor_id: '4DCABC66', // Ana Cristina de Oliveira Barros
     data_falta: '2026-09-18',
     qtd_aulas_faltantes: 1,
     data_limite_reposicao: '2026-10-18', // Falta em 18/09 + 30 dias = 18/10
@@ -13543,7 +13543,7 @@ export const initialReposicoesAulas: ReposicaoAula[] = [
   },
   {
     id: 'rep-3',
-    professor_id: 'prof-3', // Prof. Rodrigo Fontana
+    professor_id: '4DCABC67', // Antoniele Baldez Carvalho
     data_falta: '2026-08-15',
     qtd_aulas_faltantes: 3,
     data_limite_reposicao: '2026-09-14', // Passaram mais de 30 dias! Vencida!
@@ -13553,7 +13553,7 @@ export const initialReposicoesAulas: ReposicaoAula[] = [
   },
   {
     id: 'rep-4',
-    professor_id: 'prof-3', // Prof. Rodrigo Fontana
+    professor_id: '4DCABC67', // Antoniele Baldez Carvalho
     data_falta: '2026-09-10',
     qtd_aulas_faltantes: 2,
     data_limite_reposicao: '2026-10-10',

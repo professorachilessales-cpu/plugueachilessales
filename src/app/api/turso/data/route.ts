@@ -3,6 +3,17 @@ import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
 
 export const dynamic = 'force-dynamic';
 
+function toBoolean(val: any, defaultIfNull: boolean = false): boolean {
+  if (val === null || val === undefined) return defaultIfNull;
+  if (val === true || val === 1 || val === '1') return true;
+  if (val === false || val === 0 || val === '0') return false;
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    return s === 'true' || s === 'sim' || s === '1';
+  }
+  return Boolean(val);
+}
+
 export async function GET() {
   try {
     if (!isTursoConfigured) {
@@ -33,8 +44,8 @@ export async function GET() {
       const usersRes = await executeTursoQuery('SELECT * FROM users ORDER BY created_at ASC');
       users = usersRes.rows.map((row: any) => ({
         ...row,
-        must_change_password: Boolean(row.must_change_password),
-        is_active: Boolean(row.is_active),
+        must_change_password: toBoolean(row.must_change_password),
+        is_active: toBoolean(row.is_active, true),
         allowed_modules: row.allowed_modules ? JSON.parse(row.allowed_modules) : ['PROFILE'],
       }));
     } catch (e) {
@@ -47,8 +58,8 @@ export async function GET() {
       const profRes = await executeTursoQuery('SELECT * FROM professores ORDER BY nome_completo ASC');
       professores = profRes.rows.map((row: any) => ({
         ...row,
-        ativo: Boolean(row.ativo),
-        eh_apoio: Boolean(row.eh_apoio),
+        ativo: toBoolean(row.ativo, true),
+        eh_apoio: toBoolean(row.eh_apoio),
         disciplinas: row.disciplinas ? (typeof row.disciplinas === 'string' ? JSON.parse(row.disciplinas) : row.disciplinas) : [],
         turmas_atribuidas_ids: row.turmas_atribuidas_ids ? (typeof row.turmas_atribuidas_ids === 'string' ? JSON.parse(row.turmas_atribuidas_ids) : row.turmas_atribuidas_ids) : [],
       }));
@@ -62,7 +73,7 @@ export async function GET() {
       const turmasRes = await executeTursoQuery('SELECT * FROM turmas ORDER BY nome ASC');
       turmas = turmasRes.rows.map((row: any) => ({
         ...row,
-        ativa: Boolean(row.ativa !== 0 && row.ativa !== false),
+        ativa: toBoolean(row.ativa, true) ? 1 : 0,
         professores_ids: row.professores_ids ? (typeof row.professores_ids === 'string' ? JSON.parse(row.professores_ids) : row.professores_ids) : (row.professor_regente_id ? [row.professor_regente_id] : []),
         equipe_apoio_ids: row.equipe_apoio_ids ? (typeof row.equipe_apoio_ids === 'string' ? JSON.parse(row.equipe_apoio_ids) : row.equipe_apoio_ids) : [],
         grade_horaria: row.grade_horaria ? (typeof row.grade_horaria === 'string' ? JSON.parse(row.grade_horaria) : row.grade_horaria) : [],
@@ -99,8 +110,8 @@ export async function GET() {
         return {
           ...row,
           turma_id: resolvedTurmaId,
-          possui_laudo: Boolean(row.possui_laudo),
-          aee: Boolean(row.aee),
+          possui_laudo: toBoolean(row.possui_laudo),
+          aee: toBoolean(row.aee),
           documentos: documentosMap[row.id] || [],
         };
       });
@@ -114,7 +125,7 @@ export async function GET() {
       const faltasRes = await executeTursoQuery('SELECT * FROM faltas_professores ORDER BY data_falta DESC');
       faltasProfessores = faltasRes.rows.map((row: any) => ({
         ...row,
-        homologado: Boolean(row.homologado),
+        homologado: toBoolean(row.homologado),
       }));
     } catch (e) {
       console.error('Erro ao ler faltas_professores do Turso:', e);

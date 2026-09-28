@@ -57,15 +57,39 @@ export function formatarCPF(valor: string): string {
 }
 
 /**
+ * Constantes para Estudantes sem CPF
+ * Valor reservado no sistema escolar para estudantes que ainda não possuem CPF: 111.111.111-11
+ */
+export const CPF_ESTUDANTE_SEM_DOCUMENTO = '111.111.111-11';
+export const CPF_ESTUDANTE_SEM_DOCUMENTO_DIGITOS = '11111111111';
+
+/**
+ * Verifica se o CPF de um estudante é considerado 'sem documento' / 'sem CPF'
+ * (vazio, nulo, '00000000000' ou '11111111111' / '111.111.111-11')
+ */
+export function isCpfEstudanteSemDocumento(cpf?: string | null): boolean {
+  if (!cpf) return true;
+  const digitos = cpf.replace(/\D/g, '');
+  return digitos === '' || digitos === CPF_ESTUDANTE_SEM_DOCUMENTO_DIGITOS || digitos === '00000000000';
+}
+
+/**
  * Validação oficial do algoritmo de CPF brasileiro (Receita Federal)
  * Retorna true se for válido, false se for inválido.
  * Caso a string esteja vazia, retorna true (para campos opcionais; validar obrigatoriedade separadamente se necessário).
+ * 
+ * Permite exceção exclusiva para estudantes sem CPF (111.111.111-11) quando options.permitirEstudanteSemCpf for true.
  */
-export function validarCPF(cpf: string): boolean {
+export function validarCPF(cpf: string, options?: { permitirEstudanteSemCpf?: boolean }): boolean {
   if (!cpf || !cpf.trim()) return true; // Se vazio, não valida aqui (caso opcional)
 
   // Remove caracteres não numéricos
   const digitos = cpf.replace(/\D/g, '');
+
+  // Exceção de Validação para Estudantes sem CPF: 111.111.111-11
+  if (options?.permitirEstudanteSemCpf && digitos === CPF_ESTUDANTE_SEM_DOCUMENTO_DIGITOS) {
+    return true;
+  }
 
   // CPF precisa ter exatamente 11 dígitos
   if (digitos.length !== 11) return false;

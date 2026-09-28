@@ -41,7 +41,8 @@ import { PainelRelatoriosEstudante } from '@/components/relatorios/PainelRelator
 import { TimelineObservacoesAluno } from '@/components/estudantes/TimelineObservacoesAluno';
 import { RepositorioDriveAluno } from '@/components/estudantes/RepositorioDriveAluno';
 import { Estudante, TipoMovimentacao, StatusMatricula, PercentualCota, TipoHistoricoEscolar } from '@/lib/types';
-import { formatarTelefone, formatarCPF, validarCPF } from '@/lib/validations';
+import { formatarTelefone, formatarCPF, validarCPF, CPF_ESTUDANTE_SEM_DOCUMENTO, isCpfEstudanteSemDocumento } from '@/lib/validations';
+import { FotoEstudanteField } from '@/components/estudantes/FotoEstudanteField';
 
 const CIDADES_PADRAO = [
   'RECIFE - PE',
@@ -456,8 +457,8 @@ export default function EstudantesPage() {
       return;
     }
 
-    if (form.cpf && !validarCPF(form.cpf)) {
-      alert('CPF do estudante é inválido. Por favor, confira os números digitados.');
+    if (form.cpf && !validarCPF(form.cpf, { permitirEstudanteSemCpf: true })) {
+      alert('CPF do estudante é inválido. Caso o estudante ainda não possua CPF, use 111.111.111-11.');
       return;
     }
 
@@ -492,7 +493,7 @@ export default function EstudantesPage() {
       nome_completo: form.nome_completo.trim().toUpperCase(),
       nacionalidade: form.nacionalidade.trim().toUpperCase(),
       naturalidade_cidade: form.naturalidade_cidade.trim().toUpperCase(),
-      cpf: form.cpf.trim().toUpperCase(),
+      cpf: (form.cpf && form.cpf.trim()) ? form.cpf.trim().toUpperCase() : CPF_ESTUDANTE_SEM_DOCUMENTO,
       rg_numero: form.rg_numero.trim().toUpperCase(),
       certidao_nascimento: form.certidao_nascimento.trim().toUpperCase(),
       numero_sus: form.numero_sus.trim().toUpperCase(),
@@ -911,72 +912,19 @@ export default function EstudantesPage() {
 
             <form onSubmit={handleSubmitForm} className="mt-5 space-y-6 text-xs">
               
-              {/* FOTO DO ESTUDANTE (PRIMEIRA INFORMAÇÃO) */}
-              <div className="rounded-2xl border-2 border-dashed border-school-blue-200 bg-school-blue-50/40 p-4 sm:p-5 dark:border-school-blue-900/50 dark:bg-school-blue-950/20">
-                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                  {/* Pré-visualização Foto 3x4 */}
-                  <div className="relative group shrink-0">
-                    <div className="h-32 w-28 rounded-2xl overflow-hidden border-2 border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800 shadow-sm flex items-center justify-center">
-                      {form.foto_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={form.foto_url}
-                          alt="Foto do Estudante"
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '';
-                          }}
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center p-2 text-center text-slate-400 dark:text-slate-500">
-                          <Camera className="h-8 w-8 mb-1 text-slate-400" />
-                          <span className="text-[10px] font-bold uppercase tracking-wider">Foto 3x4</span>
-                          <span className="text-[9px] text-slate-400">Sem Foto</span>
-                        </div>
-                      )}
-                    </div>
-                    {form.foto_url && (
-                      <button
-                        type="button"
-                        onClick={() => setForm({ ...form, foto_url: '' })}
-                        className="absolute -top-1.5 -right-1.5 rounded-full bg-red-600 text-white p-1 shadow hover:bg-red-700"
-                        title="Remover Foto"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Campo de URL da Foto */}
-                  <div className="flex-1 w-full space-y-2">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <label className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <Camera className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
-                        Foto do Estudante (Formato 3x4)
-                      </label>
-                      <span className="text-[10px] font-bold text-school-blue-700 dark:text-school-gold-400 bg-school-blue-100 dark:bg-school-blue-950/70 px-2 py-0.5 rounded-full uppercase">
-                        1ª Informação da Ficha Cadastral
-                      </span>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1 uppercase">
-                        URL / Link da Foto do Estudante (Opcional):
-                      </label>
-                      <input
-                        type="url"
-                        value={form.foto_url}
-                        onChange={(e) => setForm({ ...form, foto_url: e.target.value })}
-                        placeholder="HTTPS://EXEMPLO.COM/FOTOS/ESTUDANTE.JPG"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      />
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        Insira a URL direta da fotografia ou anexe a foto no Google Drive pelo botão de arquivos.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* FOTO DO ESTUDANTE (PRIMEIRA INFORMAÇÃO COM RECORTE 3x4 E GOOGLE DRIVE) */}
+              <FotoEstudanteField
+                fotoUrl={form.foto_url}
+                nomeEstudante={form.nome_completo}
+                cpfEstudante={form.cpf}
+                estudanteId={editandoEstudanteId || undefined}
+                onChangeFotoUrl={(novaUrl) => setForm((prev) => ({ ...prev, foto_url: novaUrl }))}
+                onFotoSalvaNoDrive={(dados) => {
+                  if (editandoEstudanteId) {
+                    updateEstudante(editandoEstudanteId, { foto_url: dados.foto_url });
+                  }
+                }}
+              />
 
               {/* SEÇÃO 1: DADOS PESSOAIS & DOCUMENTAÇÃO CIVIL */}
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/50 space-y-4">
@@ -1060,16 +1008,29 @@ export default function EstudantesPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      CPF do Aluno
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 uppercase">
+                        CPF do Aluno
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, cpf: CPF_ESTUDANTE_SEM_DOCUMENTO })}
+                        className="text-[10px] text-school-blue-600 dark:text-school-blue-400 font-bold hover:underline"
+                        title="Preencher com código reservado para alunos sem CPF"
+                      >
+                        Sem CPF (111.111.111-11)
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={form.cpf}
                       onChange={(e) => setForm({ ...form, cpf: formatarCPF(e.target.value) })}
-                      placeholder="000.000.000-00"
+                      placeholder="000.000.000-00 ou 111.111.111-11"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
                     />
+                    <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                      Caso o estudante não possua CPF, o sistema atribuirá <strong>111.111.111-11</strong>.
+                    </p>
                   </div>
 
                   <div>

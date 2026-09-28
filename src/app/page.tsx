@@ -36,7 +36,7 @@ import {
 import Link from 'next/link';
 import { AniversariantesSection } from '@/components/dashboard/AniversariantesSection';
 import { ProfessorDashboard } from '@/components/dashboard/ProfessorDashboard';
-import { formatarTelefone } from '@/lib/validations';
+import { formatarTelefone, isCpfEstudanteSemDocumento } from '@/lib/validations';
 
 const MODELOS_WHATSAPP_INCLUSAO_PADRAO = {
   inclusao_aee: 'Olá {Responsável}, tudo bem? Aqui é da coordenação de Inclusão Escolar (PLUGUE). Estamos entrando em contato para compartilhar o andamento do plano pedagógico e atendimento AEE de {Aluno} ({Turma}). Gostaríamos de alinhar os próximos passos com a família. Contamos com sua parceria!',
@@ -331,9 +331,9 @@ export default function DashboardPage() {
     return estudantes.filter(e => !e.telefone_responsavel || e.telefone_responsavel.trim() === '');
   }, [estudantes]);
 
-  // Estudantes sem CPF cadastrado
+  // Estudantes sem CPF cadastrado (nulo, vazio, 000.000.000-00 ou 111.111.111-11)
   const estudantesSemCpf = useMemo(() => {
-    return estudantes.filter(e => !e.cpf || e.cpf.trim() === '' || e.cpf === '000.000.000-00');
+    return estudantes.filter((e) => isCpfEstudanteSemDocumento(e.cpf));
   }, [estudantes]);
 
   // Disparo WhatsApp de cobrança de CPF para programas sociais
@@ -552,15 +552,15 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
 
-      {/* Cartões Rápidos de Métricas (KPIs) */}
+      {/* Cartões Rápidos de Métricas (KPIs) - Estilo Isometric 3D */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Estudantes (Ativos) */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-school-dark-border dark:bg-school-dark-surface">
+        <div className="isometric-card rounded-2xl border border-slate-200/90 bg-white p-5 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Total de Estudantes
             </span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-school-blue-50 text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-400">
+            <div className="isometric-icon-3d flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-school-blue-500 to-school-blue-800 text-white shadow-md shadow-school-blue-800/30">
               <Users className="h-5 w-5" />
             </div>
           </div>
@@ -578,12 +578,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Turmas Ativas */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-school-dark-border dark:bg-school-dark-surface">
+        <div className="isometric-card rounded-2xl border border-slate-200/90 bg-white p-5 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Turmas Ativas
             </span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-school-gold-600 dark:bg-amber-950/60 dark:text-school-gold-400">
+            <div className="isometric-icon-3d flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md shadow-amber-600/30">
               <BookOpen className="h-5 w-5" />
             </div>
           </div>
@@ -603,12 +603,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Eventos Próximos */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-school-dark-border dark:bg-school-dark-surface">
+        <div className="isometric-card rounded-2xl border border-slate-200/90 bg-white p-5 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Eventos Próximos
             </span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400">
+            <div className="isometric-icon-3d flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-purple-800 text-white shadow-md shadow-purple-800/30">
               <Calendar className="h-5 w-5" />
             </div>
           </div>
@@ -626,12 +626,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Quantitativo de Estudantes Laudados e Elegíveis */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-school-dark-border dark:bg-school-dark-surface">
+        <div className="isometric-card rounded-2xl border border-slate-200/90 bg-white p-5 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Laudados & Elegíveis
             </span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400 border border-red-200/60 dark:border-red-800/60">
+            <div className="isometric-icon-3d flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-rose-700 text-white shadow-md shadow-rose-700/30">
               <HeartHandshake className="h-5 w-5" />
             </div>
           </div>
@@ -652,10 +652,10 @@ export default function DashboardPage() {
       {/* Módulo de Gestão: Relatórios Pedagógicos Colaborativos com IA & Reposições Docentes */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Card 1: Relatórios Pedagógicos Colaborativos com IA */}
-        <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/50 via-white to-purple-50/30 p-6 shadow-sm dark:border-indigo-900/50 dark:bg-school-dark-surface dark:from-slate-900/50">
+        <div className="isometric-card rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/50 via-white to-purple-50/30 p-6 border-t-2 border-t-white/90 dark:border-t-indigo-900/50 dark:border-indigo-900/50 dark:bg-school-dark-surface dark:from-slate-900/50">
           <div className="flex items-center justify-between border-b border-indigo-100 pb-4 dark:border-indigo-950">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
+              <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md shadow-indigo-600/30">
                 <Sparkles className="h-5 w-5" />
               </div>
               <div>
@@ -722,10 +722,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Card 2: Frequência Docente & Reposições (Regra 30 Dias) */}
-        <div className="rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50/40 via-white to-amber-50/30 p-6 shadow-sm dark:border-rose-900/50 dark:bg-school-dark-surface dark:from-slate-900/50">
+        <div className="isometric-card rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50/40 via-white to-amber-50/30 p-6 border-t-2 border-t-white/90 dark:border-t-rose-900/50 dark:border-rose-900/50 dark:bg-school-dark-surface dark:from-slate-900/50">
           <div className="flex items-center justify-between border-b border-rose-100 pb-4 dark:border-rose-950">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-600 text-white shadow-md shadow-rose-600/30">
+              <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-700 text-white shadow-md shadow-rose-600/30">
                 <Clock className="h-5 w-5" />
               </div>
               <div>
@@ -820,16 +820,20 @@ export default function DashboardPage() {
       {/* Seção Gráfica: Gráfico 1 (Barras) e Gráfico 2 (Donut / Rosca) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Gráfico 1 (Barras): Distribuição por Turma e por Turno Agrupada por Grupo (Oculto se Inclusão estiver em Área Expandida) */}
-        <div className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 ${inclusaoExpandido ? 'hidden' : 'lg:col-span-7'}`}>
+        <div className={`isometric-card rounded-2xl border border-slate-200/90 bg-white p-6 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 ${inclusaoExpandido ? 'hidden' : 'lg:col-span-6'}`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
-                Distribuição de Estudantes por Turma & Capacidade
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Agrupado por <strong>Grupo da Turma</strong> com totais consolidados de ocupação, vagas e laudos
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-school-blue-500 to-school-blue-800 text-white shadow-md shadow-school-blue-800/30 flex-shrink-0">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Distribuição de Estudantes por Turma & Capacidade
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Agrupado por <strong>Grupo da Turma</strong> com totais consolidados de ocupação, vagas e laudos
+                </p>
+              </div>
             </div>
             {/* Legenda de Turnos */}
             <div className="flex items-center gap-3 text-xs">
@@ -964,13 +968,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Bloco: Inclusão (Estudantes com Laudo Médico & Disparo WhatsApp) - Suporte a Expansão e Recolhimento */}
-        <div className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 flex flex-col justify-between ${
-          inclusaoExpandido ? 'lg:col-span-12 ring-2 ring-emerald-500/25 shadow-md' : 'lg:col-span-5'
+        <div className={`isometric-card rounded-2xl border border-slate-200/90 bg-white p-6 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 flex flex-col justify-between ${
+          inclusaoExpandido ? 'lg:col-span-12 ring-2 ring-emerald-500/25 shadow-md' : 'lg:col-span-6'
         }`}>
           <div className="flex flex-col flex-1 min-h-0">
             <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
+                <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-md shadow-emerald-700/30 shrink-0">
                   <HeartHandshake className="h-5 w-5" />
                 </div>
                 <div>
@@ -1159,11 +1163,11 @@ export default function DashboardPage() {
       {/* Seção de Pendências & Alertas Cadastrais: Sem CPF, Sem Foto & Sem Telefone de Contato */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Bloco: Estudantes sem CPF Cadastrado */}
-        <div className="rounded-2xl border border-amber-200/80 bg-amber-50/25 p-6 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/15 flex flex-col justify-between">
+        <div className="isometric-card rounded-2xl border border-amber-200/80 bg-amber-50/25 p-6 border-t-2 border-t-white/90 dark:border-t-amber-900/40 dark:border-amber-900/40 dark:bg-amber-950/15 flex flex-col justify-between">
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/50 pb-4 dark:border-amber-900/30">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 flex-shrink-0 border border-amber-200/60 dark:border-amber-900/60">
+                <div className="isometric-icon-3d flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md shadow-amber-600/30 flex-shrink-0">
                   <FileText className="h-5 w-5" />
                 </div>
                 <div>
@@ -1182,11 +1186,6 @@ export default function DashboardPage() {
                 }`}>
                 {estudantesSemCpf.length} sem CPF
               </span>
-            </div>
-
-            {/* Alerta de Extrema Necessidade */}
-            <div className="mt-3 rounded-xl bg-amber-100/60 p-2.5 text-[11px] text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 border border-amber-200/60 dark:border-amber-900/50 leading-relaxed">
-              ⚠️ <strong>Atenção:</strong> É de extrema necessidade termos o número do CPF do estudante na escola para controles oficiais e acompanhamento de programas sociais.
             </div>
 
             {/* Lista dos Estudantes sem CPF */}
@@ -1277,11 +1276,11 @@ export default function DashboardPage() {
         </div>
 
         {/* Bloco 2: Estudantes sem Foto Cadastrada */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface flex flex-col justify-between">
+        <div className="isometric-card rounded-2xl border border-slate-200/90 bg-white p-6 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface flex flex-col justify-between">
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400 flex-shrink-0 border border-amber-200/60 dark:border-amber-900/60">
+                <div className="isometric-icon-3d flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md shadow-amber-600/30 flex-shrink-0">
                   <CameraOff className="h-5 w-5" />
                 </div>
                 <div>
@@ -1370,11 +1369,11 @@ export default function DashboardPage() {
         </div>
 
         {/* Bloco 2: Alertas: Estudantes sem Telefone de Contato */}
-        <div className="rounded-2xl border border-rose-200/80 bg-rose-50/20 p-6 shadow-sm dark:border-rose-900/40 dark:bg-rose-950/15 flex flex-col justify-between">
+        <div className="isometric-card rounded-2xl border border-rose-200/80 bg-rose-50/20 p-6 border-t-2 border-t-white/90 dark:border-t-rose-900/40 dark:border-rose-900/40 dark:bg-rose-950/15 flex flex-col justify-between">
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-rose-200/50 pb-4 dark:border-rose-900/30">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400 flex-shrink-0 border border-rose-200/60 dark:border-rose-900/60">
+                <div className="isometric-icon-3d flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-rose-700 text-white shadow-md shadow-rose-700/30 flex-shrink-0">
                   <PhoneOff className="h-5 w-5" />
                 </div>
                 <div>
@@ -1479,16 +1478,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Tabela de Alertas Rápidos: Faltas de Professores no Dia com Atestado */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
+      <div className="isometric-card rounded-2xl border border-slate-200/90 bg-white p-6 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Alertas Rápidos: Ausências Docentes Registradas no Dia
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Substituições e atestados de saúde anexados no Google Drive
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md shadow-amber-600/30 flex-shrink-0">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Alertas Rápidos: Ausências Docentes Registradas no Dia
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Substituições e atestados de saúde anexados no Google Drive
+              </p>
+            </div>
           </div>
           <Link
             href="/professores"
@@ -1569,16 +1572,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Bloco: Estatísticas do Tipo de Histórico Escolar */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface space-y-6">
+      <div className="isometric-card rounded-2xl border border-slate-200/90 bg-white p-6 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
-              Estatísticas do Tipo de Histórico Escolar
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Auditoria de conformidade documental: Definitivo, Temporário e Não entregue
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-school-blue-500 to-school-blue-800 text-white shadow-md shadow-school-blue-800/30 flex-shrink-0">
+              <BarChart3 className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Estatísticas do Tipo de Histórico Escolar
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Auditoria de conformidade documental: Definitivo, Temporário e Não entregue
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -1779,25 +1786,45 @@ export default function DashboardPage() {
         obterInfoTurma={obterInfoTurma}
       />
 
-      {/* Último Bloco do Dashboard: 10 Próximos Eventos Cadastrados */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+      {/* Último Bloco do Dashboard: 10 Próximos Eventos Cadastrados (Em Destaque Especial) */}
+      <div className="isometric-featured-card relative rounded-2xl border-2 border-purple-300/80 bg-gradient-to-b from-purple-50/40 via-white to-indigo-50/20 p-6 dark:border-purple-800/80 dark:bg-gradient-to-b dark:from-slate-900 dark:via-school-dark-surface dark:to-purple-950/20 overflow-hidden">
+        {/* Glow / Decoração em gradiente de fundo */}
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-purple-500/10 blur-3xl dark:bg-purple-600/15" />
+
+        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-100 pb-4 dark:border-purple-900/50">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400 border border-purple-200/60 dark:border-purple-900/60">
-              <Calendar className="h-5 w-5" />
+            <div className="isometric-icon-3d flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-600 via-indigo-600 to-school-blue-700 text-white shadow-md shadow-purple-600/30 flex-shrink-0">
+              <Calendar className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                10 Próximos Eventos Cadastrados
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Acompanhamento da agenda pedagógica, reuniões, avaliações e atividades da instituição
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  10 Próximos Eventos Cadastrados
+                </h3>
+                <span className="inline-flex items-center gap-1 rounded-full bg-purple-600 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-xs">
+                  <Sparkles className="h-3 w-3" />
+                  Destaque da Agenda
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Acompanhamento prioritário da agenda pedagógica, reuniões, avaliações e atividades da instituição
               </p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60">
-            {dezProximosEventos.length} evento(s) na agenda
-          </span>
+
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-black text-purple-900 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-200/80 dark:border-purple-800/80 shadow-xs">
+              <span className="h-2 w-2 rounded-full bg-purple-600 animate-ping" />
+              {dezProximosEventos.length} evento(s) na agenda
+            </span>
+            <Link
+              href="/calendario"
+              className="inline-flex items-center gap-1 rounded-xl bg-purple-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-700 shadow-sm transition-all"
+            >
+              <span>Abrir Calendário</span>
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
 
         {dezProximosEventos.length === 0 ? (
@@ -1834,7 +1861,7 @@ export default function DashboardPage() {
               return (
                 <div
                   key={ev.id}
-                  className="flex flex-col justify-between rounded-xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40 hover:border-purple-300 dark:hover:border-purple-800 transition-all shadow-sm"
+                  className="isometric-card flex flex-col justify-between rounded-xl border border-purple-100/90 bg-white/95 p-4 dark:border-slate-800 dark:bg-slate-900/60 hover:border-purple-300 dark:hover:border-purple-700 transition-all border-t-2 border-t-white/90 dark:border-t-purple-900/40"
                 >
                   <div>
                     <div className="flex items-center justify-between gap-1.5 mb-2.5">

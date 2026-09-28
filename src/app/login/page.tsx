@@ -75,7 +75,7 @@ const INSPIRING_QUOTES: InspiringQuote[] = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setCurrentUser, setRole, escolaConfig, theme, toggleTheme } = useApp();
+  const { setCurrentUser, setRole, setAuthenticatedUser, escolaConfig, theme, toggleTheme } = useApp();
 
   const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
@@ -207,7 +207,7 @@ export default function LoginPage() {
 
       // Sucesso na autenticação: sincroniza contexto global e redireciona
       if (data.user) {
-        setCurrentUser({
+        const fullUser = {
           id: data.user.id,
           name: data.user.name,
           email: data.user.email || '',
@@ -218,7 +218,14 @@ export default function LoginPage() {
           must_change_password: Boolean(data.user.must_change_password),
           is_active: true,
           created_at: new Date().toISOString(),
-        });
+        };
+        try {
+          sessionStorage.setItem('plugue_auth_user', JSON.stringify(fullUser));
+        } catch {}
+        if (typeof setAuthenticatedUser === 'function') {
+          setAuthenticatedUser(fullUser);
+        }
+        setCurrentUser(fullUser);
         setRole(data.user.role);
       }
 
@@ -231,7 +238,8 @@ export default function LoginPage() {
         }
       }
 
-      router.push('/');
+      // Rota inicial obrigatória: aterrissagem padrão sempre em /dashboard
+      router.push('/dashboard');
     } catch (err: any) {
       setErro(err.message || 'Credenciais inválidas. Verifique seu CPF e senha.');
     } finally {

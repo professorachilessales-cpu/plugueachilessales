@@ -63,6 +63,9 @@ interface AppContextType {
   isAuthenticated: boolean;
   isInitialized: boolean;
   logout: () => Promise<void>;
+  authenticatedUser: SystemUser | null;
+  setAuthenticatedUser: (user: SystemUser | null) => void;
+  isAdminSession: boolean;
 
   // Gestão de Usuários & RBAC
   users: SystemUser[];
@@ -178,8 +181,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(false);
   const [users, setUsers] = useState<SystemUser[]>(initialUsers);
   const [currentUser, setCurrentUserState] = useState<SystemUser>(initialUsers[0]);
+  const [authenticatedUser, setAuthenticatedUserState] = useState<SystemUser | null>(initialUsers[0]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // O administrador possui permissão total de alternância. O professor logado não pode alternar para outro perfil.
+  const isAdminSession = authenticatedUser ? authenticatedUser.role === 'admin' : (role === 'admin');
+
+  const setAuthenticatedUser = (user: SystemUser | null) => {
+    setAuthenticatedUserState(user);
+    if (user) {
+      try {
+        sessionStorage.setItem('plugue_auth_user', JSON.stringify(user));
+      } catch {}
+    } else {
+      try {
+        sessionStorage.removeItem('plugue_auth_user');
+      } catch {}
+    }
+  };
 
   // Inicialização com LocalStorage
   useEffect(() => {
@@ -228,12 +248,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // -------------------------------------------------------------
       const isSessionActive = sessionStorage.getItem('plugue_session_active');
       const sessionUserJson = sessionStorage.getItem('plugue_session_user');
+      const authUserJson = sessionStorage.getItem('plugue_auth_user');
+
+      if (authUserJson) {
+        try {
+          const parsedAuth = JSON.parse(authUserJson);
+          setAuthenticatedUserState(parsedAuth);
+        } catch {}
+      }
 
       if (isSessionActive === 'true' && sessionUserJson) {
         try {
           const parsedUser = JSON.parse(sessionUserJson);
           setCurrentUserState(parsedUser);
           setRoleState(parsedUser.role);
+          if (!authUserJson) {
+            setAuthenticatedUserState(parsedUser);
+          }
           setIsAuthenticated(true);
         } catch {
           setIsAuthenticated(false);
@@ -485,6 +516,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
+  // Garante reativamente que o perfil Professor sempre exiba o Nome Completo oficial do banco
+  useEffect(() => {
+    if (currentUser?.role === 'professor' && professores.length > 0) {
+      const cpfLimpoUser = currentUser.cpf?.replace(/\D/g, '');
+      const prof = professores.find(
+        (p) =>
+          (cpfLimpoUser && p.cpf?.replace(/\D/g, '') === cpfLimpoUser) ||
+          p.id === currentUser.id ||
+          p.id.toLowerCase() === currentUser.id.toLowerCase() ||
+          (p.email && currentUser.email && p.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (currentUser.name && p.nome_completo?.toLowerCase() === currentUser.name.toLowerCase())
+      );
+      if (prof && prof.nome_completo && currentUser.name !== prof.nome_completo) {
+        setCurrentUserState((prev) => ({
+          ...prev,
+          name: prof.nome_completo,
+        }));
+      }
+    }
+  }, [currentUser, professores]);
+
   // Sincronizador de mutações com o Turso
   const syncWithTurso = async (action: string, payload: any) => {
     try {
@@ -651,6 +703,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setCurrentUser = (user: SystemUser) => {
+    // Bloqueio de simulação: Usuário logado como Professor não pode simular outro perfil/usuário
+    if (!isAdminSession && authenticatedUser && user.id !== authenticatedUser.id) {
+      console.warn('Operação bloqueada: Usuário logado como Professor não possui permissão para simular outros usuários.');
+      return;
+    }
+
     setCurrentUserState(user);
     setRoleState(user.role);
     setIsAuthenticated(true);
@@ -661,6 +719,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('school_os_role', user.role);
     } catch (e) {
       console.error('Falha ao salvar sessão:', e);
+    }
+
+    // Rota inicial obrigatória: quando professor for ativado, destino padrão sempre Dashboard
+    if (user.role === 'professor' && typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      if (p !== '/' && p !== '/dashboard' && p !== '/fotograma' && p !== '/calendario') {
+        window.location.href = '/dashboard';
+      }
     }
   };
 
@@ -674,12 +740,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       sessionStorage.removeItem('plugue_session_active');
       sessionStorage.removeItem('plugue_session_user');
+      sessionStorage.removeItem('plugue_auth_user');
       localStorage.removeItem('school_os_current_user_id');
       localStorage.removeItem('plugue_lembrar_usuario');
     } catch (e) {
       // ignore
     }
 
+    setAuthenticatedUserState(null);
     setIsAuthenticated(false);
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
@@ -687,11 +755,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setRole = (newRole: UserRole) => {
-    // Regra estrita de RBAC: Usuários com perfil Docente não podem alternar para Administrador
-    if (currentUser?.role === 'professor' && newRole === 'admin') {
-      console.warn('Operação bloqueada: Usuário com perfil Docente não possui permissão para alternar para Administrador.');
+    // Bloqueio de troca de perfil: Usuários logados como Professor NÃO podem alternar para nenhum outro perfil
+    if (!isAdminSession && newRole !== 'professor') {
+      console.warn('Operação bloqueada: Usuário logado como Professor não possui permissão para alternar de perfil.');
       return;
     }
+
     setRoleState(newRole);
     localStorage.setItem('school_os_role', newRole);
     // Sincroniza currentUser para um usuário com essa role
@@ -699,6 +768,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (matchingUser) {
       setCurrentUserState(matchingUser);
       localStorage.setItem('school_os_current_user_id', matchingUser.id);
+    }
+
+    // Rota inicial obrigatória: ao alternar para professor, redireciona para Dashboard se estiver em rota restrita
+    if (newRole === 'professor' && typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      if (p !== '/' && p !== '/dashboard' && p !== '/fotograma' && p !== '/calendario') {
+        window.location.href = '/dashboard';
+      }
     }
   };
 
@@ -1434,7 +1511,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // 6. Observações Contínuas do Estudante
   const addObservacaoAluno = (alunoId: string, tipo: TipoObservacaoAluno, texto: string) => {
-    const cargo = role === 'admin' ? 'Administração Escolar' : role === 'direcao' ? 'Direção Escolar' : 'Professor Docente';
+    const cargo = role === 'admin' ? 'Administração Escolar' : role === 'direcao' ? 'Direção Escolar' : 'Professor';
     const novaObs: ObservacaoAluno = {
       id: `obs-${Date.now()}`,
       aluno_id: alunoId,
@@ -1564,6 +1641,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         users,
         currentUser,
         setCurrentUser,
+        authenticatedUser,
+        setAuthenticatedUser,
+        isAdminSession,
         isAuthenticated,
         isInitialized,
         logout,

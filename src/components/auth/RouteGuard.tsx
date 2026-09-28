@@ -44,7 +44,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
 
     const description = isFotogramaRevoked || isCalendarioRevoked
       ? 'A permissão para este módulo foi revogada pela coordenação na Matriz de Permissões do seu usuário.'
-      : 'Você está conectado com o perfil Docente. Os módulos administrativos e de gestão são de uso exclusivo da Secretaria e Administração Escolar.';
+      : 'Você está conectado com o perfil de Professor. Os módulos administrativos e de gestão são de uso exclusivo da Secretaria e Administração Escolar.';
 
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center p-4 text-center animate-in fade-in-0 duration-300">
@@ -67,13 +67,20 @@ export function RouteGuard({ children }: RouteGuardProps) {
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/20 hover:bg-school-blue-700 transition-all dark:bg-school-blue-700 dark:hover:bg-school-blue-600"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Ir para o Dashboard</span>
+            </Link>
+
             {allowedModules.includes('FOTOGRAMA') && (
               <Link
                 href="/fotograma"
-                className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/20 hover:bg-school-blue-700 transition-all dark:bg-school-blue-700 dark:hover:bg-school-blue-600"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all"
               >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Acessar Fotograma da Turma</span>
+                <span>Acessar Fotograma</span>
               </Link>
             )}
 
@@ -82,7 +89,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
                 href="/calendario"
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all"
               >
-                <span>Ver Calendário Escolar</span>
+                <span>Calendário Escolar</span>
               </Link>
             )}
           </div>

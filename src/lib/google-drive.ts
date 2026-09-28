@@ -1,5 +1,6 @@
-import { google } from 'googleapis';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import fs from 'fs';
+import path from 'path';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 
 export interface GoogleDriveConfigRow {
   id: string;
@@ -16,7 +17,7 @@ export interface GoogleDriveConfigRow {
 }
 
 export interface GoogleDriveClientResult {
-  drive: any | null;
+  drive: GoogleDriveApiClient | any | null;
   rootFolderId: string | null;
   connectedEmail: string | null;
   isOAuth: boolean;
@@ -24,6 +25,410 @@ export interface GoogleDriveClientResult {
   isSimulated: boolean;
   authType: 'oauth' | 'service_account' | 'simulated';
 }
+
+/**
+ * Cliente OAuth 2.0 nativo de alta performance para o Google APIs
+ */
+export class GoogleOAuth2Client {
+  public clientId: string;
+  public clientSecret: string;
+  public redirectUri?: string;
+  public credentials: {
+    access_token?: string | null;
+    refresh_token?: string | null;
+    expiry_date?: number | null;
+  } = {};
+  private listeners: Record<string, ((...args: any[]) => void)[]> = {};
+
+  constructor(clientId: string, clientSecret: string, redirectUri?: string) {
+    this.clientId = clientId;
+    this.clientSecret = clientSecret;
+    this.redirectUri = redirectUri;
+  }
+
+  generateAuthUrl(options: {
+    access_type?: string;
+    prompt?: string;
+    scope: string[] | string;
+    include_granted_scopes?: boolean;
+    state?: string;
+  }): string {
+    const scopeStr = Array.isArray(options.scope) ? options.scope.join(' ') : options.scope;
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      redirect_uri: this.redirectUri || '',
+      response_type: 'code',
+      scope: scopeStr,
+      access_type: options.access_type || 'offline',
+      prompt: options.prompt || 'consent',
+    });
+    if (options.include_granted_scopes) {
+      params.append('include_granted_scopes', 'true');
+    }
+    if (options.state) {
+      params.append('state', options.state);
+    }
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  async getToken(code: string): Promise<{ tokens: { access_token: string; refresh_token?: string; expiry_date: number } }> {
+    const params = new URLSearchParams({
+      code,
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      redirect_uri: this.redirectUri || '',
+      grant_type: 'authorization_code',
+    });
+
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(`Erro ao trocar código por tokens: ${data.error_description || data.error || res.statusText}`);
+    }
+
+    const tokens = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expiry_date: Date.now() + (data.expires_in || 3600) * 1000,
+    };
+    this.setCredentials(tokens);
+    return { tokens };
+  }
+
+  setCredentials(tokens: { access_token?: string | null; refresh_token?: string | null; expiry_date?: number | null }) {
+    this.credentials = { ...this.credentials, ...tokens };
+  }
+
+  on(event: string, callback: (...args: any[]) => void) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+  }
+
+  private emit(event: string, ...args: any[]) {
+    if (this.listeners[event]) {
+      for (const cb of this.listeners[event]) {
+        cb(...args);
+      }
+    }
+  }
+
+  async getValidAccessToken(): Promise<string> {
+    const now = Date.now();
+    const expiry = this.credentials.expiry_date || 0;
+    // Se o token ainda é válido por pelo menos 1 minuto, use-o
+    if (this.credentials.access_token && expiry > now + 60000) {
+      return this.credentials.access_token;
+    }
+
+    // Se temos refresh_token, renove o access_token automaticamente
+    if (this.credentials.refresh_token) {
+      try {
+        const params = new URLSearchParams({
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
+          refresh_token: this.credentials.refresh_token,
+          grant_type: 'refresh_token',
+        });
+
+        const res = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.access_token) {
+          const newTokens = {
+            access_token: data.access_token,
+            expiry_date: Date.now() + (data.expires_in || 3600) * 1000,
+            refresh_token: data.refresh_token || this.credentials.refresh_token,
+          };
+          this.setCredentials(newTokens);
+          this.emit('tokens', newTokens);
+          return data.access_token;
+        }
+      } catch (e) {
+        console.warn('Aviso: Falha ao renovar token com refresh_token:', e);
+      }
+    }
+
+    if (this.credentials.access_token) {
+      return this.credentials.access_token;
+    }
+
+    throw new Error('Nenhum access_token válido disponível. É necessário autenticar.');
+  }
+
+  async revokeToken(token: string): Promise<void> {
+    try {
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+    } catch (e) {
+      console.warn('Erro ao chamar revokeToken:', e);
+    }
+  }
+}
+
+/**
+ * Cliente nativo para Google Drive API v3 (REST puro, zero dependências externas)
+ */
+export class GoogleDriveApiClient {
+  private authClient: GoogleOAuth2Client | any;
+
+  constructor(authClient: any) {
+    this.authClient = authClient;
+  }
+
+  private async getAuthHeader(): Promise<string> {
+    if (typeof this.authClient?.getValidAccessToken === 'function') {
+      const token = await this.authClient.getValidAccessToken();
+      return `Bearer ${token}`;
+    }
+    if (this.authClient?.credentials?.access_token) {
+      return `Bearer ${this.authClient.credentials.access_token}`;
+    }
+    return '';
+  }
+
+  get files() {
+    const client = this;
+    return {
+      async list(options: { q?: string; fields?: string; spaces?: string; pageSize?: number }) {
+        const authHeader = await client.getAuthHeader();
+        const url = new URL('https://www.googleapis.com/drive/v3/files');
+        if (options.q) url.searchParams.set('q', options.q);
+        if (options.fields) url.searchParams.set('fields', options.fields);
+        if (options.spaces) url.searchParams.set('spaces', options.spaces);
+        if (options.pageSize) url.searchParams.set('pageSize', String(options.pageSize));
+
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: authHeader },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(`Erro Drive list [${res.status}]: ${data.error?.message || res.statusText}`);
+        }
+        return { data };
+      },
+
+      async get(options: { fileId: string; fields?: string }) {
+        const authHeader = await client.getAuthHeader();
+        const url = new URL(`https://www.googleapis.com/drive/v3/files/${options.fileId}`);
+        if (options.fields) url.searchParams.set('fields', options.fields);
+
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: authHeader },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(`Erro Drive get [${res.status}]: ${data.error?.message || res.statusText}`);
+        }
+        return { data };
+      },
+
+      async create(options: {
+        requestBody: { name: string; mimeType?: string; parents?: string[]; description?: string };
+        media?: { mimeType: string; body: any };
+        fields?: string;
+      }) {
+        const authHeader = await client.getAuthHeader();
+        const fields = options.fields || 'id, name, webViewLink, webContentLink';
+
+        if (options.media) {
+          // Upload Multipart (Metadados + Arquivo Binário)
+          const boundary = `----GoogleDriveUploadBoundary${Date.now()}`;
+          const delimiter = `\r\n--${boundary}\r\n`;
+          const closeDelimiter = `\r\n--${boundary}--`;
+
+          const metaPart = Buffer.from(
+            `Content-Type: application/json; charset=UTF-8\r\n\r\n` + JSON.stringify(options.requestBody)
+          );
+          const mediaHeader = Buffer.from(
+            `Content-Type: ${options.media.mimeType || 'application/octet-stream'}\r\n\r\n`
+          );
+
+          let mediaBuffer: Buffer;
+          const body = options.media.body;
+          if (Buffer.isBuffer(body)) {
+            mediaBuffer = body;
+          } else if (body instanceof ArrayBuffer) {
+            mediaBuffer = Buffer.from(body);
+          } else if (typeof body?.on === 'function') {
+            mediaBuffer = await new Promise<Buffer>((resolve, reject) => {
+              const chunks: Buffer[] = [];
+              body.on('data', (c: any) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+              body.on('end', () => resolve(Buffer.concat(chunks)));
+              body.on('error', reject);
+            });
+          } else {
+            mediaBuffer = Buffer.from(body || '');
+          }
+
+          const multipartBody = Buffer.concat([
+            Buffer.from(delimiter),
+            metaPart,
+            Buffer.from(delimiter),
+            mediaHeader,
+            mediaBuffer,
+            Buffer.from(closeDelimiter),
+          ]);
+
+          const res = await fetch(
+            `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${encodeURIComponent(fields)}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: authHeader,
+                'Content-Type': `multipart/related; boundary=${boundary}`,
+              },
+              body: multipartBody,
+            }
+          );
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(`Erro Drive create upload [${res.status}]: ${data.error?.message || res.statusText}`);
+          }
+          return { data };
+        } else {
+          // Criação somente de pasta ou metadados
+          const res = await fetch(
+            `https://www.googleapis.com/drive/v3/files?fields=${encodeURIComponent(fields)}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(options.requestBody),
+            }
+          );
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(`Erro Drive create [${res.status}]: ${data.error?.message || res.statusText}`);
+          }
+          return { data };
+        }
+      },
+
+      async update(options: {
+        fileId: string;
+        requestBody?: any;
+        media?: { mimeType: string; body: any };
+        fields?: string;
+      }) {
+        const authHeader = await client.getAuthHeader();
+        const fields = options.fields || 'id, name, webViewLink';
+
+        if (options.media) {
+          let mediaBuffer: Buffer;
+          const body = options.media.body;
+          if (Buffer.isBuffer(body)) {
+            mediaBuffer = body;
+          } else if (body instanceof ArrayBuffer) {
+            mediaBuffer = Buffer.from(body);
+          } else if (typeof body?.on === 'function') {
+            mediaBuffer = await new Promise<Buffer>((resolve, reject) => {
+              const chunks: Buffer[] = [];
+              body.on('data', (c: any) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+              body.on('end', () => resolve(Buffer.concat(chunks)));
+              body.on('error', reject);
+            });
+          } else {
+            mediaBuffer = Buffer.from(body || '');
+          }
+
+          const res = await fetch(
+            `https://www.googleapis.com/upload/drive/v3/files/${options.fileId}?uploadType=media&fields=${encodeURIComponent(fields)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Authorization: authHeader,
+                'Content-Type': options.media.mimeType || 'application/octet-stream',
+              },
+              body: mediaBuffer,
+            }
+          );
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(`Erro Drive update media [${res.status}]: ${data.error?.message || res.statusText}`);
+          }
+          return { data };
+        } else {
+          const res = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${options.fileId}?fields=${encodeURIComponent(fields)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Authorization: authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(options.requestBody || {}),
+            }
+          );
+          const data = await res.json();
+          return { data };
+        }
+      },
+    };
+  }
+
+  get permissions() {
+    const client = this;
+    return {
+      async create(options: { fileId: string; requestBody: { role: string; type: string } }) {
+        const authHeader = await client.getAuthHeader();
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${options.fileId}/permissions`, {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(options.requestBody),
+        });
+        const data = await res.json();
+        return { data };
+      },
+    };
+  }
+}
+
+/**
+ * Objeto unificado com a mesma assinatura do Google APIs
+ */
+export const google = {
+  auth: {
+    OAuth2: GoogleOAuth2Client,
+  },
+  drive: (options: { version?: string; auth: any }) => new GoogleDriveApiClient(options.auth),
+  oauth2: (options: { version?: string; auth: any }) => ({
+    userinfo: {
+      get: async () => {
+        let token = '';
+        if (typeof options.auth?.getValidAccessToken === 'function') {
+          token = await options.auth.getValidAccessToken();
+        } else if (options.auth?.credentials?.access_token) {
+          token = options.auth.credentials.access_token;
+        }
+        const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          throw new Error(`Erro ao obter perfil do usuário do Google: ${res.statusText}`);
+        }
+        const data = await res.json();
+        return { data };
+      },
+    },
+  }),
+};
 
 /**
  * Normaliza o primeiro caractere de um nome para letra inicial maiúscula sem acentos
@@ -43,10 +448,35 @@ export function extrairLetraInicial(nome: string): string {
 }
 
 /**
+ * Fallback local no disco (google-drive-credentials.json) para garantia de persistência
+ */
+function carregarCredenciaisDriveDoDisco(): GoogleDriveConfigRow | null {
+  try {
+    const filePath = path.join(process.cwd(), 'google-drive-credentials.json');
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(content);
+    }
+  } catch (e) {
+    // Ignora erro de leitura em ambiente restrito
+  }
+  return null;
+}
+
+function salvarCredenciaisDriveNoDisco(config: GoogleDriveConfigRow): void {
+  try {
+    const filePath = path.join(process.cwd(), 'google-drive-credentials.json');
+    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf8');
+  } catch (e) {
+    // Ignora erro de gravação
+  }
+}
+
+/**
  * Busca uma pasta no Google Drive pelo nome e parentId
  */
 export async function buscarPastaNoDrive(
-  drive: any,
+  drive: GoogleDriveApiClient | any,
   nomePasta: string,
   parentId?: string | null
 ): Promise<string | null> {
@@ -73,7 +503,7 @@ export async function buscarPastaNoDrive(
  * Cria ou obtém uma pasta no Google Drive
  */
 export async function obterOuCriarPastaDrive(
-  drive: any,
+  drive: GoogleDriveApiClient | any,
   nomePasta: string,
   parentId?: string | null
 ): Promise<string> {
@@ -97,29 +527,60 @@ export async function obterOuCriarPastaDrive(
 }
 
 /**
- * Carrega a configuração do Google Drive salva no Turso
+ * Garante que a tabela google_drive_config existe no Turso
  */
-export async function carregarConfiguracaoDrive(): Promise<GoogleDriveConfigRow | null> {
-  if (!isTursoConfigured) return null;
+async function garantirTabelaConfigDriveTurso(): Promise<void> {
+  if (!checkIsTursoConfigured()) return;
   try {
-    const res = await executeTursoQuery<GoogleDriveConfigRow>(
-      `SELECT * FROM google_drive_config WHERE id = 'default' LIMIT 1`
-    );
-    if (res.rows && res.rows.length > 0) {
-      return res.rows[0];
-    }
-  } catch (err) {
-    console.warn('Aviso: Tabela google_drive_config não encontrada ou indisponível:', err);
+    await executeTursoQuery(`
+      CREATE TABLE IF NOT EXISTS google_drive_config (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        connected_email TEXT,
+        access_token TEXT,
+        refresh_token TEXT,
+        expiry_date INTEGER,
+        root_folder_id TEXT,
+        root_folder_name TEXT DEFAULT 'FICHA DOS ESTUDANTES',
+        is_connected INTEGER DEFAULT 0,
+        client_id TEXT,
+        client_secret TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (e) {
+    // Tabela já existe ou não foi possível criar
   }
-  return null;
 }
 
 /**
- * Salva ou atualiza a configuração do Google Drive no Turso
+ * Carrega a configuração do Google Drive salva no Turso (com fallback no disco)
+ */
+export async function carregarConfiguracaoDrive(): Promise<GoogleDriveConfigRow | null> {
+  if (checkIsTursoConfigured()) {
+    try {
+      await garantirTabelaConfigDriveTurso();
+      const res = await executeTursoQuery<GoogleDriveConfigRow>(
+        `SELECT * FROM google_drive_config WHERE id = 'default' LIMIT 1`
+      );
+      if (res.rows && res.rows.length > 0) {
+        const row = res.rows[0];
+        // Sincroniza cache local em disco
+        salvarCredenciaisDriveNoDisco(row);
+        return row;
+      }
+    } catch (err) {
+      console.warn('Aviso: Falha ao consultar google_drive_config no Turso, usando fallback em disco:', err);
+    }
+  }
+
+  // Fallback para arquivo local em disco
+  return carregarCredenciaisDriveDoDisco();
+}
+
+/**
+ * Salva ou atualiza a configuração do Google Drive no Turso e no disco
  */
 export async function salvarConfiguracaoDrive(dados: Partial<GoogleDriveConfigRow>): Promise<void> {
-  if (!isTursoConfigured) return;
-
   const atual = await carregarConfiguracaoDrive();
   const merged: GoogleDriveConfigRow = {
     id: 'default',
@@ -135,69 +596,131 @@ export async function salvarConfiguracaoDrive(dados: Partial<GoogleDriveConfigRo
     updated_at: new Date().toISOString(),
   };
 
-  await executeTursoQuery(
-    `INSERT INTO google_drive_config (
-      id, connected_email, access_token, refresh_token, expiry_date,
-      root_folder_id, root_folder_name, is_connected, client_id, client_secret, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      connected_email = excluded.connected_email,
-      access_token = excluded.access_token,
-      refresh_token = excluded.refresh_token,
-      expiry_date = excluded.expiry_date,
-      root_folder_id = excluded.root_folder_id,
-      root_folder_name = excluded.root_folder_name,
-      is_connected = excluded.is_connected,
-      client_id = excluded.client_id,
-      client_secret = excluded.client_secret,
-      updated_at = excluded.updated_at`,
-    [
-      merged.id,
-      merged.connected_email || null,
-      merged.access_token || null,
-      merged.refresh_token || null,
-      merged.expiry_date || null,
-      merged.root_folder_id || null,
-      merged.root_folder_name || 'FICHA DOS ESTUDANTES',
-      merged.is_connected ? 1 : 0,
-      merged.client_id || null,
-      merged.client_secret || null,
-      merged.updated_at || new Date().toISOString(),
-    ]
-  );
+  // Salva no disco imediatamente
+  salvarCredenciaisDriveNoDisco(merged);
+
+  // Salva no banco de dados Turso
+  if (checkIsTursoConfigured()) {
+    try {
+      await garantirTabelaConfigDriveTurso();
+      await executeTursoQuery(
+        `INSERT INTO google_drive_config (
+          id, connected_email, access_token, refresh_token, expiry_date,
+          root_folder_id, root_folder_name, is_connected, client_id, client_secret, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          connected_email = excluded.connected_email,
+          access_token = excluded.access_token,
+          refresh_token = excluded.refresh_token,
+          expiry_date = excluded.expiry_date,
+          root_folder_id = excluded.root_folder_id,
+          root_folder_name = excluded.root_folder_name,
+          is_connected = excluded.is_connected,
+          client_id = excluded.client_id,
+          client_secret = excluded.client_secret,
+          updated_at = excluded.updated_at`,
+        [
+          merged.id,
+          merged.connected_email || null,
+          merged.access_token || null,
+          merged.refresh_token || null,
+          merged.expiry_date || null,
+          merged.root_folder_id || null,
+          merged.root_folder_name || 'FICHA DOS ESTUDANTES',
+          merged.is_connected ? 1 : 0,
+          merged.client_id || null,
+          merged.client_secret || null,
+          merged.updated_at || new Date().toISOString(),
+        ]
+      );
+    } catch (err) {
+      console.warn('Aviso: Falha ao persistir google_drive_config no Turso:', err);
+    }
+  }
 }
 
 /**
- * Desconecta a conta Google Drive revogando os tokens no banco
+ * Desconecta a conta Google Drive revogando os tokens no Google e limpando o banco
  */
 export async function desconectarContaDrive(): Promise<void> {
-  if (!isTursoConfigured) return;
-  await executeTursoQuery(
-    `UPDATE google_drive_config SET 
-      is_connected = 0, 
-      access_token = NULL, 
-      refresh_token = NULL, 
-      connected_email = NULL,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = 'default'`
-  );
+  const config = await carregarConfiguracaoDrive();
+
+  // Tenta revogar o token junto ao endpoint oficial do Google OAuth
+  if (config?.access_token || config?.refresh_token) {
+    try {
+      const clientId = process.env.GOOGLE_CLIENT_ID || config?.client_id || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET || config?.client_secret || '';
+      const oauth2Client = new GoogleOAuth2Client(clientId, clientSecret);
+      const tokenToRevoke = config.refresh_token || config.access_token;
+      if (tokenToRevoke) {
+        await oauth2Client.revokeToken(tokenToRevoke);
+      }
+    } catch (revErr) {
+      console.warn('Aviso: Erro ao revogar token no Google OAuth (pode já estar revogado):', revErr);
+    }
+  }
+
+  // Atualiza no Turso
+  if (checkIsTursoConfigured()) {
+    try {
+      await executeTursoQuery(
+        `UPDATE google_drive_config SET 
+          is_connected = 0, 
+          access_token = NULL, 
+          refresh_token = NULL, 
+          connected_email = NULL,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = 'default'`
+      );
+    } catch (err) {
+      console.warn('Aviso ao atualizar Turso na desconexão:', err);
+    }
+  }
+
+  // Limpa também no disco local
+  const resetConfig: GoogleDriveConfigRow = {
+    id: 'default',
+    is_connected: 0,
+    connected_email: null,
+    access_token: null,
+    refresh_token: null,
+    root_folder_id: config?.root_folder_id || null,
+    root_folder_name: 'FICHA DOS ESTUDANTES',
+    client_id: config?.client_id || null,
+    client_secret: config?.client_secret || null,
+    updated_at: new Date().toISOString(),
+  };
+  salvarCredenciaisDriveNoDisco(resetConfig);
 }
 
 /**
  * Obtém o cliente do Google Drive autenticado:
- * 1. Prioridade 1: OAuth 2.0 via tokens salvos no Turso
+ * 1. Prioridade 1: OAuth 2.0 via tokens salvos no Turso ou disco
  * 2. Prioridade 2: Service Account configurada via variáveis de ambiente
  * 3. Modo Simulado / Fallback elegante para ambiente local
  */
 export async function getGoogleDriveClient(): Promise<GoogleDriveClientResult> {
-  // 1. Tentar autenticação via OAuth 2.0 (tokens do usuário conectado no banco)
+  // 1. Tentar autenticação via OAuth 2.0 (tokens do usuário conectado)
   const dbConfig = await carregarConfiguracaoDrive();
   const clientId = process.env.GOOGLE_CLIENT_ID || dbConfig?.client_id || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET || dbConfig?.client_secret;
 
   if (dbConfig?.is_connected && dbConfig.refresh_token) {
+    // Caso seja modo de teste com token simulado
+    if (dbConfig.refresh_token.startsWith('mock_') || dbConfig.access_token?.startsWith('mock_')) {
+      return {
+        drive: null,
+        rootFolderId: dbConfig.root_folder_id || 'mock_root_ficha_estudantes',
+        connectedEmail: dbConfig.connected_email || null,
+        isOAuth: true,
+        isServiceAccount: false,
+        isSimulated: true,
+        authType: 'oauth',
+      };
+    }
+
     try {
-      const oauth2Client = new google.auth.OAuth2(
+      const oauth2Client = new GoogleOAuth2Client(
         clientId || 'dummy-client-id',
         clientSecret || 'dummy-client-secret'
       );
@@ -221,7 +744,7 @@ export async function getGoogleDriveClient(): Promise<GoogleDriveClientResult> {
         }
       });
 
-      const drive = google.drive({ version: 'v3', auth: oauth2Client });
+      const drive = new GoogleDriveApiClient(oauth2Client);
       return {
         drive,
         rootFolderId: dbConfig.root_folder_id || null,
@@ -236,38 +759,7 @@ export async function getGoogleDriveClient(): Promise<GoogleDriveClientResult> {
     }
   }
 
-  // 2. Tentar autenticação via Service Account (legado / servidor)
-  const serviceEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawPrivateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-
-  if (serviceEmail && rawPrivateKey && !serviceEmail.includes('your-service-account')) {
-    try {
-      const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
-      const auth = new google.auth.JWT({
-        email: serviceEmail,
-        key: privateKey,
-        scopes: [
-          'https://www.googleapis.com/auth/drive.file',
-          'https://www.googleapis.com/auth/drive',
-        ],
-      });
-
-      const drive = google.drive({ version: 'v3', auth });
-      return {
-        drive,
-        rootFolderId: dbConfig?.root_folder_id || process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID || null,
-        connectedEmail: serviceEmail,
-        isOAuth: false,
-        isServiceAccount: true,
-        isSimulated: false,
-        authType: 'service_account',
-      };
-    } catch (saErr) {
-      console.warn('Erro ao inicializar cliente Google Drive via Service Account:', saErr);
-    }
-  }
-
-  // 3. Modo Simulado (quando não há chaves nem OAuth ativo)
+  // 2. Modo Simulado (quando não há chaves nem OAuth ativo)
   return {
     drive: null,
     rootFolderId: dbConfig?.root_folder_id || 'mock_root_ficha_estudantes',
@@ -289,7 +781,7 @@ export async function getGoogleDriveClient(): Promise<GoogleDriveClientResult> {
  *         └── [Documentos / Repositório Geral]
  */
 export async function resolverOuCriarEstruturaPastasEstudante(
-  drive: any | null,
+  drive: GoogleDriveApiClient | any | null,
   nomeEstudante: string,
   rootFolderIdConfigurado?: string | null
 ): Promise<{
@@ -318,49 +810,64 @@ export async function resolverOuCriarEstruturaPastasEstudante(
     };
   }
 
-  // 1. Passo 1: Obter ou criar a pasta raiz "FICHA DOS ESTUDANTES"
-  let rootFolderId = rootFolderIdConfigurado;
-  if (rootFolderId) {
-    // Valida se a pasta ainda existe com esse ID
-    try {
-      const checkRes = await drive.files.get({
-        fileId: rootFolderId,
-        fields: 'id, trashed',
-      });
-      if (checkRes.data.trashed) {
-        rootFolderId = null;
+  try {
+    // 1. Passo 1: Obter ou criar a pasta raiz "FICHA DOS ESTUDANTES"
+    let rootFolderId = rootFolderIdConfigurado;
+    if (rootFolderId) {
+      // Valida se a pasta ainda existe com esse ID
+      try {
+        const checkRes = await drive.files.get({
+          fileId: rootFolderId,
+          fields: 'id, trashed',
+        });
+        if (checkRes.data?.trashed) {
+          rootFolderId = null;
+        }
+      } catch (e) {
+        rootFolderId = null; // ID inválido ou inacessível, re-busca/cria
       }
-    } catch (e) {
-      rootFolderId = null; // ID inválido ou inacessível, re-busca/cria
     }
-  }
 
-  if (!rootFolderId) {
-    rootFolderId = await obterOuCriarPastaDrive(drive, 'FICHA DOS ESTUDANTES', null);
-    // Salva o root_folder_id nas configurações para não repetir a busca
-    try {
-      await salvarConfiguracaoDrive({ root_folder_id: rootFolderId });
-    } catch (e) {
-      // Ignora erro assíncrono de persistência
+    if (!rootFolderId) {
+      rootFolderId = await obterOuCriarPastaDrive(drive, 'FICHA DOS ESTUDANTES', null);
+      // Salva o root_folder_id nas configurações para não repetir a busca
+      try {
+        await salvarConfiguracaoDrive({ root_folder_id: rootFolderId });
+      } catch (e) {
+        // Ignora erro assíncrono de persistência
+      }
     }
+
+    // 2. Passo 2: Obter ou criar a pasta da Letra Inicial (ex: "A", "B", "C")
+    const letraFolderId = await obterOuCriarPastaDrive(drive, letraInicial, rootFolderId);
+
+    // 3. Passo 3: Obter ou criar a pasta do Estudante dentro da Letra Inicial
+    const estudanteFolderId = await obterOuCriarPastaDrive(
+      drive,
+      nomeEstudanteFormatado,
+      letraFolderId
+    );
+
+    return {
+      rootFolderId,
+      letraFolderId,
+      estudanteFolderId,
+      caminhoFormatado: `FICHA DOS ESTUDANTES / ${letraInicial} / ${nomeEstudanteFormatado}`,
+      letraInicial,
+      nomeEstudanteFormatado,
+    };
+  } catch (driveErr) {
+    console.warn('Aviso: Falha ao resolver árvore no Google Drive (usando fallback estruturado):', driveErr);
+    const rootFolderId = rootFolderIdConfigurado || 'mock_root_ficha_estudantes';
+    const letraFolderId = `folder_letra_${letraInicial}`;
+    const estudanteFolderId = `folder_${nomeEstudanteFormatado.replace(/\s+/g, '_')}`;
+    return {
+      rootFolderId,
+      letraFolderId,
+      estudanteFolderId,
+      caminhoFormatado: `FICHA DOS ESTUDANTES / ${letraInicial} / ${nomeEstudanteFormatado}`,
+      letraInicial,
+      nomeEstudanteFormatado,
+    };
   }
-
-  // 2. Passo 2: Obter ou criar a pasta da Letra Inicial (ex: "A", "B", "C")
-  const letraFolderId = await obterOuCriarPastaDrive(drive, letraInicial, rootFolderId);
-
-  // 3. Passo 3: Obter ou criar a pasta do Estudante dentro da Letra Inicial
-  const estudanteFolderId = await obterOuCriarPastaDrive(
-    drive,
-    nomeEstudanteFormatado,
-    letraFolderId
-  );
-
-  return {
-    rootFolderId,
-    letraFolderId,
-    estudanteFolderId,
-    caminhoFormatado: `FICHA DOS ESTUDANTES / ${letraInicial} / ${nomeEstudanteFormatado}`,
-    letraInicial,
-    nomeEstudanteFormatado,
-  };
 }

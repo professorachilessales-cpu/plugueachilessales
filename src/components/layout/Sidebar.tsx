@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  UserCog,
   GraduationCap,
   LogOut,
 } from 'lucide-react';
@@ -30,15 +29,31 @@ interface SidebarProps {
 
 export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
   const pathname = usePathname() || '';
-  const { role, sidebarCollapsed, toggleSidebarCollapsed, currentUser, logout } = useApp();
+  const { role, sidebarCollapsed, toggleSidebarCollapsed, currentUser, logout, professores } = useApp();
+
+  // Vincula o registro oficial do professor do banco de dados para exibir o Nome Completo
+  const professorVinculado = role === 'professor'
+    ? professores.find((p) => {
+        const cpfLimpoUser = currentUser?.cpf?.replace(/\D/g, '');
+        const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
+        if (cpfLimpoUser && cpfLimpoProf && cpfLimpoUser === cpfLimpoProf) return true;
+        if (currentUser?.id && (p.id === currentUser.id || (p as any).user_id === currentUser.id)) return true;
+        if (currentUser?.email && p.email?.toLowerCase() === currentUser.email.toLowerCase()) return true;
+        if (currentUser?.name && p.nome_completo?.toLowerCase() === currentUser.name.toLowerCase()) return true;
+        return false;
+      })
+    : null;
+
+  const nomeExibicaoUsuario = role === 'professor'
+    ? (professorVinculado?.nome_completo || currentUser?.name || 'Professor')
+    : (currentUser?.name || 'Administrador');
 
   const allNavItems = [
     {
       title: 'Dashboard',
-      href: '/',
+      href: '/dashboard',
       icon: LayoutDashboard,
       roles: ['admin', 'direcao', 'professor'],
-      badge: role === 'professor' ? 'Docente' : undefined,
     },
     {
       title: 'Estudantes & Relatórios',
@@ -78,12 +93,6 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
       href: '/auditoria',
       icon: History,
       roles: ['admin', 'direcao'],
-    },
-    {
-      title: 'Usuários & Permissões',
-      href: '/configuracoes/usuarios',
-      icon: UserCog,
-      roles: ['admin'],
     },
     {
       title: 'Configurações',
@@ -195,13 +204,13 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
                 ) : (
                   <>
                     <GraduationCap className="h-3 w-3" />
-                    <span>Docente</span>
+                    <span>Professor</span>
                   </>
                 )}
               </span>
             </div>
-            <p className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300 truncate" title={currentUser?.name}>
-              {currentUser?.name || (role === 'admin' ? 'Administrador' : 'Professor')}
+            <p className="mt-1 text-xs font-semibold text-slate-800 dark:text-slate-200 truncate" title={nomeExibicaoUsuario}>
+              {nomeExibicaoUsuario}
             </p>
           </div>
         ) : (
@@ -224,10 +233,10 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
             <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 hidden group-hover:flex items-center pointer-events-none">
               <div className="whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-xl dark:bg-slate-800 dark:border dark:border-slate-700">
                 <span className="block font-bold">
-                  {role === 'admin' ? 'Perfil: Administrador' : 'Perfil: Docente'}
+                  {role === 'admin' ? 'Perfil: Administrador' : 'Perfil: Professor'}
                 </span>
                 <span className="text-[10px] text-slate-300">
-                  {currentUser?.name || (role === 'admin' ? 'Secretaria' : 'Professor')}
+                  {nomeExibicaoUsuario}
                 </span>
               </div>
             </div>
@@ -237,7 +246,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
         {/* Lista de Navegação Principal */}
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-2.5 py-4 scrollbar-thin">
           {visibleNavItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+            const isActive = pathname === item.href || (item.href === '/dashboard' && pathname === '/') || (item.href !== '/' && item.href !== '/dashboard' && pathname.startsWith(item.href));
             const Icon = item.icon;
 
             return (

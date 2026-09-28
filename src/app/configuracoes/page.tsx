@@ -29,6 +29,9 @@ import {
   HeartHandshake,
   RefreshCw,
   Sparkles,
+  Eye,
+  EyeOff,
+  Key,
 } from 'lucide-react';
 import { initialEscolaConfig, initialEstudantes, initialTurmas, initialProfessores, initialFaltasProfessores, initialEventos } from '@/lib/mock-data';
 
@@ -111,6 +114,56 @@ export default function ConfiguracoesPage() {
       }
     }
   }, []);
+
+  // Estados de Configuração da Turso (Database URL & Token)
+  const [tursoDbUrl, setTursoDbUrl] = useState('');
+  const [tursoAuthToken, setTursoAuthToken] = useState('');
+  const [tursoPadraoUrl, setTursoPadraoUrl] = useState('libsql://plugueachiles-achilessales.aws-us-west-2.turso.io');
+  const [mostrarTursoToken, setMostrarTursoToken] = useState(false);
+  const [salvandoTursoConfig, setSalvandoTursoConfig] = useState(false);
+  const [mensagemTursoSucesso, setMensagemTursoSucesso] = useState<string | null>(null);
+  const [mensagemTursoErro, setMensagemTursoErro] = useState<string | null>(null);
+
+  // Carrega configurações da Turso da API
+  useEffect(() => {
+    fetch('/api/turso/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.dbUrl) setTursoDbUrl(data.dbUrl);
+        if (data.authToken) setTursoAuthToken(data.authToken);
+        if (data.defaultDbUrl) setTursoPadraoUrl(data.defaultDbUrl);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Salvar alterações de Database URL e Token da Turso
+  const handleSalvarTursoConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    setSalvandoTursoConfig(true);
+    setMensagemTursoSucesso(null);
+    setMensagemTursoErro(null);
+
+    try {
+      const res = await fetch('/api/turso/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dbUrl: tursoDbUrl, authToken: tursoAuthToken }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMensagemTursoSucesso(data.message || 'Configurações do Turso salvas com sucesso!');
+        setTimeout(() => setMensagemTursoSucesso(null), 5000);
+        testarConexaoTurso();
+      } else {
+        setMensagemTursoErro(data.error || 'Erro ao salvar credenciais do Turso.');
+      }
+    } catch (err: any) {
+      setMensagemTursoErro(err?.message || 'Falha ao comunicar com o servidor.');
+    } finally {
+      setSalvandoTursoConfig(false);
+    }
+  };
 
   // Estados de teste do Turso
   const [testandoTurso, setTestandoTurso] = useState(false);
@@ -969,33 +1022,112 @@ CREATE TABLE IF NOT EXISTS eventos (
               </span>
             </div>
 
-            <div className="mt-4 space-y-3 text-xs">
-              <div className="flex flex-col gap-1 py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Database URL:</span>
-                <span className="font-mono text-[11px] text-teal-700 dark:text-teal-300 break-all select-all font-semibold">
-                  libsql://plugueachiles-achilessales.aws-us-west-2.turso.io
-                </span>
+            {/* Formulário Editável: Database URL & Token da Turso */}
+            <form onSubmit={handleSalvarTursoConfig} className="mt-4 space-y-3.5 text-xs">
+              {/* Campo Database URL */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Database className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                    Database URL:
+                  </label>
+                  {tursoDbUrl !== tursoPadraoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setTursoDbUrl(tursoPadraoUrl)}
+                      className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-semibold"
+                      title="Restaurar endereço padrão da Turso"
+                    >
+                      Restaurar Padrão
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  disabled={!isAdmin}
+                  value={tursoDbUrl}
+                  onChange={(e) => setTursoDbUrl(e.target.value)}
+                  placeholder="libsql://meu-banco.turso.io"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono text-slate-900 focus:border-teal-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white disabled:opacity-50"
+                />
               </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Modo de Operação:</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200">LocalStorage + Turso LibSQL Cloud</span>
+
+              {/* Campo Token da Turso */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <Key className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                    Token da Turso (TURSO_AUTH_TOKEN):
+                  </span>
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type={mostrarTursoToken ? 'text' : 'password'}
+                    disabled={!isAdmin}
+                    value={tursoAuthToken}
+                    onChange={(e) => setTursoAuthToken(e.target.value)}
+                    placeholder="Cole seu token JWT (ey...)"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 pr-10 text-xs font-mono text-slate-900 focus:border-teal-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarTursoToken(!mostrarTursoToken)}
+                    className="absolute right-2 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                    title={mostrarTursoToken ? 'Ocultar Token' : 'Mostrar Token'}
+                  >
+                    {mostrarTursoToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Estrutura:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-semibold">6 Tabelas Relacionais + Índices</span>
+
+              {/* Feedback de Alteração */}
+              {mensagemTursoSucesso && (
+                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-2.5 text-xs font-semibold text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>{mensagemTursoSucesso}</span>
+                </div>
+              )}
+
+              {mensagemTursoErro && (
+                <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-2.5 text-xs font-semibold text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{mensagemTursoErro}</span>
+                </div>
+              )}
+
+              {/* Metadados e Link do Schema */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">Modo de Operação:</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">LocalStorage + Turso LibSQL Cloud</span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-500">Schema Turso SQL:</span>
+                  <button
+                    type="button"
+                    onClick={() => setModalSqlAberto(true)}
+                    className="inline-flex items-center gap-1 font-semibold text-teal-600 hover:underline dark:text-teal-400"
+                  >
+                    <FileCode className="h-3.5 w-3.5" />
+                    Ver DDL Turso (SQLite)
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between items-center py-1.5">
-                <span className="text-slate-500">Schema Turso SQL:</span>
-                <button
-                  type="button"
-                  onClick={() => setModalSqlAberto(true)}
-                  className="inline-flex items-center gap-1 font-semibold text-teal-600 hover:underline dark:text-teal-400"
-                >
-                  <FileCode className="h-3.5 w-3.5" />
-                  Ver DDL Turso (SQLite)
-                </button>
-              </div>
-            </div>
+
+              {/* Botão de Salvar Alterações do Turso */}
+              {isAdmin && (
+                <div className="pt-1">
+                  <button
+                    type="submit"
+                    disabled={salvandoTursoConfig}
+                    className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-teal-700 transition disabled:opacity-50"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    <span>{salvandoTursoConfig ? 'Salvando...' : 'Salvar Alterações da Turso'}</span>
+                  </button>
+                </div>
+              )}
+            </form>
 
             {/* Ações de Diagnóstico e Migração */}
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">

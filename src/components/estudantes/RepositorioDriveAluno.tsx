@@ -38,8 +38,8 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
 
   // Cálculo da pasta normalizada
   const primeiraLetra = (estudante.nome_completo || 'A').trim().charAt(0).toUpperCase();
-  const nomePasta = estudante.nome_completo.trim().replace(/\s+/g, '_').toUpperCase();
-  const caminhoPastaDrive = `PLUGUE/estudantes/${primeiraLetra}/${nomePasta}/`;
+  const nomeEstudanteFormatado = (estudante.nome_completo || 'ESTUDANTE').trim().toUpperCase();
+  const caminhoPastaDrive = `FICHA DOS ESTUDANTES / ${primeiraLetra} / ${nomeEstudanteFormatado}`;
 
   // Estados de upload
   const [tipoDoc, setTipoDoc] = useState<TipoDocumentoDrive>('laudo_medico');
@@ -90,7 +90,10 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
       const formData = new FormData();
       formData.append('file', arquivo);
       formData.append('aluno_id', estudante.id);
+      formData.append('aluno_nome', estudante.nome_completo);
+      formData.append('estudante_nome', estudante.nome_completo);
       formData.append('tipo', tipoDoc);
+      formData.append('tipo_documento', tipoDoc);
       formData.append('caminho_pasta', caminhoPastaDrive);
 
       const res = await fetch('/api/upload-drive', {

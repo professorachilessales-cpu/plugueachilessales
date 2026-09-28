@@ -84,9 +84,24 @@ export async function POST(req: NextRequest) {
     resetFailedLogin(ip);
 
     // 5. Geração de Tokens JWT (Acesso curto + Refresh Token em HttpOnly)
+    let userName = user.name;
+    if (user.role === 'professor' && isTursoConfigured) {
+      try {
+        const profRes = await executeTursoQuery(
+          'SELECT nome_completo FROM professores WHERE REPLACE(REPLACE(REPLACE(cpf, ".", ""), "-", ""), " ", "") = ? OR id = ? OR LOWER(email) = LOWER(?) LIMIT 1',
+          [loginCpf, user.id, user.email || '']
+        );
+        if (profRes.rows.length > 0 && profRes.rows[0]?.nome_completo) {
+          userName = String(profRes.rows[0].nome_completo);
+        }
+      } catch (e) {
+        console.warn('Falha ao buscar nome completo do professor no Turso:', e);
+      }
+    }
+
     const tokenUser = {
       id: user.id,
-      name: user.name,
+      name: userName,
       email: user.email,
       role: user.role as 'admin' | 'direcao' | 'professor',
       cpf: user.cpf,
@@ -99,7 +114,7 @@ export async function POST(req: NextRequest) {
       success: true,
       user: {
         id: user.id,
-        name: user.name,
+        name: userName,
         email: user.email,
         role: user.role,
         cpf: user.cpf,

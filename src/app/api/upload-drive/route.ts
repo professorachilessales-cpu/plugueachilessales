@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Readable } from 'stream';
 import { normalizarNomeParaDrive, obterCaminhoProfessorDrive } from '@/lib/security';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { 
   getGoogleDriveClient, 
   resolverOuCriarEstruturaPastasEstudante, 
@@ -24,10 +24,10 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null;
     const tipoUpload = formData.get('tipo_upload') as string; // 'estudante' | 'professor_atestado'
     const alunoId = formData.get('aluno_id') as string | null;
-    const alunoNome = formData.get('aluno_nome') as string | null;
+    let alunoNome = (formData.get('aluno_nome') as string | null) || (formData.get('estudante_nome') as string | null);
     const professorId = formData.get('professor_id') as string | null;
     const professorNome = formData.get('professor_nome') as string | null;
-    const tipoDocumento = (formData.get('tipo_documento') as string) || 'Outros';
+    const tipoDocumento = (formData.get('tipo_documento') as string) || (formData.get('tipo') as string) || 'Outros';
     const uploaderId = formData.get('uploader_id') as string | null;
 
     // Campos específicos para atestado de professor
@@ -38,6 +38,21 @@ export async function POST(req: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
+    }
+
+    // Se for estudante e não temos o nome mas temos o ID, busca no Turso
+    if (tipoUpload !== 'professor_atestado' && !alunoNome && alunoId && checkIsTursoConfigured()) {
+      try {
+        const estRes = await executeTursoQuery<{ nome_completo: string }>(
+          `SELECT nome_completo FROM estudantes WHERE id = ? LIMIT 1`,
+          [alunoId]
+        );
+        if (estRes.rows && estRes.rows.length > 0 && estRes.rows[0].nome_completo) {
+          alunoNome = estRes.rows[0].nome_completo;
+        }
+      } catch (e) {
+        // Ignora
+      }
     }
 
     // Validação de formato (apenas PDF, PNG, JPG, JPEG)
@@ -64,9 +79,10 @@ export async function POST(req: NextRequest) {
       if (drive) {
         targetFolderId = await obterOuCriarPastaDrive(drive, `PROFESSORES_${normalizarNomeParaDrive(professorNome)}`, rootFolderId);
       }
-    } else if (alunoNome) {
+    } else {
       // 2. Resolução da Árvore de Diretórios Padronizada por Inicial
-      const estrutura = await resolverOuCriarEstruturaPastasEstudante(drive, alunoNome, rootFolderId);
+      const nomeParaResolver = alunoNome || 'ESTUDANTE_DOCUMENTOS';
+      const estrutura = await resolverOuCriarEstruturaPastasEstudante(drive, nomeParaResolver, rootFolderId);
       targetFolderId = estrutura.estudanteFolderId;
       diretorioDrive = estrutura.caminhoFormatado;
     }
@@ -119,7 +135,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Persistência no Turso se configurado
-    if (isTursoConfigured) {
+    if (checkIsTursoConfigured()) {
       try {
         if (tipoUpload === 'professor_atestado' && professorId) {
           const atestId = `atest-${Date.now()}`;

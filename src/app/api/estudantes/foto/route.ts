@@ -24,18 +24,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Definição da Nomenclatura do Arquivo (foto_perfil_3x4.jpg ou {cpf_ou_matricula}_foto_3x4.jpg)
-    let nomeArquivo = 'foto_perfil_3x4.jpg';
-    const identificador = (estudanteCpf || estudanteMatricula || '')
-      .replace(/\D/g, '')
-      .trim();
-
-    if (identificador && identificador !== '11111111111' && identificador !== '00000000000') {
-      nomeArquivo = `${identificador}_foto_3x4.jpg`;
-    } else if (estudanteCpf && estudanteCpf.trim()) {
-      const safeCpf = estudanteCpf.replace(/[^a-zA-Z0-9_-]/g, '_');
-      nomeArquivo = `${safeCpf}_foto_3x4.jpg`;
-    }
+    // 1. Definição da Nomenclatura Padrão: foto_perfil_3x4.jpg
+    const nomeArquivo = 'foto_perfil_3x4.jpg';
 
     // 2. Conexão com o Google Drive (OAuth 2.0 conectado ou Service Account)
     const driveClient = await getGoogleDriveClient();

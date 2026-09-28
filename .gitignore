@@ -44,4 +44,7 @@ backup_*.json
 synced_*.json
 *.sqlite
 *.db
+turso-credentials.json
+google-drive-credentials.json
+
 

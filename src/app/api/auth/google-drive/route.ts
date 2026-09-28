@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { google } from 'googleapis';
-import { carregarConfiguracaoDrive } from '@/lib/google-drive';
+import { google, carregarConfiguracaoDrive } from '@/lib/google-drive';
 
 export const dynamic = 'force-dynamic';
 

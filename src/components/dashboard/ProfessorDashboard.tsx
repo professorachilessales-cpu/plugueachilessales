@@ -176,7 +176,7 @@ export function ProfessorDashboard() {
           <div>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-school-gold-400/20 px-3 py-1 text-xs font-bold text-school-gold-300 border border-school-gold-400/30">
-                Portal do Docente
+                Portal do Professor
               </span>
               <span className="text-xs text-blue-200">
                 Matrícula: {professorAtual.matricula}

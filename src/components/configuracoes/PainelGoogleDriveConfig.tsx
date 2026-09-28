@@ -83,8 +83,9 @@ export function PainelGoogleDriveConfig() {
       } else if (errorParam) {
         if (errorParam === 'missing_credentials') {
           setMensagemErro(
-            'Credenciais OAuth não configuradas. Insira o Client ID e Client Secret do Google Cloud Console no botão de credenciais.'
+            'Credenciais OAuth não configuradas. Insira o Client ID e Client Secret do Google Cloud Console no formulário abaixo.'
           );
+          setModalConfigAberto(true);
         } else {
           setMensagemErro(`Aviso ao conectar Google Drive: ${decodeURIComponent(errorParam)}`);
         }

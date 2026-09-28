@@ -539,6 +539,7 @@ export default function EstudantesPage() {
       const formData = new FormData();
       formData.append('file', uploadArquivo);
       formData.append('estudante_id', estudanteSelecionado.id);
+      formData.append('estudante_nome', estudanteSelecionado.nome_completo);
       formData.append('tipo_documento', uploadTipoDoc);
 
       const res = await fetch('/api/upload-documento', {
@@ -554,8 +555,8 @@ export default function EstudantesPage() {
       addDocumentoToEstudante(estudanteSelecionado.id, {
         tipo_documento: uploadTipoDoc,
         nome_arquivo: uploadArquivo.name,
-        drive_file_id: data.file_id || 'drive_mock_local',
-        drive_view_link: data.view_link || 'https://drive.google.com',
+        drive_file_id: data.drive_file_id || data.file_id || 'drive_mock_local',
+        drive_view_link: data.drive_view_link || data.view_link || 'https://drive.google.com',
         tamanho_bytes: uploadArquivo.size,
         mime_type: uploadArquivo.type,
       });

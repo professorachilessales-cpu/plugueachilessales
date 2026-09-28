@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Readable } from 'stream';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { 
   getGoogleDriveClient, 
   resolverOuCriarEstruturaPastasEstudante 
@@ -13,8 +13,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const estudanteId = formData.get('estudante_id') as string | null;
-    const estudanteNome = (formData.get('estudante_nome') as string | null) || 'ESTUDANTE_DOCUMENTOS';
-    const tipoDocumento = (formData.get('tipo_documento') as string | null) || 'OUTROS';
+    let estudanteNome = (formData.get('estudante_nome') as string | null) || (formData.get('aluno_nome') as string | null);
+    const tipoDocumento = (formData.get('tipo_documento') as string | null) || (formData.get('tipo') as string | null) || 'OUTROS';
 
     if (!file) {
       return NextResponse.json(
@@ -22,6 +22,23 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Se o nome não foi passado mas temos o ID do estudante, busca no banco de dados Turso
+    if ((!estudanteNome || estudanteNome === 'ESTUDANTE_DOCUMENTOS') && estudanteId && checkIsTursoConfigured()) {
+      try {
+        const estRes = await executeTursoQuery<{ nome_completo: string }>(
+          `SELECT nome_completo FROM estudantes WHERE id = ? LIMIT 1`,
+          [estudanteId]
+        );
+        if (estRes.rows && estRes.rows.length > 0 && estRes.rows[0].nome_completo) {
+          estudanteNome = estRes.rows[0].nome_completo;
+        }
+      } catch (e) {
+        // Ignora
+      }
+    }
+
+    const nomeFinal = estudanteNome || 'ESTUDANTE_DOCUMENTOS';
 
     // 1. Obter cliente Google Drive (OAuth ou Service Account)
     const driveClient = await getGoogleDriveClient();
@@ -33,7 +50,7 @@ export async function POST(req: NextRequest) {
       estudanteFolderId,
       caminhoFormatado,
       letraInicial
-    } = await resolverOuCriarEstruturaPastasEstudante(drive, estudanteNome, rootFolderId);
+    } = await resolverOuCriarEstruturaPastasEstudante(drive, nomeFinal, rootFolderId);
 
     const nomeFormatadoArquivo = `[${tipoDocumento.toUpperCase()}]_${file.name}`;
     let driveFileId = `drive_doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -78,13 +95,22 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Persistência na tabela documentos_estudantes no Turso
-    if (isTursoConfigured && estudanteId) {
+    if (checkIsTursoConfigured() && estudanteId) {
       try {
         const docId = `doc-${Date.now()}`;
+        const tipoNormalizado = (() => {
+          const t = tipoDocumento.toLowerCase().trim();
+          if (t.includes('rg')) return 'rg';
+          if (t.includes('residencia') || t.includes('comprovante')) return 'comprovante_residencia';
+          if (t.includes('laudo') || t.includes('medico')) return 'laudo_medico';
+          if (t.includes('certidao') || t.includes('nascimento')) return 'certidao_nascimento';
+          return 'outro';
+        })();
+
         await executeTursoQuery(
           `INSERT INTO documentos_estudantes (id, estudante_id, tipo_documento, nome_arquivo, tamanho_bytes, drive_file_id, drive_view_link)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [docId, estudanteId, tipoDocumento.toLowerCase(), file.name, file.size, driveFileId, viewLink]
+          [docId, estudanteId, tipoNormalizado, file.name, file.size, driveFileId, viewLink]
         );
       } catch (dbErr) {
         console.warn('Aviso: Falha ao registrar documento no banco Turso:', dbErr);

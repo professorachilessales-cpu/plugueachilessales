@@ -968,7 +968,7 @@ export default function DashboardPage() {
           inclusaoExpandido ? 'lg:col-span-12 ring-2 ring-emerald-500/25 shadow-md' : 'lg:col-span-5'
         }`}>
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+            <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
                   <HeartHandshake className="h-5 w-5" />
@@ -1028,7 +1028,7 @@ export default function DashboardPage() {
             {!inclusaoRecolhido && (
               <div className="flex flex-col flex-1 min-h-0 transition-all duration-300">
                 {/* Banner Informativo Rápido */}
-                <div className="mt-4 flex items-center justify-between rounded-xl bg-emerald-50/70 p-3 text-xs dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50">
+                <div className="mt-4 flex items-center justify-between rounded-xl bg-emerald-50/70 p-3 text-xs dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
                   <div className="flex items-center gap-2">
                     <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="font-semibold text-emerald-900 dark:text-emerald-200">
@@ -1041,9 +1041,9 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Lista dos Estudantes com Laudo Médico */}
-                <div className="mt-4 flex-1 min-h-0">
+                <div className="mt-4 flex-1 min-h-0 flex flex-col">
                   {estudantesComLaudo.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <div className="flex flex-col items-center justify-center py-10 text-center flex-1">
                       <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-2" />
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                         Nenhum estudante com laudo cadastrado
@@ -1055,8 +1055,8 @@ export default function DashboardPage() {
                   ) : (
                     <div className={
                       inclusaoExpandido
-                        ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 max-h-[640px] overflow-y-auto pr-1"
-                        : "space-y-3 overflow-y-auto pr-1 flex-1 max-h-[580px] lg:max-h-[640px]"
+                        ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 max-h-[640px] overflow-y-auto pr-1.5"
+                        : "space-y-3 overflow-y-auto pr-1.5 flex-1 min-h-0 max-h-[580px] lg:max-h-none"
                     }>
                       {estudantesComLaudo.map((est) => {
                         const turmaInfo = obterInfoTurma(est.turma_id, est.turma_nome);
@@ -1146,7 +1146,7 @@ export default function DashboardPage() {
           </div>
 
           {!inclusaoRecolhido && (
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
               <span>Clique no card ou no botão para abrir o WhatsApp</span>
               <Link href="/estudantes?filtroAee=com_aee" className="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">
                 Ver Todos da Inclusão →

@@ -116,7 +116,8 @@ CREATE TABLE IF NOT EXISTS turmas (
 -- 5. TABELA DE ESTUDANTES
 CREATE TABLE IF NOT EXISTS estudantes (
     id TEXT PRIMARY KEY,
-    turma_id TEXT REFERENCES turmas(id) ON DELETE SET NULL,
+    -- NOTA: ON DELETE RESTRICT previne a perda acidental de vínculos de estudantes
+    turma_id TEXT REFERENCES turmas(id) ON DELETE RESTRICT,
     turma_nome TEXT,
     nome_completo TEXT NOT NULL,
     data_nascimento TEXT NOT NULL,

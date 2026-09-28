@@ -273,6 +273,19 @@ export default function TurmasPage() {
   } = useApp();
 
   const [turmaSelecionada, setTurmaSelecionada] = useState<Turma>(turmas[0] || null);
+
+  // Sincroniza a turma selecionada caso a lista de turmas seja carregada assincronamente
+  React.useEffect(() => {
+    if (!turmaSelecionada && turmas.length > 0) {
+      setTurmaSelecionada(turmas[0]);
+    } else if (turmaSelecionada) {
+      const atualizada = turmas.find((t) => t.id === turmaSelecionada.id);
+      if (atualizada && atualizada !== turmaSelecionada) {
+        setTurmaSelecionada(atualizada);
+      }
+    }
+  }, [turmas, turmaSelecionada]);
+
   const [modalNovaTurmaAberto, setModalNovaTurmaAberto] = useState(false);
   const [modalEditarTurmaAberto, setModalEditarTurmaAberto] = useState(false);
   const [turmaEditando, setTurmaEditando] = useState<Turma | null>(null);

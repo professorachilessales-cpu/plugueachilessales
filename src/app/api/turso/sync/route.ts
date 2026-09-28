@@ -17,11 +17,25 @@ export async function POST(req: NextRequest) {
       case 'save_config': {
         const c = payload;
         await executeTursoQuery(
-          `INSERT OR REPLACE INTO config_escola (
+          `INSERT INTO config_escola (
             id, nome_escola, codigo_inep, cnpj, endereco, telefone, email,
             logo_url, logo_drive_id, cor_primaria, cor_secundaria,
             ano_letivo_ativo, modelos_whatsapp, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            nome_escola = excluded.nome_escola,
+            codigo_inep = excluded.codigo_inep,
+            cnpj = excluded.cnpj,
+            endereco = excluded.endereco,
+            telefone = excluded.telefone,
+            email = excluded.email,
+            logo_url = excluded.logo_url,
+            logo_drive_id = excluded.logo_drive_id,
+            cor_primaria = excluded.cor_primaria,
+            cor_secundaria = excluded.cor_secundaria,
+            ano_letivo_ativo = excluded.ano_letivo_ativo,
+            modelos_whatsapp = excluded.modelos_whatsapp,
+            updated_at = excluded.updated_at`,
           [
             c.id,
             c.nome_escola || 'Colégio Integrado PLUGUE',
@@ -48,10 +62,19 @@ export async function POST(req: NextRequest) {
       case 'save_user': {
         const u = payload;
         await executeTursoQuery(
-          `INSERT OR REPLACE INTO users (
+          `INSERT INTO users (
             id, name, email, cpf, password_hash, role, must_change_password,
             allowed_modules, is_active, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            email = excluded.email,
+            cpf = excluded.cpf,
+            password_hash = excluded.password_hash,
+            role = excluded.role,
+            must_change_password = excluded.must_change_password,
+            allowed_modules = excluded.allowed_modules,
+            is_active = excluded.is_active`,
           [
             u.id,
             u.name,
@@ -74,16 +97,29 @@ export async function POST(req: NextRequest) {
       }
 
       // ----------------------------------------------------
-      // TURMAS
+      // TURMAS (Preserva turma_id dos estudantes sem disparar ON DELETE CASCADE/SET NULL)
       // ----------------------------------------------------
       case 'save_turma': {
         const t = payload;
         await executeTursoQuery(
-          `INSERT OR REPLACE INTO turmas (
+          `INSERT INTO turmas (
             id, nome, grupo, turno, capacidade, ano_letivo,
             professor_regente_id, professor_regente_nome, professores_ids,
             equipe_apoio_ids, sala, ativa, grade_horaria, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            nome = excluded.nome,
+            grupo = excluded.grupo,
+            turno = excluded.turno,
+            capacidade = excluded.capacidade,
+            ano_letivo = excluded.ano_letivo,
+            professor_regente_id = excluded.professor_regente_id,
+            professor_regente_nome = excluded.professor_regente_nome,
+            professores_ids = excluded.professores_ids,
+            equipe_apoio_ids = excluded.equipe_apoio_ids,
+            sala = excluded.sala,
+            ativa = excluded.ativa,
+            grade_horaria = excluded.grade_horaria`,
           [
             t.id,
             t.nome,
@@ -101,16 +137,25 @@ export async function POST(req: NextRequest) {
             t.created_at || new Date().toISOString()
           ]
         );
+
+        // Se o nome da turma foi modificado, sincroniza o turma_nome dos estudantes vinculados preservando seu turma_id intacto
+        if (t.id && t.nome) {
+          await executeTursoQuery(
+            'UPDATE estudantes SET turma_nome = ? WHERE turma_id = ?',
+            [t.nome, t.id]
+          );
+        }
+
         return NextResponse.json({ success: true });
       }
 
       // ----------------------------------------------------
-      // ESTUDANTES
+      // ESTUDANTES (Preserva vínculos existentes caso payload seja parcial)
       // ----------------------------------------------------
       case 'save_estudante': {
         const e = payload;
         await executeTursoQuery(
-          `INSERT OR REPLACE INTO estudantes (
+          `INSERT INTO estudantes (
             id, turma_id, turma_nome, nome_completo, data_nascimento, cpf,
             rg_numero, rg_data_expedicao, certidao_nascimento, naturalidade_cidade,
             nacionalidade, numero_sus, numero_bolsa_familia, percentual_cota,
@@ -120,7 +165,45 @@ export async function POST(req: NextRequest) {
             endereco_bairro, possui_laudo, laudo_descricao, aee, apoio_id,
             apoio_nome, foto_url, status_matricula, tipo_movimentacao,
             tipo_historico_escolar, observacoes, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            turma_id = COALESCE(excluded.turma_id, estudantes.turma_id),
+            turma_nome = COALESCE(excluded.turma_nome, estudantes.turma_nome),
+            nome_completo = excluded.nome_completo,
+            data_nascimento = excluded.data_nascimento,
+            cpf = excluded.cpf,
+            rg_numero = excluded.rg_numero,
+            rg_data_expedicao = excluded.rg_data_expedicao,
+            certidao_nascimento = excluded.certidao_nascimento,
+            naturalidade_cidade = excluded.naturalidade_cidade,
+            nacionalidade = excluded.nacionalidade,
+            numero_sus = excluded.numero_sus,
+            numero_bolsa_familia = excluded.numero_bolsa_familia,
+            percentual_cota = excluded.percentual_cota,
+            filiacao_materna = excluded.filiacao_materna,
+            filiacao_paterna = excluded.filiacao_paterna,
+            telefone_responsavel = excluded.telefone_responsavel,
+            telefone_2 = excluded.telefone_2,
+            telefone_3 = excluded.telefone_3,
+            telefone_4 = excluded.telefone_4,
+            email = excluded.email,
+            nome_responsavel = excluded.nome_responsavel,
+            cpf_responsavel = excluded.cpf_responsavel,
+            parentesco_responsavel = excluded.parentesco_responsavel,
+            endereco = excluded.endereco,
+            endereco_logradouro = excluded.endereco_logradouro,
+            endereco_numero = excluded.endereco_numero,
+            endereco_bairro = excluded.endereco_bairro,
+            possui_laudo = excluded.possui_laudo,
+            laudo_descricao = excluded.laudo_descricao,
+            aee = excluded.aee,
+            apoio_id = excluded.apoio_id,
+            apoio_nome = excluded.apoio_nome,
+            foto_url = excluded.foto_url,
+            status_matricula = excluded.status_matricula,
+            tipo_movimentacao = excluded.tipo_movimentacao,
+            tipo_historico_escolar = excluded.tipo_historico_escolar,
+            observacoes = excluded.observacoes`,
           [
             e.id,
             e.turma_id || null,
@@ -188,7 +271,7 @@ export async function POST(req: NextRequest) {
       case 'save_professor': {
         const p = payload;
         await executeTursoQuery(
-          `INSERT OR REPLACE INTO professores (
+          `INSERT INTO professores (
             id, profile_id, nome_completo, matricula, formacao, disciplinas,
             telefone, email, eh_apoio, ativo, turmas_atribuidas_ids, cpf, rg,
             rg_data_expedicao, graduacao_instituicao, titulacao,
@@ -196,7 +279,35 @@ export async function POST(req: NextRequest) {
             pos_graduacao_inicio, pos_graduacao_fim, endereco_completo,
             nome_mae, nome_pai, telefone_emergencia, telefone_emergencia2,
             contato_emergencia_nome, observacoes, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            profile_id = excluded.profile_id,
+            nome_completo = excluded.nome_completo,
+            matricula = excluded.matricula,
+            formacao = excluded.formacao,
+            disciplinas = excluded.disciplinas,
+            telefone = excluded.telefone,
+            email = excluded.email,
+            eh_apoio = excluded.eh_apoio,
+            ativo = excluded.ativo,
+            turmas_atribuidas_ids = excluded.turmas_atribuidas_ids,
+            cpf = excluded.cpf,
+            rg = excluded.rg,
+            rg_data_expedicao = excluded.rg_data_expedicao,
+            graduacao_instituicao = excluded.graduacao_instituicao,
+            titulacao = excluded.titulacao,
+            pos_graduacao_instituicao = excluded.pos_graduacao_instituicao,
+            graduacao_inicio = excluded.graduacao_inicio,
+            graduacao_fim = excluded.graduacao_fim,
+            pos_graduacao_inicio = excluded.pos_graduacao_inicio,
+            pos_graduacao_fim = excluded.pos_graduacao_fim,
+            endereco_completo = excluded.endereco_completo,
+            nome_mae = excluded.nome_mae,
+            nome_pai = excluded.nome_pai,
+            telefone_emergencia = excluded.telefone_emergencia,
+            telefone_emergencia2 = excluded.telefone_emergencia2,
+            contato_emergencia_nome = excluded.contato_emergencia_nome,
+            observacoes = excluded.observacoes`,
           [
             p.id,
             p.profile_id || null,
@@ -238,11 +349,20 @@ export async function POST(req: NextRequest) {
       case 'save_falta': {
         const f = payload;
         await executeTursoQuery(
-          `INSERT OR REPLACE INTO faltas_professores (
+          `INSERT INTO faltas_professores (
             id, professor_id, professor_nome, data_falta, aulas_faltadas,
             justificativa, atestado_drive_id, atestado_drive_link,
             homologado, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            professor_id = excluded.professor_id,
+            professor_nome = excluded.professor_nome,
+            data_falta = excluded.data_falta,
+            aulas_faltadas = excluded.aulas_faltadas,
+            justificativa = excluded.justificativa,
+            atestado_drive_id = excluded.atestado_drive_id,
+            atestado_drive_link = excluded.atestado_drive_link,
+            homologado = excluded.homologado`,
           [
             f.id,
             f.professor_id,
@@ -265,10 +385,18 @@ export async function POST(req: NextRequest) {
       case 'save_evento': {
         const ev = payload;
         await executeTursoQuery(
-          `INSERT OR REPLACE INTO eventos (
+          `INSERT INTO eventos (
             id, titulo, descricao, data_inicio, data_fim, categoria, cor,
             publico_alvo, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            titulo = excluded.titulo,
+            descricao = excluded.descricao,
+            data_inicio = excluded.data_inicio,
+            data_fim = excluded.data_fim,
+            categoria = excluded.categoria,
+            cor = excluded.cor,
+            publico_alvo = excluded.publico_alvo`,
           [
             ev.id,
             ev.titulo,
@@ -295,10 +423,17 @@ export async function POST(req: NextRequest) {
       case 'save_documento': {
         const doc = payload;
         await executeTursoQuery(
-          `INSERT OR REPLACE INTO documentos_estudantes (
+          `INSERT INTO documentos_estudantes (
             id, estudante_id, tipo_documento, nome_arquivo,
             drive_file_id, drive_view_link, tamanho_bytes, mime_type, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            tipo_documento = excluded.tipo_documento,
+            nome_arquivo = excluded.nome_arquivo,
+            drive_file_id = excluded.drive_file_id,
+            drive_view_link = excluded.drive_view_link,
+            tamanho_bytes = excluded.tamanho_bytes,
+            mime_type = excluded.mime_type`,
           [
             doc.id,
             doc.estudante_id,

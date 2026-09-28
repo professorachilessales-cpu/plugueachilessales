@@ -89,12 +89,21 @@ export async function GET() {
     let estudantes: any[] = [];
     try {
       const estRes = await executeTursoQuery('SELECT * FROM estudantes ORDER BY nome_completo ASC');
-      estudantes = estRes.rows.map((row: any) => ({
-        ...row,
-        possui_laudo: Boolean(row.possui_laudo),
-        aee: Boolean(row.aee),
-        documentos: documentosMap[row.id] || [],
-      }));
+      const turmaByName = new Map(turmas.map((t: any) => [t.nome?.trim(), t.id]));
+      estudantes = estRes.rows.map((row: any) => {
+        // Garantia de integridade: se turma_id estiver vazio/nulo mas houver turma_nome, recupera pelo mapa de turmas
+        const resolvedTurmaId = (row.turma_id && String(row.turma_id).trim() !== '')
+          ? row.turma_id
+          : (row.turma_nome ? turmaByName.get(String(row.turma_nome).trim()) : null) || null;
+
+        return {
+          ...row,
+          turma_id: resolvedTurmaId,
+          possui_laudo: Boolean(row.possui_laudo),
+          aee: Boolean(row.aee),
+          documentos: documentosMap[row.id] || [],
+        };
+      });
     } catch (e) {
       console.error('Erro ao ler estudantes do Turso:', e);
     }

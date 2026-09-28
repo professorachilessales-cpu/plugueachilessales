@@ -271,12 +271,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (savedEstudantes) {
         try {
           const parsedEst: Estudante[] = JSON.parse(savedEstudantes);
-          const hasLegacyDummy = parsedEst.some(e => e.id.startsWith('est-'));
+          const hasLegacyDummy = parsedEst.some(e => ['est-1', 'est-2', 'est-3', 'est-4', 'est-5'].includes(e.id));
           if (hasLegacyDummy || parsedEst.length < 50) {
             setEstudantes(initialEstudantes);
             localStorage.setItem('school_os_estudantes', JSON.stringify(initialEstudantes));
           } else {
-            setEstudantes(parsedEst);
+            // Garante que estudantes no cache local recuperem o turma_id pelo turma_nome se tiver ocorrido desvinculação prévia
+            const turmaMapByName = new Map(initialTurmas.map(t => [t.nome?.trim(), t.id]));
+            const sanitizedEst = parsedEst.map(e => {
+              if ((!e.turma_id || String(e.turma_id).trim() === '') && e.turma_nome && turmaMapByName.has(String(e.turma_nome).trim())) {
+                return { ...e, turma_id: turmaMapByName.get(String(e.turma_nome).trim())! };
+              }
+              return e;
+            });
+            setEstudantes(sanitizedEst);
           }
         } catch {
           setEstudantes(initialEstudantes);
@@ -928,6 +936,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('school_os_turmas', JSON.stringify(updated));
       return updated;
     });
+
+    // Se o nome da turma foi alterado, atualiza o turma_nome dos estudantes preservando o vínculo turma_id 100% intacto
+    if (updates.nome) {
+      setEstudantes((prev) => {
+        const updatedEst = prev.map((est) =>
+          est.turma_id === id ? { ...est, turma_nome: updates.nome! } : est
+        );
+        localStorage.setItem('school_os_estudantes', JSON.stringify(updatedEst));
+        return updatedEst;
+      });
+    }
+
     if (updatedTurma) {
       syncWithTurso('save_turma', updatedTurma);
     }

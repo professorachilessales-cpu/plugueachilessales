@@ -110,8 +110,17 @@ async function seed() {
 
   for (const u of users) {
     await executeQuery(
-      `INSERT OR REPLACE INTO users (id, name, email, cpf, password_hash, role, must_change_password, allowed_modules, is_active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, name, email, cpf, password_hash, role, must_change_password, allowed_modules, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         email = excluded.email,
+         cpf = excluded.cpf,
+         password_hash = excluded.password_hash,
+         role = excluded.role,
+         must_change_password = excluded.must_change_password,
+         allowed_modules = excluded.allowed_modules,
+         is_active = excluded.is_active`,
       [u.id, u.name, u.email, u.cpf, u.password_hash, u.role, u.must_change_password, u.allowed_modules, u.is_active, u.created_at]
     );
   }
@@ -188,8 +197,18 @@ async function seed() {
 
   for (const p of professores) {
     await executeQuery(
-      `INSERT OR REPLACE INTO professores (id, nome_completo, matricula, formacao, disciplinas, telefone, email, ativo, eh_apoio, turmas_atribuidas_ids, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO professores (id, nome_completo, matricula, formacao, disciplinas, telefone, email, ativo, eh_apoio, turmas_atribuidas_ids, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         nome_completo = excluded.nome_completo,
+         matricula = excluded.matricula,
+         formacao = excluded.formacao,
+         disciplinas = excluded.disciplinas,
+         telefone = excluded.telefone,
+         email = excluded.email,
+         ativo = excluded.ativo,
+         eh_apoio = excluded.eh_apoio,
+         turmas_atribuidas_ids = excluded.turmas_atribuidas_ids`,
       [p.id, p.nome_completo, p.matricula, p.formacao, p.disciplinas, p.telefone, p.email, p.ativo, p.eh_apoio, p.turmas_atribuidas_ids, p.created_at]
     );
   }
@@ -265,8 +284,21 @@ async function seed() {
 
   for (const t of turmas) {
     await executeQuery(
-      `INSERT OR REPLACE INTO turmas (id, nome, grupo, turno, capacidade, ano_letivo, professor_regente_id, professor_regente_nome, professores_ids, equipe_apoio_ids, sala, ativa, grade_horaria, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO turmas (id, nome, grupo, turno, capacidade, ano_letivo, professor_regente_id, professor_regente_nome, professores_ids, equipe_apoio_ids, sala, ativa, grade_horaria, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         nome = excluded.nome,
+         grupo = excluded.grupo,
+         turno = excluded.turno,
+         capacidade = excluded.capacidade,
+         ano_letivo = excluded.ano_letivo,
+         professor_regente_id = excluded.professor_regente_id,
+         professor_regente_nome = excluded.professor_regente_nome,
+         professores_ids = excluded.professores_ids,
+         equipe_apoio_ids = excluded.equipe_apoio_ids,
+         sala = excluded.sala,
+         ativa = excluded.ativa,
+         grade_horaria = excluded.grade_horaria`,
       [t.id, t.nome, t.grupo, t.turno, t.capacidade, t.ano_letivo, t.professor_regente_id, t.professor_regente_nome, t.professores_ids, t.equipe_apoio_ids, t.sala, t.ativa, t.grade_horaria, t.created_at]
     );
   }
@@ -342,8 +374,27 @@ async function seed() {
 
   for (const e of estudantes) {
     await executeQuery(
-      `INSERT OR REPLACE INTO estudantes (id, turma_id, turma_nome, nome_completo, data_nascimento, cpf, certidao_nascimento, filiacao_materna, filiacao_paterna, telefone_responsavel, nome_responsavel, parentesco_responsavel, endereco, possui_laudo, laudo_descricao, aee, status_matricula, tipo_movimentacao, tipo_historico_escolar, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO estudantes (id, turma_id, turma_nome, nome_completo, data_nascimento, cpf, certidao_nascimento, filiacao_materna, filiacao_paterna, telefone_responsavel, nome_responsavel, parentesco_responsavel, endereco, possui_laudo, laudo_descricao, aee, status_matricula, tipo_movimentacao, tipo_historico_escolar, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         turma_id = COALESCE(excluded.turma_id, estudantes.turma_id),
+         turma_nome = COALESCE(excluded.turma_nome, estudantes.turma_nome),
+         nome_completo = excluded.nome_completo,
+         data_nascimento = excluded.data_nascimento,
+         cpf = excluded.cpf,
+         certidao_nascimento = excluded.certidao_nascimento,
+         filiacao_materna = excluded.filiacao_materna,
+         filiacao_paterna = excluded.filiacao_paterna,
+         telefone_responsavel = excluded.telefone_responsavel,
+         nome_responsavel = excluded.nome_responsavel,
+         parentesco_responsavel = excluded.parentesco_responsavel,
+         endereco = excluded.endereco,
+         possui_laudo = excluded.possui_laudo,
+         laudo_descricao = excluded.laudo_descricao,
+         aee = excluded.aee,
+         status_matricula = excluded.status_matricula,
+         tipo_movimentacao = excluded.tipo_movimentacao,
+         tipo_historico_escolar = excluded.tipo_historico_escolar`,
       [e.id, e.turma_id, e.turma_nome, e.nome_completo, e.data_nascimento, e.cpf, e.certidao_nascimento, e.filiacao_materna, e.filiacao_paterna, e.telefone_responsavel, e.nome_responsavel, e.parentesco_responsavel, e.endereco, e.possui_laudo, e.laudo_descricao || null, e.aee, e.status_matricula, e.tipo_movimentacao, e.tipo_historico_escolar, e.created_at]
     );
   }
@@ -388,8 +439,16 @@ async function seed() {
 
   for (const ev of eventos) {
     await executeQuery(
-      `INSERT OR REPLACE INTO eventos (id, titulo, descricao, data_inicio, data_fim, categoria, cor, publico_alvo, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO eventos (id, titulo, descricao, data_inicio, data_fim, categoria, cor, publico_alvo, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         titulo = excluded.titulo,
+         descricao = excluded.descricao,
+         data_inicio = excluded.data_inicio,
+         data_fim = excluded.data_fim,
+         categoria = excluded.categoria,
+         cor = excluded.cor,
+         publico_alvo = excluded.publico_alvo`,
       [ev.id, ev.titulo, ev.descricao, ev.data_inicio, ev.data_fim, ev.categoria, ev.cor, ev.publico_alvo, ev.created_at]
     );
   }

@@ -75,11 +75,10 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
       module: 'CALENDARIO' as AllowedModule,
     },
     {
-      title: 'Registro de Atividades',
+      title: 'Auditoria',
       href: '/auditoria',
       icon: History,
       roles: ['admin', 'direcao'],
-      badge: 'Auditoria',
     },
     {
       title: 'Usuários & Permissões',

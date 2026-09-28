@@ -736,7 +736,7 @@ export default function UsuariosPermissoesPage() {
                   <div className="mt-3 flex items-start gap-2 rounded-xl bg-slate-200/60 p-2.5 text-[10px] text-slate-600 dark:bg-slate-900/60 dark:text-slate-400">
                     <Info className="h-4 w-4 flex-shrink-0 text-slate-500 mt-0.5" />
                     <span>
-                      <strong>Nota de Governança:</strong> Os módulos <em>Estudantes</em>, <em>Turmas & Horários</em>, <em>Ficha Funcional & Faltas</em>, <em>Registro de Atividades (Auditoria)</em> e <em>Configurações</em> são exclusivos da administração escolar.
+                      <strong>Nota de Governança:</strong> Os módulos <em>Estudantes</em>, <em>Turmas & Horários</em>, <em>Ficha Funcional & Faltas</em>, <em>Auditoria</em> e <em>Configurações</em> são exclusivos da administração escolar.
                     </span>
                   </div>
                 </div>

@@ -10,22 +10,17 @@ import {
   ArrowRight, 
   AlertCircle, 
   CheckCircle2, 
-  Sparkles, 
   ShieldAlert,
   ShieldCheck,
   Eye,
   EyeOff,
-  School,
   RefreshCw,
   Sun,
   Moon,
   Quote as QuoteIcon,
   KeyRound,
   Loader2,
-  X,
-  BookOpen,
-  Layers,
-  GraduationCap
+  X
 } from 'lucide-react';
 import { formatarCPF, validarCPF } from '@/lib/validations';
 
@@ -299,62 +294,25 @@ export default function LoginPage() {
 
           {/* Nome da Escola com Tipografia Imponente e Profissional */}
           <div className="pt-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-school-gold-400 flex items-center gap-1.5 mb-1">
-              <School className="h-3.5 w-3.5" />
-              Unidade de Ensino Integrada
-            </span>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white text-balance leading-tight drop-shadow-sm">
               {escolaConfig?.nome_escola || 'Escola Técnica Estadual Professor Achiles Sales'}
             </h1>
           </div>
         </div>
 
-        {/* Centro Visual: Composição Isometric 3D Educacional */}
+        {/* Centro Visual: Composição Educacional */}
         <div className="relative z-10 my-6 sm:my-8 lg:my-6 flex items-center justify-center">
           <div className="relative w-full max-w-lg rounded-3xl p-2 sm:p-3 bg-gradient-to-b from-white/15 via-white/5 to-transparent border border-white/15 shadow-2xl backdrop-blur-xl group">
-            {/* Imagem Isométrica 3D com iluminação e cantos arredondados */}
+            {/* Imagem com iluminação e cantos arredondados */}
             <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full overflow-hidden rounded-2xl bg-slate-900/90 shadow-inner">
               <Image 
                 src="/login-isometric-3d.jpg" 
-                alt="Composição Isométrica 3D Educacional e Tecnológica com Livros e Estruturas Modernas" 
+                alt="Composição Educacional e Tecnológica PLUGUE" 
                 fill 
                 className="object-cover object-center transform transition-transform duration-700 ease-out group-hover:scale-105"
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20 pointer-events-none" />
-
-              {/* Badges Flutuantes em Estilo Glassmorphism na cena */}
-              <div className="absolute top-3 left-3 flex items-center gap-2 rounded-xl bg-slate-900/75 border border-white/15 px-3 py-1.5 backdrop-blur-md text-[11px] font-semibold text-slate-200 shadow-lg">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Portal Ativo & Seguro</span>
-              </div>
-
-              <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-xl bg-school-gold-500/20 border border-school-gold-400/40 px-3 py-1 backdrop-blur-md text-[10px] font-bold text-school-gold-200 shadow-lg">
-                <Sparkles className="h-3 w-3 text-school-gold-300" />
-                <span>Tecnologia Isométrica 3D</span>
-              </div>
-            </div>
-
-            {/* Marcadores de Recursos Educacionais no Rodapé do Card 3D */}
-            <div className="mt-3 grid grid-cols-3 gap-2 px-1 text-center">
-              <div className="rounded-xl bg-white/[0.03] border border-white/10 p-2 backdrop-blur-md">
-                <div className="text-[10px] font-semibold text-slate-400 flex items-center justify-center gap-1">
-                  <BookOpen className="h-3 w-3 text-school-gold-400" /> Diários
-                </div>
-                <div className="text-[11px] font-bold text-white">100% Digital</div>
-              </div>
-              <div className="rounded-xl bg-white/[0.03] border border-white/10 p-2 backdrop-blur-md">
-                <div className="text-[10px] font-semibold text-slate-400 flex items-center justify-center gap-1">
-                  <Layers className="h-3 w-3 text-blue-400" /> Módulos
-                </div>
-                <div className="text-[11px] font-bold text-white">Integrados</div>
-              </div>
-              <div className="rounded-xl bg-white/[0.03] border border-white/10 p-2 backdrop-blur-md">
-                <div className="text-[10px] font-semibold text-slate-400 flex items-center justify-center gap-1">
-                  <GraduationCap className="h-3 w-3 text-amber-300" /> Rendimento
-                </div>
-                <div className="text-[11px] font-bold text-white">Tempo Real</div>
-              </div>
             </div>
           </div>
         </div>

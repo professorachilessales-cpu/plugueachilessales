@@ -157,7 +157,7 @@ export default function AuditoriaPage() {
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
             <History className="h-7 w-7 text-school-blue-600 dark:text-school-gold-400" />
-            Registro de Atividades & Auditoria
+            Auditoria
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Trilha de auditoria imutável (Append-Only) para rastrear alterações de status de turmas e migrações
@@ -192,7 +192,7 @@ export default function AuditoriaPage() {
           <div>
             <p className="font-bold uppercase tracking-wider text-[11px]">Acesso de Auditoria Protegido</p>
             <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
-              O registro de atividades é restrito à direção e administração do sistema. Os logs são imutáveis e protegidos contra edição ou exclusão.
+              O módulo de auditoria é restrito à administração do sistema. Os logs são imutáveis e protegidos contra edição ou exclusão.
             </p>
           </div>
         </div>

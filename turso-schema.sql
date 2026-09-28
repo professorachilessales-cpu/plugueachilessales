@@ -330,6 +330,21 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     last_attempt TEXT NOT NULL
 );
 
+-- 16. GOOGLE DRIVE OAUTH & ARMAZENAMENTO EM NUVEM
+CREATE TABLE IF NOT EXISTS google_drive_config (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    connected_email TEXT,
+    access_token TEXT,
+    refresh_token TEXT,
+    expiry_date INTEGER,
+    root_folder_id TEXT,
+    root_folder_name TEXT DEFAULT 'FICHA DOS ESTUDANTES',
+    is_connected INTEGER DEFAULT 0,
+    client_id TEXT,
+    client_secret TEXT,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ==========================================================
 -- ÍNDICES PARA PERFORMANCE NO TURSO / SQLITE
 -- ==========================================================

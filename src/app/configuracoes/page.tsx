@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
+import { PainelGoogleDriveConfig } from '@/components/configuracoes/PainelGoogleDriveConfig';
 import {
   Settings,
   UserCog,
@@ -99,6 +100,17 @@ export default function ConfiguracoesPage() {
   const [mensagemSucesso, setMensagemSucesso] = useState(false);
   const [copiadoSql, setCopiadoSql] = useState(false);
   const [modalSqlAberto, setModalSqlAberto] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState<'geral' | 'storage'>('geral');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'storage' || params.get('status') === 'google_connected') {
+        setAbaAtiva('storage');
+      }
+    }
+  }, []);
 
   // Estados de teste do Turso
   const [testandoTurso, setTestandoTurso] = useState(false);
@@ -332,12 +344,29 @@ CREATE TABLE IF NOT EXISTS eventos (
 
       {/* Abas de Navegação das Configurações */}
       <div className="flex border-b border-slate-200 dark:border-slate-800">
-        <Link
-          href="/configuracoes"
-          className="border-b-2 border-school-blue-600 px-4 py-2.5 text-xs font-bold text-school-blue-700 dark:border-school-gold-400 dark:text-school-gold-400"
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('geral')}
+          className={`px-4 py-2.5 text-xs font-bold transition-colors ${
+            abaAtiva === 'geral'
+              ? 'border-b-2 border-school-blue-600 text-school-blue-700 dark:border-school-gold-400 dark:text-school-gold-400'
+              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+          }`}
         >
           Geral & Identidade Visual
-        </Link>
+        </button>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('storage')}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold transition-colors ${
+            abaAtiva === 'storage'
+              ? 'border-b-2 border-school-blue-600 text-school-blue-700 dark:border-school-gold-400 dark:text-school-gold-400'
+              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+          }`}
+        >
+          <Cloud className="h-4 w-4" />
+          <span>Armazenamento & Google Drive</span>
+        </button>
         <Link
           href="/configuracoes/usuarios"
           className="flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
@@ -373,13 +402,23 @@ CREATE TABLE IF NOT EXISTS eventos (
         </div>
       )}
 
-      <form onSubmit={handleSalvarConfig} className="space-y-6">
-        {/* Card 1: Identidade Visual & White-Label */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-              <Palette className="h-5 w-5" />
-            </div>
+      {/* Visualização da Aba de Armazenamento Dedicada */}
+      {abaAtiva === 'storage' && (
+        <div className="space-y-6">
+          <PainelGoogleDriveConfig />
+        </div>
+      )}
+
+      {/* Visualização da Aba Geral */}
+      {abaAtiva === 'geral' && (
+        <>
+          <form onSubmit={handleSalvarConfig} className="space-y-6">
+            {/* Card 1: Identidade Visual & White-Label */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                  <Palette className="h-5 w-5" />
+                </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Identidade Visual & Cores Institucionais
@@ -862,37 +901,51 @@ CREATE TABLE IF NOT EXISTS eventos (
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Google Drive API (Storage)
+                    Google Drive Storage
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Armazenamento de laudos, certidões e atestados
+                    Armazenamento oficial de fotos 3x4 e repositório
                   </p>
                 </div>
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Ativo
-              </span>
+              <button
+                type="button"
+                onClick={() => setAbaAtiva('storage')}
+                className="inline-flex items-center gap-1 rounded-full bg-school-blue-100 px-2.5 py-0.5 text-xs font-bold text-school-blue-700 hover:bg-school-blue-200 dark:bg-school-blue-950 dark:text-school-blue-300 transition"
+              >
+                Gerenciar Conexão
+              </button>
             </div>
 
             <div className="mt-4 space-y-3 text-xs">
               <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Service Account:</span>
-                <span className="font-mono text-slate-800 dark:text-slate-200">school-os-service@iam...</span>
+                <span className="text-slate-500">Pasta Raiz:</span>
+                <span className="font-mono font-bold text-school-blue-700 dark:text-school-blue-300">
+                  FICHA DOS ESTUDANTES
+                </span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Pasta Raiz:</span>
-                <span className="font-mono text-slate-800 dark:text-slate-200">DRIVE_FOLDER_DOCS</span>
+                <span className="text-slate-500">Hierarquia Automática:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  [Inicial] / [Nome Estudante]
+                </span>
               </div>
               <div className="flex justify-between py-1.5">
-                <span className="text-slate-500">Permissão de Acesso:</span>
-                <span className="text-emerald-600 font-semibold">Visualização & Upload</span>
+                <span className="text-slate-500">Status & Conta:</span>
+                <span className="text-emerald-600 font-semibold">Integrado (Storage API)</span>
               </div>
             </div>
 
-            <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-              Gerenciado via variável de ambiente <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code> em <code>.env.local</code>.
-            </p>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setAbaAtiva('storage')}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-900 py-2 text-xs font-bold text-white hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 transition"
+              >
+                <Cloud className="h-4 w-4 text-amber-400" />
+                <span>Configurar Conta & Ver Árvore de Diretórios</span>
+              </button>
+            </div>
           </div>
 
           {/* Turso Database */}
@@ -1010,6 +1063,8 @@ CREATE TABLE IF NOT EXISTS eventos (
           </div>
         )}
       </form>
+      </>
+      )}
 
       {/* Modal Visualizador do Schema SQL */}
       {modalSqlAberto && (

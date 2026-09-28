@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Readable } from 'stream';
-import { normalizarNomeParaDrive, obterCaminhoEstudanteDrive, obterCaminhoProfessorDrive } from '@/lib/security';
+import { normalizarNomeParaDrive, obterCaminhoProfessorDrive } from '@/lib/security';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { 
+  getGoogleDriveClient, 
+  resolverOuCriarEstruturaPastasEstudante, 
+  obterOuCriarPastaDrive 
+} from '@/lib/google-drive';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,35 +52,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Normalização do caminho de diretório conforme requisitos 7 e 8
-    let diretorioDrive = 'PLUGUE/';
+    // 1. Obter cliente Google Drive Unificado (OAuth 2.0 ativo ou Service Account)
+    const driveClient = await getGoogleDriveClient();
+    const { drive, rootFolderId, isSimulated } = driveClient;
+
+    let targetFolderId: string | null = rootFolderId;
+    let diretorioDrive = 'FICHA DOS ESTUDANTES/';
+
     if (tipoUpload === 'professor_atestado' && professorNome) {
       diretorioDrive = obterCaminhoProfessorDrive(professorNome);
+      if (drive) {
+        targetFolderId = await obterOuCriarPastaDrive(drive, `PROFESSORES_${normalizarNomeParaDrive(professorNome)}`, rootFolderId);
+      }
     } else if (alunoNome) {
-      diretorioDrive = obterCaminhoEstudanteDrive(alunoNome);
+      // 2. Resolução da Árvore de Diretórios Padronizada por Inicial
+      const estrutura = await resolverOuCriarEstruturaPastasEstudante(drive, alunoNome, rootFolderId);
+      targetFolderId = estrutura.estudanteFolderId;
+      diretorioDrive = estrutura.caminhoFormatado;
     }
-
-    const serviceEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const rawPrivateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-    const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
     let driveFileId = `drive_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     let driveViewLink = `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`;
-    let isSimulated = true;
 
-    // Se as credenciais do Google Drive estiverem configuradas, faz upload real
-    if (serviceEmail && rawPrivateKey && !serviceEmail.includes('your-service-account')) {
+    if (drive) {
       try {
-        const { google } = await import('googleapis');
-        const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
-        const auth = new google.auth.JWT({
-          email: serviceEmail,
-          key: privateKey,
-          scopes: ['https://www.googleapis.com/auth/drive.file'],
-        });
-
-        const drive = google.drive({ version: 'v3', auth });
-
         const buffer = Buffer.from(await file.arrayBuffer());
         const stream = new Readable();
         stream.push(buffer);
@@ -87,8 +87,8 @@ export async function POST(req: NextRequest) {
           name: `[${tipoDocumento.toUpperCase()}]_${safeOriginalName}${ext}`,
         };
 
-        if (parentFolderId) {
-          fileMetadata.parents = [parentFolderId];
+        if (targetFolderId) {
+          fileMetadata.parents = [targetFolderId];
         }
 
         const response = await drive.files.create({
@@ -103,10 +103,18 @@ export async function POST(req: NextRequest) {
         if (response.data.id) {
           driveFileId = response.data.id;
           driveViewLink = response.data.webViewLink || `https://drive.google.com/file/d/${driveFileId}/view`;
-          isSimulated = false;
+
+          try {
+            await drive.permissions.create({
+              fileId: driveFileId,
+              requestBody: { role: 'reader', type: 'anyone' },
+            });
+          } catch (e) {
+            // Ignora
+          }
         }
       } catch (driveErr) {
-        console.warn('Erro ao conectar ao Google Drive API real, usando fallback de demonstração:', driveErr);
+        console.warn('Erro ao conectar ao Google Drive API real, usando fallback:', driveErr);
       }
     }
 
@@ -123,9 +131,9 @@ export async function POST(req: NextRequest) {
         } else if (alunoId) {
           const docId = `doc-${Date.now()}`;
           await executeTursoQuery(
-            `INSERT INTO documentos_estudante (id, aluno_id, drive_file_id, nome_arquivo, url_visualizacao, tipo_documento, uploader_id)
+            `INSERT INTO documentos_estudantes (id, estudante_id, tipo_documento, nome_arquivo, tamanho_bytes, drive_file_id, drive_view_link)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [docId, alunoId, driveFileId, file.name, driveViewLink, tipoDocumento, uploaderId || null]
+            [docId, alunoId, tipoDocumento.toLowerCase(), file.name, file.size, driveFileId, driveViewLink]
           );
         }
       } catch (dbErr) {
@@ -146,6 +154,7 @@ export async function POST(req: NextRequest) {
       aluno_id: alunoId,
       professor_id: professorId,
       is_simulated: isSimulated,
+      auth_type: driveClient.authType,
       message: `Arquivo enviado com sucesso para ${diretorioDrive}.`,
     });
   } catch (error: any) {

@@ -19,7 +19,6 @@ import {
   ChevronRight,
   UserCog,
   GraduationCap,
-  Sparkles,
   LogOut,
 } from 'lucide-react';
 import { AllowedModule } from '@/lib/types';
@@ -302,23 +301,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
 
         {/* Rodapé da Sidebar */}
         <div className="border-t border-slate-200 p-3 dark:border-school-dark-border space-y-2">
-          {!sidebarCollapsed ? (
-            <div className="rounded-xl bg-gradient-to-br from-school-blue-900 to-slate-900 p-3 text-white shadow-sm">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-school-gold-400/20 text-school-gold-400">
-                  <Sparkles className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold leading-none text-school-gold-400 truncate">
-                    PLUGUE OS
-                  </p>
-                  <p className="text-[10px] text-slate-300 mt-0.5 truncate">
-                    Gestão Escolar Unificada
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
+          {sidebarCollapsed && (
             <div className="flex justify-center">
               <button
                 onClick={toggleSidebarCollapsed}

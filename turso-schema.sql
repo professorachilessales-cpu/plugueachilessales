@@ -268,17 +268,41 @@ CREATE TABLE IF NOT EXISTS notificacoes_admin (
     data_criacao TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 11. OBSERVAÇÕES CONTÍNUAS DO ESTUDANTE (FICHA DO ALUNO)
+-- 11. OBSERVAÇÕES CONTÍNUAS DO ESTUDANTE (FICHA DO ALUNO) & AUDITORIA
 CREATE TABLE IF NOT EXISTS observacoes_aluno (
     id TEXT PRIMARY KEY,
-    aluno_id TEXT NOT NULL REFERENCES estudantes(id) ON DELETE CASCADE,
-    autor_id TEXT NOT NULL,
+    estudante_id TEXT REFERENCES estudantes(id) ON DELETE CASCADE,
+    aluno_id TEXT REFERENCES estudantes(id) ON DELETE CASCADE,
+    usuario_id TEXT NOT NULL,
+    autor_id TEXT,
     autor_nome TEXT,
     autor_cargo TEXT,
-    tipo TEXT NOT NULL CHECK (tipo IN ('comportamental', 'pedagogico', 'saude', 'geral')),
-    texto TEXT NOT NULL,
-    data_registro TEXT NOT NULL
+    categoria TEXT NOT NULL DEFAULT 'pedagogico' CHECK (categoria IN ('comportamental', 'pedagogico', 'saude', 'geral')),
+    tipo TEXT DEFAULT 'pedagogico' CHECK (tipo IN ('comportamental', 'pedagogico', 'saude', 'geral')),
+    texto_completo TEXT NOT NULL,
+    texto TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    data_registro TEXT
 );
+
+-- TABELA DE AUDITORIA DE OBSERVAÇÕES (HISTÓRICO IMUTÁVEL DE ALTERAÇÕES E EXCLUSÕES)
+CREATE TABLE IF NOT EXISTS observacoes_auditoria (
+    id TEXT PRIMARY KEY,
+    observacao_id TEXT NOT NULL,
+    estudante_id TEXT NOT NULL,
+    evento TEXT NOT NULL CHECK (evento IN ('CREATE', 'UPDATE', 'DELETE')),
+    texto_anterior TEXT,
+    texto_novo TEXT,
+    categoria TEXT,
+    registro_anterior TEXT, -- JSON completo com o snapshot do registro anterior
+    usuario_id TEXT NOT NULL,
+    usuario_nome TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_observacoes_auditoria_obs ON observacoes_auditoria(observacao_id);
+CREATE INDEX IF NOT EXISTS idx_observacoes_auditoria_est ON observacoes_auditoria(estudante_id);
+CREATE INDEX IF NOT EXISTS idx_observacoes_auditoria_created ON observacoes_auditoria(created_at DESC);
 
 -- 12. REPOSITÓRIO DE DOCUMENTOS DO ESTUDANTE NO GOOGLE DRIVE
 CREATE TABLE IF NOT EXISTS documentos_estudante (

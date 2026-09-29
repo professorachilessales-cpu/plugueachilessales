@@ -8,6 +8,159 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const action = searchParams.get('action') || 'sincronizar';
+    const estudanteId = searchParams.get('estudante_id');
+    let estudanteNome = searchParams.get('estudante_nome') || '';
+
+    // Se tiver ID mas não nome, busca nome do estudante
+    if (!estudanteNome && estudanteId && isTursoConfigured) {
+      try {
+        const estRes = await executeTursoQuery<{ nome_completo: string }>(
+          `SELECT nome_completo FROM estudantes WHERE id = ? LIMIT 1`,
+          [estudanteId]
+        );
+        if (estRes.rows && estRes.rows.length > 0) {
+          estudanteNome = estRes.rows[0].nome_completo;
+        }
+      } catch (e) {
+        // Ignora
+      }
+    }
+
+    const driveClient = await getGoogleDriveClient();
+    const isConnected = Boolean(driveClient.isOAuth || driveClient.isServiceAccount || driveClient.isSimulated);
+
+    if (!isConnected) {
+      return NextResponse.json(
+        { error: 'É necessário vincular uma conta Google antes de enviar arquivos.' },
+        { status: 400 }
+      );
+    }
+
+    const { drive, rootFolderId } = driveClient;
+    const {
+      estudanteFolderId,
+      caminhoFormatado,
+      nomeEstudanteFormatado
+    } = await resolverOuCriarEstruturaPastasEstudante(drive, estudanteNome || 'ESTUDANTE', rootFolderId);
+
+    // 1. Ação: Sincronizar foto_perfil_3x4.jpg
+    if (action === 'sincronizar') {
+      const nomeArquivo = 'foto_perfil_3x4.jpg';
+      let directViewUrl: string | null = null;
+      let driveFileId: string | null = null;
+
+      if (drive) {
+        try {
+          const query = `name = '${nomeArquivo}' and '${estudanteFolderId}' in parents and trashed = false`;
+          const res = await drive.files.list({
+            q: query,
+            fields: 'files(id, name, webViewLink, webContentLink, thumbnailLink)',
+            spaces: 'drive',
+            pageSize: 1,
+          });
+
+          if (res.data.files && res.data.files.length > 0) {
+            const file = res.data.files[0];
+            driveFileId = file.id!;
+            try {
+              await drive.permissions.create({
+                fileId: driveFileId,
+                requestBody: { role: 'reader', type: 'anyone' },
+              });
+            } catch {
+              // Ignora
+            }
+            directViewUrl = `https://lh3.googleusercontent.com/d/${driveFileId}`;
+          }
+        } catch (err) {
+          console.warn('Erro ao pesquisar foto_perfil_3x4.jpg no Drive:', err);
+        }
+      }
+
+      // Se encontrou a foto no Drive
+      if (directViewUrl) {
+        if (isTursoConfigured && estudanteId) {
+          try {
+            await executeTursoQuery(
+              `UPDATE estudantes SET foto_url = ? WHERE id = ?`,
+              [directViewUrl, estudanteId]
+            );
+          } catch (dbErr) {
+            console.warn('Erro ao atualizar foto_url no Turso ao sincronizar:', dbErr);
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          found: true,
+          foto_url: directViewUrl,
+          drive_file_id: driveFileId,
+          caminho_drive: caminhoFormatado,
+          message: `Foto foto_perfil_3x4.jpg localizada e sincronizada com sucesso da pasta ${caminhoFormatado}!`,
+        });
+      }
+
+      return NextResponse.json({
+        success: false,
+        found: false,
+        caminho_drive: caminhoFormatado,
+        message: `O arquivo foto_perfil_3x4.jpg não foi encontrado na pasta "${caminhoFormatado}" no Google Drive.`,
+      });
+    }
+
+    // 2. Ação: Listar arquivos/imagens da pasta do estudante
+    if (action === 'list_folder') {
+      let files: any[] = [];
+      if (drive) {
+        try {
+          const query = `'${estudanteFolderId}' in parents and trashed = false`;
+          const res = await drive.files.list({
+            q: query,
+            fields: 'files(id, name, mimeType, webViewLink, webContentLink, thumbnailLink, createdTime, size)',
+            spaces: 'drive',
+            pageSize: 20,
+          });
+          if (res.data.files) {
+            files = res.data.files.map((f: any) => ({
+              id: f.id,
+              name: f.name,
+              mime_type: f.mimeType,
+              is_image: f.mimeType?.startsWith('image/'),
+              view_url: `https://lh3.googleusercontent.com/d/${f.id}`,
+              drive_link: f.webViewLink,
+              created_time: f.createdTime,
+              size: f.size,
+            }));
+          }
+        } catch (err) {
+          console.warn('Erro ao listar arquivos da pasta do estudante:', err);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        folder_id: estudanteFolderId,
+        folder_name: nomeEstudanteFormatado,
+        folder_path: caminhoFormatado,
+        files,
+      });
+    }
+
+    return NextResponse.json({ error: 'Ação não suportada.' }, { status: 400 });
+  } catch (error: any) {
+    console.error('Erro na rota GET de foto do estudante:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Falha ao processar requisição de foto.' },
+      { status: 500 }
+    );
+  }
+}
+
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();

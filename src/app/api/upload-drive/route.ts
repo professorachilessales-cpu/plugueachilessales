@@ -71,13 +71,22 @@ export async function POST(req: NextRequest) {
     const driveClient = await getGoogleDriveClient();
     const { drive, rootFolderId, isSimulated } = driveClient;
 
+    const isConnected = Boolean(driveClient.isOAuth || driveClient.isServiceAccount || driveClient.isSimulated);
+    if (!isConnected) {
+      return NextResponse.json(
+        { error: 'É necessário vincular uma conta Google antes de enviar arquivos.' },
+        { status: 400 }
+      );
+    }
+
     let targetFolderId: string | null = rootFolderId;
     let diretorioDrive = 'FICHA DOS ESTUDANTES/';
 
     if (tipoUpload === 'professor_atestado' && professorNome) {
       diretorioDrive = obterCaminhoProfessorDrive(professorNome);
       if (drive) {
-        targetFolderId = await obterOuCriarPastaDrive(drive, `PROFESSORES_${normalizarNomeParaDrive(professorNome)}`, rootFolderId);
+        const pastaProfessoresId = await obterOuCriarPastaDrive(drive, 'FICHA DOS PROFESSORES', rootFolderId);
+        targetFolderId = await obterOuCriarPastaDrive(drive, professorNome.trim().toUpperCase(), pastaProfessoresId);
       }
     } else {
       // 2. Resolução da Árvore de Diretórios Padronizada por Inicial

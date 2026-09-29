@@ -189,13 +189,38 @@ export async function GET() {
       console.warn('Tabela notificacoes_admin ainda não criada no Turso:', e);
     }
 
-    // 11. Observações Contínuas do Estudante
+    // 11. Observações Contínuas do Estudante & Auditoria
     let observacoesAluno: any[] = [];
     try {
-      const obsRes = await executeTursoQuery('SELECT * FROM observacoes_aluno ORDER BY data_registro DESC');
-      observacoesAluno = obsRes.rows;
+      const obsRes = await executeTursoQuery('SELECT * FROM observacoes_aluno ORDER BY created_at DESC, data_registro DESC');
+      observacoesAluno = obsRes.rows.map((row: any) => ({
+        id: row.id,
+        estudante_id: row.estudante_id || row.aluno_id,
+        aluno_id: row.aluno_id || row.estudante_id,
+        usuario_id: row.usuario_id || row.autor_id,
+        autor_id: row.autor_id || row.usuario_id,
+        autor_nome: row.autor_nome || 'Usuário',
+        autor_cargo: row.autor_cargo || 'Equipe Escolar',
+        categoria: row.categoria || row.tipo || 'pedagogico',
+        tipo: row.tipo || row.categoria || 'pedagogico',
+        texto_completo: row.texto_completo || row.texto || '',
+        texto: row.texto || row.texto_completo || '',
+        created_at: row.created_at || row.data_registro || new Date().toISOString(),
+        data_registro: row.data_registro || row.created_at || new Date().toISOString(),
+      }));
     } catch (e) {
       console.warn('Tabela observacoes_aluno ainda não criada no Turso:', e);
+    }
+
+    let observacoesAuditoria: any[] = [];
+    try {
+      const audRes = await executeTursoQuery('SELECT * FROM observacoes_auditoria ORDER BY created_at DESC');
+      observacoesAuditoria = audRes.rows.map((row: any) => ({
+        ...row,
+        registro_anterior: row.registro_anterior ? (typeof row.registro_anterior === 'string' ? JSON.parse(row.registro_anterior) : row.registro_anterior) : null,
+      }));
+    } catch (e) {
+      console.warn('Tabela observacoes_auditoria ainda não criada no Turso:', e);
     }
 
     // 12. Documentos do Estudante no Google Drive
@@ -244,6 +269,7 @@ export async function GET() {
         relatoriosConsolidados,
         notificacoesAdmin,
         observacoesAluno,
+        observacoesAuditoria,
         documentosEstudanteDrive,
         atestadosProfessor,
         reposicoesAulas,

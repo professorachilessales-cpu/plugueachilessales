@@ -114,10 +114,39 @@ export function ProfessorDashboard() {
     return atestadosProfessor.filter(a => a.professor_id === professorAtual.id);
   }, [atestadosProfessor, professorAtual]);
 
-  // 4. PRÓXIMOS 10 EVENTOS
+  // Helper para formatação segura de data sem problemas de fuso horário
+  const formatarDataEvento = (dataStr: string): string => {
+    if (!dataStr) return '—';
+    try {
+      const partes = dataStr.split('T')[0].split('-').map(Number);
+      if (partes.length === 3) {
+        const d = new Date(partes[0], partes[1] - 1, partes[2]);
+        return new Intl.DateTimeFormat('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        }).format(d);
+      }
+      const d = new Date(dataStr);
+      if (isNaN(d.getTime())) return '—';
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(d);
+    } catch {
+      return '—';
+    }
+  };
+
+  // 4. PRÓXIMOS 10 EVENTOS (ordem rigorosamente decrescente: do mais recente para o mais antigo)
   const proximos10Eventos = useMemo(() => {
     return [...eventos]
-      .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime())
+      .sort((a, b) => {
+        const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : a.data_inicio + 'T00:00:00').getTime() || 0;
+        const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : b.data_inicio + 'T00:00:00').getTime() || 0;
+        return timeB - timeA;
+      })
       .slice(0, 10);
   }, [eventos]);
 
@@ -630,7 +659,7 @@ export function ProfessorDashboard() {
                           {ev.titulo}
                         </h4>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {new Date(ev.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')} • {ev.categoria.toUpperCase()}
+                          {formatarDataEvento(ev.data_inicio)} • {ev.categoria.toUpperCase()}
                         </p>
                       </div>
                     </div>

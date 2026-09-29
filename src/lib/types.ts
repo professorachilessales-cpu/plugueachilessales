@@ -342,13 +342,32 @@ export type TipoObservacaoAluno = 'comportamental' | 'pedagogico' | 'saude' | 'g
 
 export interface ObservacaoAluno {
   id: string;
-  aluno_id: string;
-  autor_id: string;
+  estudante_id: string;
+  aluno_id: string; // Compatibilidade legada
+  usuario_id: string;
+  autor_id: string; // Compatibilidade legada
   autor_nome: string;
   autor_cargo: string;
-  tipo: TipoObservacaoAluno;
-  texto: string;
-  data_registro: string;
+  categoria: TipoObservacaoAluno;
+  tipo: TipoObservacaoAluno; // Compatibilidade legada
+  texto_completo: string;
+  texto: string; // Compatibilidade legada
+  created_at: string;
+  data_registro: string; // Compatibilidade legada
+}
+
+export interface ObservacaoAuditoria {
+  id: string;
+  observacao_id: string;
+  estudante_id: string;
+  evento: 'CREATE' | 'UPDATE' | 'DELETE';
+  texto_anterior?: string;
+  texto_novo?: string;
+  categoria?: string;
+  registro_anterior?: any;
+  usuario_id: string;
+  usuario_nome: string;
+  created_at: string;
 }
 
 // -------------------------------------------------------------

@@ -21,6 +21,7 @@ import {
   RelatorioConsolidado,
   NotificacaoAdmin,
   ObservacaoAluno,
+  ObservacaoAuditoria,
   DocumentoEstudanteDrive,
   AtestadoProfessor,
   ReposicaoAula,
@@ -90,7 +91,7 @@ interface AppContextType {
   relatoriosProfessores: RelatorioProfessor[];
   relatoriosConsolidados: RelatorioConsolidado[];
   notificacoesAdmin: NotificacaoAdmin[];
-  addSolicitacaoRelatorio: (alunoId: string) => void;
+  addSolicitacaoRelatorio: (alunoId: string) => string;
   salvarRascunhoProfessor: (relatorioId: string, rascunho: string) => void;
   polirRelatorioComIA: (relatorioId: string, rascunho: string) => Promise<string>;
   enviarRelatorioProfessor: (relatorioId: string, textoFinal: string) => Promise<void>;
@@ -100,9 +101,12 @@ interface AppContextType {
   salvarRelatorioConsolidado: (solicitacaoId: string, conteudoFinal: string) => void;
   excluirSolicitacaoRelatorio: (solicitacaoId: string) => void;
 
-  // 6. Observações Contínuas do Estudante (Ficha do Aluno)
+  // 6. Observações Contínuas do Estudante (Ficha do Aluno) & Auditoria
   observacoesAluno: ObservacaoAluno[];
+  observacoesAuditoria: ObservacaoAuditoria[];
   addObservacaoAluno: (alunoId: string, tipo: TipoObservacaoAluno, texto: string) => void;
+  updateObservacaoAluno: (obsId: string, novoTexto: string) => Promise<void>;
+  deleteObservacaoAluno: (obsId: string) => void;
 
   // 7. Repositório Google Drive (Ficha do Estudante)
   documentosEstudanteDrive: DocumentoEstudanteDrive[];
@@ -167,8 +171,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [relatoriosConsolidados, setRelatoriosConsolidados] = useState<RelatorioConsolidado[]>(initialRelatoriosConsolidados);
   const [notificacoesAdmin, setNotificacoesAdmin] = useState<NotificacaoAdmin[]>(initialNotificacoesAdmin);
 
-  // 6. Observações Contínuas do Estudante
+  // 6. Observações Contínuas do Estudante & Auditoria
   const [observacoesAluno, setObservacoesAluno] = useState<ObservacaoAluno[]>(initialObservacoesAluno);
+  const [observacoesAuditoria, setObservacoesAuditoria] = useState<ObservacaoAuditoria[]>([]);
 
   // 7. Documentos Google Drive
   const [documentosEstudanteDrive, setDocumentosEstudanteDrive] = useState<DocumentoEstudanteDrive[]>(initialDocumentosEstudanteDrive);
@@ -411,6 +416,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const savedObs = localStorage.getItem('school_os_observacoes_aluno');
       if (savedObs) setObservacoesAluno(JSON.parse(savedObs));
 
+      const savedObsAudit = localStorage.getItem('school_os_observacoes_auditoria');
+      if (savedObsAudit) setObservacoesAuditoria(JSON.parse(savedObsAudit));
+
       // Documentos Drive persistidos
       const savedDriveDocs = localStorage.getItem('school_os_documentos_drive');
       if (savedDriveDocs) setDocumentosEstudanteDrive(JSON.parse(savedDriveDocs));
@@ -506,6 +514,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (json.data.observacoesAluno && json.data.observacoesAluno.length > 0) {
             setObservacoesAluno(json.data.observacoesAluno);
             localStorage.setItem('school_os_observacoes_aluno', JSON.stringify(json.data.observacoesAluno));
+          }
+          if (json.data.observacoesAuditoria && json.data.observacoesAuditoria.length > 0) {
+            setObservacoesAuditoria(json.data.observacoesAuditoria);
+            localStorage.setItem('school_os_observacoes_auditoria', JSON.stringify(json.data.observacoesAuditoria));
           }
           if (json.data.documentosEstudanteDrive && json.data.documentosEstudanteDrive.length > 0) {
             setDocumentosEstudanteDrive(json.data.documentosEstudanteDrive);
@@ -659,6 +671,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error(e);
     }
   }, [observacoesAluno, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_observacoes_auditoria', JSON.stringify(observacoesAuditoria));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [observacoesAuditoria, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -1312,14 +1333,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   // 1. Relatórios Pedagógicos Colaborativos com IA
-  const addSolicitacaoRelatorio = (alunoId: string) => {
+  const addSolicitacaoRelatorio = (alunoId: string, _adminId?: string, professoresIdsParam?: string[], _obs?: string): string => {
     const novaSolId = `sol-${Date.now()}`;
     const novaSol: SolicitacaoRelatorio = {
       id: novaSolId,
       aluno_id: alunoId,
       status: 'pendente',
       data_solicitacao: new Date().toISOString().split('T')[0],
-      admin_solicitante_id: currentUser.id,
+      admin_solicitante_id: _adminId || currentUser.id,
       created_at: new Date().toISOString(),
     };
 
@@ -1327,15 +1348,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Localiza os professores atribuídos à turma do estudante
     const aluno = estudantes.find(e => e.id === alunoId);
-    const turma = turmas.find(t => t.id === aluno?.turma_id);
+    const turma = turmas.find(t => t.id === aluno?.turma_id || (t.nome && aluno?.turma_nome && t.nome.trim() === aluno.turma_nome.trim()));
 
     let profsIds: string[] = [];
-    if (turma?.professores_ids && turma.professores_ids.length > 0) {
-      profsIds = turma.professores_ids;
-    } else if (turma?.professor_regente_id) {
-      profsIds = [turma.professor_regente_id];
-    } else {
-      profsIds = professores.filter(p => p.ativo).map(p => p.id);
+    if (professoresIdsParam && professoresIdsParam.length > 0) {
+      profsIds = [...professoresIdsParam];
+    } else if (turma?.professores_ids && turma.professores_ids.length > 0) {
+      profsIds = [...turma.professores_ids];
+    }
+    if (turma?.professor_regente_id && !profsIds.includes(turma.professor_regente_id)) {
+      profsIds.push(turma.professor_regente_id);
+    }
+
+    // Inclui professores que tenham a turma explicitamente vinculada em suas fichas
+    professores.forEach(p => {
+      if (turma?.id && p.turmas_atribuidas_ids && p.turmas_atribuidas_ids.includes(turma.id)) {
+        if (!profsIds.includes(p.id)) profsIds.push(p.id);
+      }
+    });
+
+    if (profsIds.length === 0) {
+      profsIds = professores.filter(p => p.ativo).slice(0, 3).map(p => p.id);
     }
 
     const novosRelatoriosProfessores: RelatorioProfessor[] = profsIds.map(profId => ({
@@ -1350,6 +1383,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
 
     setRelatoriosProfessores(prev => [...novosRelatoriosProfessores, ...prev]);
+    return novaSolId;
   };
 
   const salvarRascunhoProfessor = (relatorioId: string, rascunho: string) => {
@@ -1519,21 +1553,145 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNotificacoesAdmin(prev => prev.filter(n => n.solicitacao_id !== solicitacaoId));
   };
 
-  // 6. Observações Contínuas do Estudante
+  // 6. Observações Contínuas do Estudante & Auditoria
   const addObservacaoAluno = (alunoId: string, tipo: TipoObservacaoAluno, texto: string) => {
     const cargo = role === 'admin' ? 'Administração Escolar' : role === 'direcao' ? 'Direção Escolar' : 'Professor';
+    const agora = new Date().toISOString();
+    const dataReg = new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const novaObs: ObservacaoAluno = {
       id: `obs-${Date.now()}`,
+      estudante_id: alunoId,
       aluno_id: alunoId,
+      usuario_id: currentUser.id,
       autor_id: currentUser.id,
       autor_nome: currentUser.name,
       autor_cargo: cargo,
+      categoria: tipo,
       tipo,
+      texto_completo: texto,
       texto,
-      data_registro: new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      created_at: agora,
+      data_registro: dataReg,
     };
 
     setObservacoesAluno(prev => [novaObs, ...prev]);
+
+    const auditCriacao: ObservacaoAuditoria = {
+      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      observacao_id: novaObs.id,
+      estudante_id: alunoId,
+      evento: 'CREATE',
+      texto_novo: texto,
+      categoria: tipo,
+      usuario_id: currentUser.id,
+      usuario_nome: currentUser.name,
+      created_at: agora,
+    };
+    setObservacoesAuditoria(prev => [auditCriacao, ...prev]);
+
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_observacao', payload: novaObs }),
+    }).catch(err => console.warn('Erro ao sincronizar nova observação no Turso:', err));
+  };
+
+  const updateObservacaoAluno = async (obsId: string, novoTexto: string): Promise<void> => {
+    const registroAnterior = observacoesAluno.find(o => o.id === obsId);
+    if (!registroAnterior) return;
+
+    // Regra de Edição: Apenas o usuário autor da observação pode editá-la!
+    const autorId = registroAnterior.usuario_id || registroAnterior.autor_id;
+    if (autorId !== currentUser.id && role !== 'admin') {
+      throw new Error('Apenas o usuário autor da observação possui permissão para editá-la.');
+    }
+
+    const agora = new Date().toISOString();
+
+    setObservacoesAluno(prev =>
+      prev.map(o => {
+        if (o.id === obsId) {
+          return {
+            ...o,
+            texto_completo: novoTexto,
+            texto: novoTexto,
+          };
+        }
+        return o;
+      })
+    );
+
+    const auditAlteracao: ObservacaoAuditoria = {
+      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      observacao_id: obsId,
+      estudante_id: registroAnterior.estudante_id || registroAnterior.aluno_id,
+      evento: 'UPDATE',
+      texto_anterior: registroAnterior.texto_completo || registroAnterior.texto,
+      texto_novo: novoTexto,
+      categoria: registroAnterior.categoria || registroAnterior.tipo,
+      registro_anterior: registroAnterior,
+      usuario_id: currentUser.id,
+      usuario_nome: currentUser.name,
+      created_at: agora,
+    };
+
+    setObservacoesAuditoria(prev => [auditAlteracao, ...prev]);
+
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update_observacao',
+        payload: {
+          observacao_id: obsId,
+          novo_texto: novoTexto,
+          usuario_id: currentUser.id,
+          usuario_nome: currentUser.name,
+          registro_anterior: registroAnterior,
+        },
+      }),
+    }).catch(err => console.warn('Erro ao sincronizar alteração da observação no Turso:', err));
+  };
+
+  const deleteObservacaoAluno = (obsId: string): void => {
+    const registroCompleto = observacoesAluno.find(o => o.id === obsId);
+    if (!registroCompleto) return;
+
+    const agora = new Date().toISOString();
+
+    // 1. Remove da listagem ativa
+    setObservacoesAluno(prev => prev.filter(o => o.id !== obsId));
+
+    // 2. Preserva na auditoria
+    const auditDelete: ObservacaoAuditoria = {
+      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      observacao_id: obsId,
+      estudante_id: registroCompleto.estudante_id || registroCompleto.aluno_id,
+      evento: 'DELETE',
+      texto_anterior: registroCompleto.texto_completo || registroCompleto.texto,
+      categoria: registroCompleto.categoria || registroCompleto.tipo,
+      registro_anterior: registroCompleto,
+      usuario_id: currentUser.id,
+      usuario_nome: currentUser.name,
+      created_at: agora,
+    };
+
+    setObservacoesAuditoria(prev => [auditDelete, ...prev]);
+
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'delete_observacao',
+        payload: {
+          observacao_id: obsId,
+          estudante_id: registroCompleto.estudante_id || registroCompleto.aluno_id,
+          usuario_id: currentUser.id,
+          usuario_nome: currentUser.name,
+          registro_completo: registroCompleto,
+        },
+      }),
+    }).catch(err => console.warn('Erro ao sincronizar exclusão da observação no Turso:', err));
   };
 
   // 7. Repositório Google Drive
@@ -1682,7 +1840,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         salvarRelatorioConsolidado,
         excluirSolicitacaoRelatorio,
         observacoesAluno,
+        observacoesAuditoria,
         addObservacaoAluno,
+        updateObservacaoAluno,
+        deleteObservacaoAluno,
         documentosEstudanteDrive,
         addDocumentoEstudanteDrive,
         atestadosProfessor,

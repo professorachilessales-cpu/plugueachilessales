@@ -449,7 +449,153 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
-      default:
+      // ----------------------------------------------------
+      // OBSERVAÇÕES & AUDITORIA PEDAGÓGICA
+      // ----------------------------------------------------
+      case 'save_observacao': {
+        const obs = payload;
+        const estudanteId = obs.estudante_id || obs.aluno_id;
+        const usuarioId = obs.usuario_id || obs.autor_id;
+        const textoCompleto = obs.texto_completo || obs.texto;
+        const categoria = obs.categoria || obs.tipo || 'pedagogico';
+        const createdAt = obs.created_at || obs.data_registro || new Date().toISOString();
+
+        await executeTursoQuery(
+          `INSERT INTO observacoes_aluno (
+            id, estudante_id, aluno_id, usuario_id, autor_id,
+            autor_nome, autor_cargo, categoria, tipo,
+            texto_completo, texto, created_at, data_registro
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            categoria = excluded.categoria,
+            tipo = excluded.tipo,
+            texto_completo = excluded.texto_completo,
+            texto = excluded.texto`,
+          [
+            obs.id,
+            estudanteId,
+            estudanteId,
+            usuarioId,
+            usuarioId,
+            obs.autor_nome || 'Usuário',
+            obs.autor_cargo || 'Equipe Escolar',
+            categoria,
+            categoria,
+            textoCompleto,
+            textoCompleto,
+            createdAt,
+            createdAt,
+          ]
+        );
+
+        // Registro de Auditoria de Criação
+        try {
+          const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+          await executeTursoQuery(
+            `INSERT INTO observacoes_auditoria (
+              id, observacao_id, estudante_id, evento,
+              texto_novo, categoria, usuario_id, usuario_nome, created_at
+            ) VALUES (?, ?, ?, 'CREATE', ?, ?, ?, ?, ?)`,
+            [
+              auditId,
+              obs.id,
+              estudanteId,
+              textoCompleto,
+              categoria,
+              usuarioId,
+              obs.autor_nome || 'Usuário',
+              createdAt,
+            ]
+          );
+        } catch (audErr) {
+          console.warn('Aviso: Erro ao registrar auditoria de CREATE para observacao:', audErr);
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case 'update_observacao': {
+        const { observacao_id, novo_texto, usuario_id, usuario_nome, registro_anterior } = payload;
+        const agora = new Date().toISOString();
+
+        await executeTursoQuery(
+          `UPDATE observacoes_aluno SET
+            texto_completo = ?,
+            texto = ?
+          WHERE id = ?`,
+          [novo_texto, novo_texto, observacao_id]
+        );
+
+        // Grava na tabela de auditoria o registro anterior completo
+        const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const estudanteId = registro_anterior?.estudante_id || registro_anterior?.aluno_id || '';
+        const textoAnterior = registro_anterior?.texto_completo || registro_anterior?.texto || '';
+        const categoria = registro_anterior?.categoria || registro_anterior?.tipo || 'pedagogico';
+
+        try {
+          await executeTursoQuery(
+            `INSERT INTO observacoes_auditoria (
+              id, observacao_id, estudante_id, evento,
+              texto_anterior, texto_novo, categoria, registro_anterior,
+              usuario_id, usuario_nome, created_at
+            ) VALUES (?, ?, ?, 'UPDATE', ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              auditId,
+              observacao_id,
+              estudanteId,
+              textoAnterior,
+              novo_texto,
+              categoria,
+              JSON.stringify(registro_anterior || {}),
+              usuario_id,
+              usuario_nome || 'Usuário',
+              agora,
+            ]
+          );
+        } catch (audErr) {
+          console.warn('Aviso: Erro ao gravar observacoes_auditoria no Turso:', audErr);
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case 'delete_observacao': {
+        const { observacao_id, estudante_id, usuario_id, usuario_nome, registro_completo } = payload;
+        const agora = new Date().toISOString();
+
+        // 1. Remove da listagem ativa
+        await executeTursoQuery('DELETE FROM observacoes_aluno WHERE id = ?', [observacao_id]);
+
+        // 2. Preserva na tabela de auditoria o registro completo com evento DELETE
+        const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const textoAnterior = registro_completo?.texto_completo || registro_completo?.texto || '';
+        const categoria = registro_completo?.categoria || registro_completo?.tipo || 'pedagogico';
+
+        try {
+          await executeTursoQuery(
+            `INSERT INTO observacoes_auditoria (
+              id, observacao_id, estudante_id, evento,
+              texto_anterior, categoria, registro_anterior,
+              usuario_id, usuario_nome, created_at
+            ) VALUES (?, ?, ?, 'DELETE', ?, ?, ?, ?, ?, ?)`,
+            [
+              auditId,
+              observacao_id,
+              estudante_id || registro_completo?.estudante_id || registro_completo?.aluno_id || '',
+              textoAnterior,
+              categoria,
+              JSON.stringify(registro_completo || {}),
+              usuario_id,
+              usuario_nome || 'Usuário',
+              agora,
+            ]
+          );
+        } catch (audErr) {
+          console.warn('Aviso: Erro ao gravar DELETE em observacoes_auditoria no Turso:', audErr);
+        }
+
+        return NextResponse.json({ success: true });
+      }
         return NextResponse.json({ error: `Ação '${action}' desconhecida` }, { status: 400 });
     }
   } catch (error: any) {

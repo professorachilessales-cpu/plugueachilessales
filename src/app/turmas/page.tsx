@@ -739,7 +739,9 @@ export default function TurmasPage() {
                   <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 text-[11px] space-y-1.5">
                     {profsCardIds.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">Docentes:</span>
+                        <span className="font-bold text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
+                          Docentes ({profsCardIds.length}):
+                        </span>
                         {profsCardIds.map((id) => {
                           const p = professores.find((prof) => prof.id === id);
                           if (!p) return null;

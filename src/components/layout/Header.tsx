@@ -106,7 +106,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/90 px-4 sm:px-6 backdrop-blur-md transition-colors dark:border-school-dark-border dark:bg-school-dark-surface/90 print:hidden">
-      {/* Lado Esquerdo: Mobile Trigger */}
+      {/* Lado Esquerdo: Mobile Trigger + Identificação Completa da Escola */}
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleMobileSidebar}
@@ -115,41 +115,44 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
         >
           <Menu className="h-6 w-6" />
         </button>
-      </div>
 
-      {/* Lado Direito: Brasão da Escola, Seletor de RBAC & Usuários, Configurações e Alternador de Tema */}
-      <div className="flex items-center gap-2 sm:gap-4">
-        {/* Brasão & Identificação da Escola no Lado Direito */}
-        <div className="flex items-center gap-2.5 sm:border-r border-slate-200 dark:border-slate-800 pr-3">
-          <div className="text-right hidden sm:block">
-            <h2 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1 max-w-[200px]" title={escolaConfig.nome_escola}>
-              {escolaConfig.nome_escola}
-            </h2>
-            <div className="flex items-center justify-end gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
-              <span className="font-semibold text-school-blue-600 dark:text-school-gold-400">
-                Ano {escolaConfig.ano_letivo_ativo}
-              </span>
-              <span>•</span>
-              <span>INEP: {escolaConfig.codigo_inep}</span>
-            </div>
-          </div>
+        {/* [Símbolo/Logo da Escola] [Nome da Escola] | Ano Letivo | INEP: XXXXXXXX */}
+        <div className="flex items-center gap-2.5">
           {escolaConfig.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={escolaConfig.logo_url}
               alt={escolaConfig.nome_escola}
               title={`Brasão da Escola: ${escolaConfig.nome_escola}`}
-              className="h-10 w-10 rounded-xl object-contain bg-slate-50 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700 shadow-sm"
+              className="h-9 w-9 rounded-xl object-contain bg-slate-50 dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"
             />
           ) : (
             <div
               title={`Brasão da Escola: ${escolaConfig.nome_escola}`}
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-school-blue-700 to-school-blue-900 text-school-gold-400 shadow-sm shadow-blue-500/20"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-school-blue-700 to-school-blue-900 text-school-gold-400 shadow-sm shadow-blue-500/20 shrink-0"
             >
-              <School className="h-5 w-5" />
+              <School className="h-4.5 w-4.5" />
             </div>
           )}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white line-clamp-1" title={escolaConfig.nome_escola}>
+              {escolaConfig.nome_escola}
+            </h2>
+            <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">|</span>
+            <span className="text-[11px] font-bold text-school-blue-600 dark:text-school-gold-400 hidden sm:inline">
+              Ano Letivo {escolaConfig.ano_letivo_ativo}
+            </span>
+            <span className="text-slate-300 dark:text-slate-600 hidden md:inline">|</span>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 hidden md:inline font-mono">
+              INEP: {escolaConfig.codigo_inep}
+            </span>
+          </div>
         </div>
+      </div>
+
+      {/* Lado Direito: Seletor de RBAC & Usuários, Notificações, Configurações e Alternador de Tema */}
+      <div className="flex items-center gap-2 sm:gap-4">
 
         {/* Controle RBAC & Simulação de Usuário: Exclusivo para Administrador */}
         {isAdminSession ? (

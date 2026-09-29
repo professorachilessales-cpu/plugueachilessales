@@ -317,7 +317,11 @@ export default function DashboardPage() {
       };
     });
 
-    return { contagem, porTurma, grupos };
+    const totalGeralMatriculados = porTurma.reduce((acc, cur) => acc + cur.alunos, 0);
+    const totalCapacidadeGeral = porTurma.reduce((acc, cur) => acc + cur.capacidade, 0);
+    const ocupacaoGeral = totalCapacidadeGeral > 0 ? Math.round((totalGeralMatriculados / totalCapacidadeGeral) * 100) : 0;
+
+    return { contagem, porTurma, grupos, totalGeralMatriculados, totalCapacidadeGeral, ocupacaoGeral };
   }, [turmas, estudantes]);
 
   const dadosPorTurno = dadosPorGrupoETurma;
@@ -853,8 +857,8 @@ export default function DashboardPage() {
       {/* Seção Gráfica: Gráfico 1 (Barras) e Gráfico 2 (Donut / Rosca) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Gráfico 1 (Barras): Distribuição por Turma e por Turno Agrupada por Grupo (Oculto se Inclusão estiver em Área Expandida) */}
-        <div className={`isometric-card rounded-2xl border border-slate-200/90 bg-white p-6 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 ${inclusaoExpandido ? 'hidden' : 'lg:col-span-6'}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
+        <div className={`isometric-card rounded-2xl border border-slate-200/90 bg-white p-6 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 flex flex-col justify-between ${inclusaoExpandido ? 'hidden' : 'lg:col-span-6 lg:h-[760px]'}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 dark:border-slate-800 shrink-0">
             <div className="flex items-center gap-3">
               <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-school-blue-500 to-school-blue-800 text-white shadow-md shadow-school-blue-800/30 flex-shrink-0">
                 <BookOpen className="h-5 w-5" />
@@ -882,8 +886,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Grupos de Turmas com seus Totais */}
-          <div className="mt-6 space-y-6">
+          {/* Grupos de Turmas com seus Totais - Com rolagem vertical interna proporcional */}
+          <div className="mt-4 space-y-4 flex-1 overflow-y-auto pr-1">
             {dadosPorGrupoETurma.grupos.map((grupo) => {
               return (
                 <div
@@ -984,25 +988,47 @@ export default function DashboardPage() {
             })}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="rounded-xl bg-blue-50/60 p-2.5 dark:bg-blue-950/40">
-              <span className="block text-[11px] font-medium text-school-blue-700 dark:text-school-blue-400">Turno Manhã</span>
-              <strong className="text-lg font-black text-slate-900 dark:text-white">{dadosPorTurno.contagem.manha}</strong> alunos
+          {/* Indicadores Consolidados: Total Geral e Turnos com Matriculados */}
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs shrink-0">
+            {/* Card Total Geral de Estudantes Matriculados */}
+            <div className="rounded-xl bg-slate-100/90 p-2 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700">
+              <span className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400">Total Geral</span>
+              <strong className="text-base font-black text-slate-900 dark:text-white font-mono">{dadosPorGrupoETurma.totalGeralMatriculados}</strong>
+              <span className="text-[10px] text-slate-500 block truncate">matriculados</span>
             </div>
-            <div className="rounded-xl bg-amber-50/60 p-2.5 dark:bg-amber-950/40">
-              <span className="block text-[11px] font-medium text-school-gold-700 dark:text-school-gold-400">Turno Tarde</span>
-              <strong className="text-lg font-black text-slate-900 dark:text-white">{dadosPorTurno.contagem.tarde}</strong> alunos
-            </div>
-            <div className="rounded-xl bg-slate-100/60 p-2.5 dark:bg-slate-800/40">
-              <span className="block text-[11px] font-medium text-slate-600 dark:text-slate-400">Turno Noite</span>
-              <strong className="text-lg font-black text-slate-900 dark:text-white">{dadosPorTurno.contagem.noite}</strong> alunos
-            </div>
+
+            {/* Turno Manhã (Oculto se count for 0) */}
+            {dadosPorTurno.contagem.manha > 0 && (
+              <div className="rounded-xl bg-blue-50/70 p-2 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40">
+                <span className="block text-[10px] font-bold uppercase text-school-blue-700 dark:text-school-blue-300">Manhã</span>
+                <strong className="text-base font-black text-slate-900 dark:text-white font-mono">{dadosPorTurno.contagem.manha}</strong>
+                <span className="text-[10px] text-school-blue-600 dark:text-school-blue-400 block truncate">estudantes</span>
+              </div>
+            )}
+
+            {/* Turno Tarde (Oculto se count for 0) */}
+            {dadosPorTurno.contagem.tarde > 0 && (
+              <div className="rounded-xl bg-amber-50/70 p-2 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/40">
+                <span className="block text-[10px] font-bold uppercase text-school-gold-700 dark:text-school-gold-400">Tarde</span>
+                <strong className="text-base font-black text-slate-900 dark:text-white font-mono">{dadosPorTurno.contagem.tarde}</strong>
+                <span className="text-[10px] text-amber-700 dark:text-amber-400 block truncate">estudantes</span>
+              </div>
+            )}
+
+            {/* Turno Noite (Oculto se count for 0) */}
+            {dadosPorTurno.contagem.noite > 0 && (
+              <div className="rounded-xl bg-indigo-50/70 p-2 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40">
+                <span className="block text-[10px] font-bold uppercase text-indigo-700 dark:text-indigo-300">Noite</span>
+                <strong className="text-base font-black text-slate-900 dark:text-white font-mono">{dadosPorTurno.contagem.noite}</strong>
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 block truncate">estudantes</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Bloco: Inclusão (Estudantes com Laudo Médico & Disparo WhatsApp) - Suporte a Expansão e Recolhimento */}
+        {/* Bloco: Inclusão (Estudantes com Laudo Médico & Disparo WhatsApp) - Altura alinhada com rolagem interna */}
         <div className={`isometric-card rounded-2xl border border-slate-200/90 bg-white p-6 border-t-2 border-t-white/90 dark:border-t-slate-700/60 dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 flex flex-col justify-between ${
-          inclusaoExpandido ? 'lg:col-span-12 ring-2 ring-emerald-500/25 shadow-md' : 'lg:col-span-6'
+          inclusaoExpandido ? 'lg:col-span-12 ring-2 ring-emerald-500/25 shadow-md' : 'lg:col-span-6 lg:h-[760px]'
         }`}>
           <div className="flex flex-col flex-1 min-h-0">
             <div className="border-b border-slate-100 pb-4 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap shrink-0">

@@ -429,16 +429,23 @@ export default function EstudantesPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Filtragem dos estudantes
+  // Filtragem dos estudantes com pesquisa de CPF sem máscara
   const estudantesFiltrados = useMemo(() => {
+    const buscaClean = busca.toLowerCase().trim();
+    const buscaDigitos = busca.replace(/\D/g, '');
+
     return estudantes.filter((est) => {
+      const estCpfDigitos = (est.cpf || '').replace(/\D/g, '');
+      const matchCpf = buscaDigitos.length > 0 && estCpfDigitos.includes(buscaDigitos);
+
       const matchBusca =
-        est.nome_completo.toLowerCase().includes(busca.toLowerCase()) ||
-        est.cpf?.includes(busca) ||
-        est.rg_numero?.toLowerCase().includes(busca.toLowerCase()) ||
-        est.numero_bolsa_familia?.includes(busca) ||
-        est.certidao_nascimento?.toLowerCase().includes(busca.toLowerCase()) ||
-        est.apoio_nome?.toLowerCase().includes(busca.toLowerCase());
+        est.nome_completo.toLowerCase().includes(buscaClean) ||
+        est.cpf?.toLowerCase().includes(buscaClean) ||
+        matchCpf ||
+        est.rg_numero?.toLowerCase().includes(buscaClean) ||
+        est.numero_bolsa_familia?.includes(buscaClean) ||
+        est.certidao_nascimento?.toLowerCase().includes(buscaClean) ||
+        est.apoio_nome?.toLowerCase().includes(buscaClean);
       
       const matchTurma = !filtroTurma || est.turma_id === filtroTurma;
 
@@ -683,7 +690,6 @@ export default function EstudantesPage() {
                 <th className="px-4 py-3.5">Turma</th>
                 <th className="px-4 py-3.5">Responsável / Contatos</th>
                 <th className="px-4 py-3.5">Inclusão / AEE</th>
-                <th className="px-4 py-3.5">Drive</th>
                 <th className="px-4 py-3.5">Status</th>
                 <th className="px-4 py-3.5 text-right print:hidden">Ações</th>
               </tr>
@@ -691,7 +697,7 @@ export default function EstudantesPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {estudantesFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
                     Nenhum estudante encontrado para os filtros selecionados.
                   </td>
                 </tr>
@@ -806,35 +812,6 @@ export default function EstudantesPage() {
                         )}
                       </td>
 
-                      {/* Docs Drive & Pasta do Aluno */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              setEstudanteSelecionado(est);
-                              setAbaFicha('drive');
-                              setModalFichaAberto(true);
-                            }}
-                            title={`Abrir Pasta no Google Drive: FICHA DOS ESTUDANTES / ${(est.nome_completo || 'A').trim().charAt(0).toUpperCase()} / ${est.nome_completo.toUpperCase()}`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50/80 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 transition-colors shadow-xs"
-                          >
-                            <Folder className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                            <span>Pasta</span>
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              setEstudanteSelecionado(est);
-                              setModalUploadAberto(true);
-                            }}
-                            title="Ver e Anexar Documentos no Google Drive"
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                          >
-                            <FileText className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                            <span>{est.documentos?.length || 0}</span>
-                          </button>
-                        </div>
-                      </td>
 
                       {/* Status */}
                       <td className="px-4 py-3.5">

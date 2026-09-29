@@ -115,12 +115,22 @@ export function PainelGoogleDriveConfig() {
       const data = await res.json();
       if (res.ok) {
         setMensagemSucesso('Conta do Google Drive desconectada com sucesso.');
+        setStatus((prev) => prev ? {
+          ...prev,
+          is_connected: false,
+          connected_email: null,
+          root_folder_id: null,
+          is_oauth: false,
+          is_service_account: false,
+          is_simulated: true,
+          auth_type: 'disconnected',
+        } : null);
         await carregarStatus();
       } else {
         setMensagemErro(data.error || 'Falha ao desconectar.');
       }
-    } catch (err) {
-      setMensagemErro('Erro de conexão ao desconectar conta.');
+    } catch (err: any) {
+      setMensagemErro(err?.message || 'Erro de conexão ao desconectar conta.');
     } finally {
       setProcessando(false);
     }

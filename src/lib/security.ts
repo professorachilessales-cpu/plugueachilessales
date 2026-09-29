@@ -267,6 +267,6 @@ export function obterCaminhoEstudanteDrive(nomeEstudante: string): string {
 }
 
 export function obterCaminhoProfessorDrive(nomeProfessor: string): string {
-  const normalizado = normalizarNomeParaDrive(nomeProfessor);
-  return `PLUGUE/${normalizado}/`;
+  const nomeLimpo = (nomeProfessor || 'PROFESSOR').trim().toUpperCase();
+  return `FICHA DOS PROFESSORES / ${nomeLimpo}`;
 }

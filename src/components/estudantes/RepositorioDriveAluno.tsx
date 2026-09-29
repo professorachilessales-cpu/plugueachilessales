@@ -50,12 +50,32 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Documentos cadastrados para este estudante
+  // Formatação segura de datas para evitar 'Invalid Date'
+  const formatarDataSegura = (dataVal: any): string => {
+    if (!dataVal) return '—';
+    try {
+      const d = new Date(dataVal);
+      if (isNaN(d.getTime())) return '—';
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(d);
+    } catch {
+      return '—';
+    }
+  };
+
+  // Documentos cadastrados para este estudante com ordenação segura
   const documentos = useMemo(() => {
     return documentosEstudanteDrive
       .filter(d => d.aluno_id === estudante.id)
       .filter(d => filtroTipo === 'todos' || d.tipo === filtroTipo)
-      .sort((a, b) => new Date(b.data_upload).getTime() - new Date(a.data_upload).getTime());
+      .sort((a, b) => {
+        const timeA = new Date(a.data_upload || (a as any).createdTime || 0).getTime() || 0;
+        const timeB = new Date(b.data_upload || (b as any).createdTime || 0).getTime() || 0;
+        return timeB - timeA;
+      });
   }, [documentosEstudanteDrive, estudante.id, filtroTipo]);
 
   const handleSelecionarArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,6 +107,15 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
     setSucessoUpload(null);
 
     try {
+      // Validação de Conta Vinculada antes do upload
+      const statusRes = await fetch('/api/auth/google-drive/status');
+      const statusData = await statusRes.json();
+      if (!statusData?.is_connected) {
+        setErroUpload('É necessário vincular uma conta Google antes de enviar arquivos.');
+        setEnviando(false);
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', arquivo);
       formData.append('aluno_id', estudante.id);
@@ -280,7 +309,7 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
                       {formatarTamanho(doc.tamanho_bytes)}
                     </td>
                     <td className="px-4 py-3 text-slate-500">
-                      {new Date(doc.data_upload).toLocaleDateString('pt-BR')}
+                      {formatarDataSegura(doc.data_upload || (doc as any).createdTime || (doc as any).modifiedTime)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">

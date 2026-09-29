@@ -169,7 +169,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
       const payloadPareceres = pareceresEnviados.map(p => {
         const prof = professores.find(pr => pr.id === p.professor_id);
         return {
-          professorNome: prof?.nome || 'Docente',
+          professorNome: prof?.nome_completo || 'Docente',
           disciplinas: prof?.disciplinas || [],
           textoFinal: p.texto_final || p.texto_ia || p.rascunho_original,
         };
@@ -420,7 +420,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                         return (
                           <tr key={parecer.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                             <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">
-                              {prof?.nome || 'Docente'}
+                              {prof?.nome_completo || 'Docente'}
                             </td>
                             <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                               {prof?.disciplinas?.join(', ') || 'Polivalente'}
@@ -471,7 +471,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                                 {!enviado && (
                                   <button
                                     onClick={() => {
-                                      alert(`Notificação de cobrança reenviada para o professor ${prof?.nome}!`);
+                                      alert(`Notificação de cobrança reenviada para o professor ${prof?.nome_completo || 'Docente'}!`);
                                     }}
                                     title="Reenviar Cobrança ao Docente"
                                     className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/60"
@@ -483,7 +483,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                                 {/* Excluir parecer */}
                                 <button
                                   onClick={() => {
-                                    if (confirm(`Excluir atribuição de parecer para ${prof?.nome}?`)) {
+                                    if (confirm(`Excluir atribuição de parecer para ${prof?.nome_completo || 'Docente'}?`)) {
                                       deleteRelatorioProfessor(parecer.id);
                                     }
                                   }}

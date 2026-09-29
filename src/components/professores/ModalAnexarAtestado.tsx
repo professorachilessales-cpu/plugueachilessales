@@ -31,15 +31,45 @@ export function ModalAnexarAtestado({
 
   if (!isOpen) return null;
 
-  const handleDataChange = (inicio: string, fim: string) => {
-    setDataInicio(inicio);
-    setDataFim(fim);
-    if (inicio && fim) {
-      const d1 = new Date(inicio).getTime();
-      const d2 = new Date(fim).getTime();
-      if (d2 >= d1) {
-        const diffDias = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
-        setDiasAfastamento(Math.max(1, diffDias));
+  // Cálculo automático da Data de Término (data_inicio + dias_afastamento - 1)
+  const calcularDataFim = (inicio: string, dias: number): string => {
+    if (!inicio) return '';
+    const qtdDias = Math.max(1, dias || 1);
+    const partes = inicio.split('-').map(Number);
+    if (partes.length < 3) return inicio;
+    const [ano, mes, dia] = partes;
+    // Data local sem shift de timezone
+    const d = new Date(ano, mes - 1, dia);
+    d.setDate(d.getDate() + qtdDias - 1);
+    const a = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const diaFim = String(d.getDate()).padStart(2, '0');
+    return `${a}-${m}-${diaFim}`;
+  };
+
+  const handleDiasAfastamentoChange = (qtd: number) => {
+    const d = Math.max(1, qtd || 1);
+    setDiasAfastamento(d);
+    setDataFim(calcularDataFim(dataInicio, d));
+  };
+
+  const handleDataInicioChange = (novoInicio: string) => {
+    setDataInicio(novoInicio);
+    setDataFim(calcularDataFim(novoInicio, diasAfastamento));
+  };
+
+  const handleDataFimChange = (novoFim: string) => {
+    setDataFim(novoFim);
+    if (dataInicio && novoFim) {
+      const p1 = dataInicio.split('-').map(Number);
+      const p2 = novoFim.split('-').map(Number);
+      if (p1.length >= 3 && p2.length >= 3) {
+        const d1 = new Date(p1[0], p1[1] - 1, p1[2]).getTime();
+        const d2 = new Date(p2[0], p2[1] - 1, p2[2]).getTime();
+        if (d2 >= d1) {
+          const diffDias = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+          setDiasAfastamento(Math.max(1, diffDias));
+        }
       }
     }
   };
@@ -55,6 +85,15 @@ export function ModalAnexarAtestado({
     setEnviando(true);
 
     try {
+      // Validação de Conta Vinculada antes do upload
+      const statusRes = await fetch('/api/auth/google-drive/status');
+      const statusData = await statusRes.json();
+      if (!statusData?.is_connected) {
+        setErro('É necessário vincular uma conta Google antes de enviar arquivos.');
+        setEnviando(false);
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', arquivo);
       formData.append('tipo_upload', 'professor_atestado');
@@ -148,7 +187,7 @@ export function ModalAnexarAtestado({
                 type="date"
                 required
                 value={dataInicio}
-                onChange={(e) => handleDataChange(e.target.value, dataFim)}
+                onChange={(e) => handleDataInicioChange(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
@@ -161,7 +200,7 @@ export function ModalAnexarAtestado({
                 type="date"
                 required
                 value={dataFim}
-                onChange={(e) => handleDataChange(dataInicio, e.target.value)}
+                onChange={(e) => handleDataFimChange(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
@@ -176,7 +215,7 @@ export function ModalAnexarAtestado({
                 type="number"
                 min={1}
                 value={diasAfastamento}
-                onChange={(e) => setDiasAfastamento(parseInt(e.target.value, 10) || 1)}
+                onChange={(e) => handleDiasAfastamentoChange(parseInt(e.target.value, 10) || 1)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>

@@ -16,9 +16,9 @@ export async function GET() {
     const clientId = process.env.GOOGLE_CLIENT_ID || config?.client_id || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     const hasClientCredentials = Boolean(clientId && clientId.trim() !== '');
 
-    const isConnected = Boolean(config?.is_connected || driveClient.isOAuth || driveClient.isServiceAccount);
-    const connectedEmail = config?.connected_email || driveClient.connectedEmail || null;
-    const rootFolderId = config?.root_folder_id || driveClient.rootFolderId || null;
+    const isConnected = Number(config?.is_connected) === 1 && (driveClient.isOAuth || driveClient.isServiceAccount || driveClient.isSimulated);
+    const connectedEmail = isConnected ? (config?.connected_email || driveClient.connectedEmail || null) : null;
+    const rootFolderId = isConnected ? (config?.root_folder_id || driveClient.rootFolderId || null) : null;
 
     return NextResponse.json({
       success: true,
@@ -26,10 +26,10 @@ export async function GET() {
       connected_email: connectedEmail,
       root_folder_id: rootFolderId,
       root_folder_name: config?.root_folder_name || 'FICHA DOS ESTUDANTES',
-      auth_type: driveClient.authType,
-      is_oauth: driveClient.isOAuth,
-      is_service_account: driveClient.isServiceAccount,
-      is_simulated: driveClient.isSimulated,
+      auth_type: isConnected ? driveClient.authType : 'disconnected',
+      is_oauth: isConnected ? driveClient.isOAuth : false,
+      is_service_account: isConnected ? driveClient.isServiceAccount : false,
+      is_simulated: isConnected ? driveClient.isSimulated : true,
       has_client_credentials: hasClientCredentials,
       client_id_preview: clientId ? `${clientId.substring(0, 12)}...` : null,
       updated_at: config?.updated_at || null,

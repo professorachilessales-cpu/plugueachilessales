@@ -14,7 +14,8 @@ import {
   ExternalLink,
   X,
   Loader2,
-  FolderOpen
+  FolderOpen,
+  RefreshCw
 } from 'lucide-react';
 import { ModalRecorteFotoEstudante } from './ModalRecorteFotoEstudante';
 
@@ -50,8 +51,12 @@ export function FotoEstudanteField({
   // Estados do fluxo de recorte
   const [imagemParaRecorte, setImagemParaRecorte] = useState<string | null>(null);
 
-  // Estados de feedback de upload
+  // Estados de feedback de upload e sincronização
   const [uploadando, setUploadando] = useState<boolean>(false);
+  const [sincronizando, setSincronizando] = useState<boolean>(false);
+  const [carregandoPasta, setCarregandoPasta] = useState<boolean>(false);
+  const [arquivosPastaEstudante, setArquivosPastaEstudante] = useState<any[]>([]);
+  const [caminhoPastaEstudante, setCaminhoPastaEstudante] = useState<string>('');
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
   const [mensagemErro, setMensagemErro] = useState<string | null>(null);
 
@@ -117,20 +122,81 @@ export function FotoEstudanteField({
     fileInputCameraRef.current?.click();
   };
 
-  // 4. Ação: Selecionar do Google Drive (Google Picker ou Diálogo Integrado)
-  const handleAbrirGoogleDrive = () => {
+  // Validação de Conta Google Vinculada
+  const verificarConexaoGoogle = async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/auth/google-drive/status');
+      const data = await res.json();
+      return Boolean(data?.is_connected);
+    } catch {
+      return false;
+    }
+  };
+
+  // Botão Sincronizar Foto: busca foto_perfil_3x4.jpg na pasta do aluno
+  const handleSincronizarFoto = async () => {
+    setMensagemErro(null);
+    setMensagemSucesso(null);
+    setSincronizando(true);
+
+    try {
+      const conectado = await verificarConexaoGoogle();
+      if (!conectado) {
+        setMensagemErro('É necessário vincular uma conta Google antes de enviar arquivos.');
+        return;
+      }
+
+      const res = await fetch(
+        `/api/estudantes/foto?action=sincronizar&estudante_id=${encodeURIComponent(estudanteId || '')}&estudante_nome=${encodeURIComponent(nomeEstudante || '')}`
+      );
+      const data = await res.json();
+
+      if (data.found && data.foto_url) {
+        onChangeFotoUrl(data.foto_url);
+        setMensagemSucesso('Foto foto_perfil_3x4.jpg sincronizada com sucesso do Google Drive!');
+        if (onFotoSalvaNoDrive) {
+          onFotoSalvaNoDrive({
+            foto_url: data.foto_url,
+            caminho_drive: data.caminho_drive || 'FICHA DOS ESTUDANTES',
+          });
+        }
+      } else {
+        setMensagemErro(data.message || 'Arquivo foto_perfil_3x4.jpg não encontrado na pasta do estudante no Drive.');
+      }
+    } catch (err: any) {
+      setMensagemErro('Falha ao sincronizar foto com o Google Drive.');
+    } finally {
+      setSincronizando(false);
+    }
+  };
+
+  // 4. Ação: Selecionar do Google Drive apontando diretamente para a pasta do estudante
+  const handleAbrirGoogleDrive = async () => {
     setModalDesktopAberto(false);
     setActionSheetMobileAberto(false);
+    setMensagemErro(null);
 
-    // Verifica se as credenciais do Google Picker Client estão disponíveis no ambiente
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+    const conectado = await verificarConexaoGoogle();
+    if (!conectado) {
+      setMensagemErro('É necessário vincular uma conta Google antes de enviar arquivos.');
+      return;
+    }
 
-    if (googleClientId && googleApiKey && typeof window !== 'undefined' && (window as any).gapi) {
-      abrirGooglePickerNativo(googleClientId, googleApiKey);
-    } else {
-      // Abre o diálogo inteligente com suporte a links e IDs do Google Drive
-      setModalDrivePickerAberto(true);
+    setModalDrivePickerAberto(true);
+    setCarregandoPasta(true);
+    try {
+      const res = await fetch(`/api/estudantes/foto?action=list_folder&estudante_nome=${encodeURIComponent(nomeEstudante || '')}`);
+      const data = await res.json();
+      if (data.files) {
+        setArquivosPastaEstudante(data.files);
+      }
+      if (data.folder_path) {
+        setCaminhoPastaEstudante(data.folder_path);
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setCarregandoPasta(false);
     }
   };
 
@@ -199,6 +265,13 @@ export function FotoEstudanteField({
     setUploadando(true);
     setMensagemErro(null);
     setMensagemSucesso(null);
+
+    const conectado = await verificarConexaoGoogle();
+    if (!conectado) {
+      setMensagemErro('É necessário vincular uma conta Google antes de enviar arquivos.');
+      setUploadando(false);
+      return;
+    }
 
     try {
       const formData = new FormData();
@@ -386,6 +459,18 @@ export function FotoEstudanteField({
             >
               <Camera className="h-4 w-4" />
               {fotoUrl ? 'Alterar Foto do Estudante' : 'Adicionar Foto do Estudante'}
+            </button>
+
+            {/* Botão Sincronizar foto diretamente do Drive */}
+            <button
+              type="button"
+              onClick={handleSincronizarFoto}
+              disabled={sincronizando}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200 text-xs font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-xs transition-all disabled:opacity-50"
+              title="Buscar arquivo foto_perfil_3x4.jpg na pasta do estudante no Drive"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`} />
+              <span>{sincronizando ? 'Sincronizando...' : 'Sincronizar foto'}</span>
             </button>
 
             {fotoUrl && (
@@ -599,9 +684,54 @@ export function FotoEstudanteField({
             </div>
 
             <div className="mt-4 space-y-4">
+              {/* Pasta do Estudante no Drive */}
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Pasta Oficial do Estudante:
+                </span>
+                <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-amber-700 dark:text-amber-400">
+                  <FolderOpen className="h-4 w-4 shrink-0 text-amber-500" />
+                  <span className="truncate">{caminhoPastaEstudante || `FICHA DOS ESTUDANTES / ${nomeEstudante ? nomeEstudante.trim().charAt(0).toUpperCase() : 'A'} / ${(nomeEstudante || 'ESTUDANTE').trim().toUpperCase()}`}</span>
+                </div>
+              </div>
+
+              {/* Arquivos encontrados na pasta do estudante */}
+              {carregandoPasta ? (
+                <div className="flex items-center justify-center p-6 text-xs text-slate-500 gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-school-blue-600" />
+                  <span>Consultando arquivos da pasta do estudante no Drive...</span>
+                </div>
+              ) : arquivosPastaEstudante.length > 0 ? (
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block uppercase">
+                    Imagens / Arquivos na Pasta ({arquivosPastaEstudante.length}):
+                  </span>
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                    {arquivosPastaEstudante.map((arq) => (
+                      <button
+                        key={arq.id}
+                        type="button"
+                        onClick={() => carregarImagemParaCorte(arq.view_url)}
+                        className="w-full flex items-center justify-between p-2 rounded-xl border border-slate-200 hover:border-school-blue-400 bg-white hover:bg-school-blue-50/50 dark:border-slate-700 dark:bg-slate-800 text-left transition-colors"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <ImageIcon className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                            {arq.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-school-blue-600 dark:text-school-gold-400 shrink-0 uppercase">
+                          Selecionar
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase">
-                  Link ou ID da Foto no Google Drive:
+                  Ou Cole o Link / ID da Foto no Google Drive:
                 </label>
                 <input
                   type="text"

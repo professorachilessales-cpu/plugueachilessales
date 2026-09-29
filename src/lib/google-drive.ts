@@ -652,7 +652,7 @@ export async function desconectarContaDrive(): Promise<void> {
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET || config?.client_secret || '';
       const oauth2Client = new GoogleOAuth2Client(clientId, clientSecret);
       const tokenToRevoke = config.refresh_token || config.access_token;
-      if (tokenToRevoke) {
+      if (tokenToRevoke && !tokenToRevoke.startsWith('mock_')) {
         await oauth2Client.revokeToken(tokenToRevoke);
       }
     } catch (revErr) {
@@ -663,14 +663,16 @@ export async function desconectarContaDrive(): Promise<void> {
   // Atualiza no Turso
   if (checkIsTursoConfigured()) {
     try {
+      await garantirTabelaConfigDriveTurso();
       await executeTursoQuery(
-        `UPDATE google_drive_config SET 
+        `INSERT INTO google_drive_config (id, is_connected, access_token, refresh_token, connected_email, updated_at)
+         VALUES ('default', 0, NULL, NULL, NULL, CURRENT_TIMESTAMP)
+         ON CONFLICT(id) DO UPDATE SET 
           is_connected = 0, 
           access_token = NULL, 
           refresh_token = NULL, 
           connected_email = NULL,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = 'default'`
+          updated_at = CURRENT_TIMESTAMP`
       );
     } catch (err) {
       console.warn('Aviso ao atualizar Turso na desconexão:', err);
@@ -705,7 +707,7 @@ export async function getGoogleDriveClient(): Promise<GoogleDriveClientResult> {
   const clientId = process.env.GOOGLE_CLIENT_ID || dbConfig?.client_id || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET || dbConfig?.client_secret;
 
-  if (dbConfig?.is_connected && dbConfig.refresh_token) {
+  if (Number(dbConfig?.is_connected) === 1 && dbConfig.refresh_token) {
     // Caso seja modo de teste com token simulado
     if (dbConfig.refresh_token.startsWith('mock_') || dbConfig.access_token?.startsWith('mock_')) {
       return {

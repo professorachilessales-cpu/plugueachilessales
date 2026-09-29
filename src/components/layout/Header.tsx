@@ -418,12 +418,12 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
           onClick={toggleTheme}
           aria-label="Alternar Tema Claro/Escuro"
           title={theme === 'dark' ? 'Mudar para Tema Claro' : 'Mudar para Tema Escuro'}
-          className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:bg-slate-100 hover:text-school-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-school-gold-400 dark:hover:bg-slate-700"
+          className="relative flex h-10 w-10 min-w-[40px] items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:bg-slate-100 hover:text-school-blue-700 dark:border-school-dark-border dark:bg-school-dark-surface dark:text-school-gold-400 dark:hover:bg-school-dark-hover"
         >
           {theme === 'dark' ? (
-            <Sun className="h-4 w-4 transition-transform rotate-0 hover:rotate-45" />
+            <Sun className="h-4 w-4 transition-transform duration-200 rotate-0 hover:rotate-45" />
           ) : (
-            <Moon className="h-4 w-4 transition-transform -rotate-12 hover:rotate-0" />
+            <Moon className="h-4 w-4 transition-transform duration-200 -rotate-12 hover:rotate-0" />
           )}
         </button>
 
@@ -432,7 +432,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
           onClick={logout}
           aria-label="Sair do Sistema"
           title="Encerrar Sessão e Sair do Sistema"
-          className="relative flex items-center gap-1.5 h-9 rounded-xl border border-rose-200 bg-rose-50/80 px-2.5 sm:px-3 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 shadow-sm transition-all active:scale-95"
+          className="relative flex items-center gap-1.5 h-10 min-h-[40px] rounded-xl border border-rose-200/80 bg-rose-50/80 px-2.5 sm:px-3 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 shadow-sm transition-all active:scale-95"
         >
           <LogOut className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           <span className="hidden sm:inline">Sair</span>

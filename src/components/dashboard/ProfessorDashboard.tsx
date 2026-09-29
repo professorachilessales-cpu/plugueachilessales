@@ -395,23 +395,27 @@ export function ProfessorDashboard() {
 
                       {/* Badge / Cronômetro */}
                       {ehVencido && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-black text-white">
-                          🔴 Vencido ({Math.abs(rep.diasRestantes)}d atraso)
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                          <AlertTriangle className="h-3 w-3" />
+                          Vencido ({Math.abs(rep.diasRestantes)}d atraso)
                         </span>
                       )}
                       {ehProximo && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-black text-white">
-                          🟡 Prazo Curto ({rep.diasRestantes}d restantes)
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                          <Clock className="h-3 w-3" />
+                          Prazo Curto ({rep.diasRestantes}d restantes)
                         </span>
                       )}
                       {ehNormal && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-black text-white">
-                          🟢 No Prazo ({rep.diasRestantes}d restantes)
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                          <CheckCircle2 className="h-3 w-3" />
+                          No Prazo ({rep.diasRestantes}d restantes)
                         </span>
                       )}
                       {ehReposta && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-2.5 py-0.5 text-[10px] font-black text-white">
-                          ✓ Reposta / Homologada
+                        <span className="inline-flex items-center gap-1 rounded-full bg-school-blue-700 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Reposta / Homologada
                         </span>
                       )}
                     </div>

@@ -42,7 +42,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100/75 dark:bg-school-dark-bg text-slate-900 dark:text-slate-100">
+    <div className="flex min-h-screen flex-col bg-[#F8FAFC] dark:bg-school-dark-bg text-slate-900 dark:text-slate-100 overflow-x-hidden">
       <Sidebar
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
@@ -54,7 +54,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         }`}
       >
         <Header onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)} />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-full overflow-x-hidden">
           <RouteGuard>{children}</RouteGuard>
         </main>
       </div>

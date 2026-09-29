@@ -273,20 +273,20 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
                 <Link
                   href={item.href}
                   onClick={onCloseMobile}
-                  className={`flex w-full min-h-[48px] items-center rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-200 ${
+                  className={`flex w-full min-h-[48px] items-center rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-180 ${
                     sidebarCollapsed ? 'justify-center' : 'justify-between'
                   } ${
                     isActive
-                      ? 'bg-slate-200/90 text-school-blue-950 font-bold border-l-4 border-school-blue-800 shadow-sm dark:bg-slate-800 dark:text-white dark:border-school-gold-400'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/90 dark:hover:text-slate-100'
+                      ? 'bg-school-blue-50 text-school-blue-900 font-bold border-l-4 border-school-blue-800 shadow-sm dark:bg-school-dark-surfaceSecondary dark:text-school-gold-400 dark:border-school-gold-400'
+                      : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-school-dark-hover dark:hover:text-white'
                   }`}
                 >
                   <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3 min-w-0'}`}>
                     <Icon
-                      className={`h-5 w-5 flex-shrink-0 transition-colors ${
+                      className={`h-5 w-5 flex-shrink-0 transition-colors duration-180 ${
                         isActive
                           ? 'text-school-blue-700 dark:text-school-gold-400'
-                          : 'text-slate-500 group-hover:text-school-blue-600 dark:text-slate-400 dark:group-hover:text-school-gold-400'
+                          : 'text-slate-400 group-hover:text-school-blue-600 dark:text-slate-400 dark:group-hover:text-school-gold-400'
                       }`}
                     />
                     {!sidebarCollapsed && (

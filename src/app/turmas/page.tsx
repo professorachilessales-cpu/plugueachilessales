@@ -1220,8 +1220,8 @@ export default function TurmasPage() {
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                           {statusTurmaEditando
-                            ? `🟢 Turma ativa. ${alunosVinculados.length} estudante(s) contados normalmente nas métricas.`
-                            : `🔴 Turma desativada. Todos os ${alunosVinculados.length} estudante(s) vinculados foram alterados para "Trancado".`}
+                            ? `Turma ativa: ${alunosVinculados.length} estudante(s) contados normalmente nas métricas.`
+                            : `Turma desativada: todos os ${alunosVinculados.length} estudante(s) vinculados foram alterados para "Trancado".`}
                         </p>
                       </div>
 

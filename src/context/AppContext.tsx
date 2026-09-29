@@ -296,8 +296,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setThemeState(initialTheme);
       if (initialTheme === 'dark') {
         document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-theme', 'dark');
       } else {
         document.documentElement.classList.remove('dark');
+        document.documentElement.setAttribute('data-theme', 'light');
       }
 
       // Perfil
@@ -748,8 +750,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('school_os_theme', nextTheme);
     if (nextTheme === 'dark') {
       document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
     }
   };
 

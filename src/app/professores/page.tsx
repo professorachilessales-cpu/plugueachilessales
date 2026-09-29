@@ -1007,7 +1007,10 @@ export default function ProfessoresPage() {
                 <div className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-300">
                   {reposicoesRegulares.length}
                 </div>
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400">🟢 Situação Regular</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Situação Regular
+                </span>
               </div>
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
@@ -1017,17 +1020,23 @@ export default function ProfessoresPage() {
                 <div className="mt-2 text-3xl font-black text-amber-700 dark:text-amber-300">
                   {reposicoesAlerta.length}
                 </div>
-                <span className="text-[10px] text-amber-600 dark:text-amber-400">🟡 Alerta Próximo</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                  <Clock className="h-3 w-3" />
+                  Alerta Próximo
+                </span>
               </div>
 
-              <div className="rounded-2xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-red-800 dark:text-red-300">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 dark:border-rose-900/50 dark:bg-rose-950/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">
                   Vencidas (&gt; 30 dias)
                 </span>
-                <div className="mt-2 text-3xl font-black text-red-700 dark:text-red-300">
+                <div className="mt-2 text-3xl font-black text-rose-700 dark:text-rose-300">
                   {reposicoesVencidas.length}
                 </div>
-                <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">🔴 Débito Crítico</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-400">
+                  <AlertCircle className="h-3 w-3" />
+                  Débito Crítico
+                </span>
               </div>
 
               <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
@@ -1133,18 +1142,19 @@ export default function ProfessoresPage() {
                                 Reposta
                               </span>
                             ) : vencida ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-extrabold text-red-800 dark:bg-red-950 dark:text-red-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-800 dark:bg-rose-950 dark:text-rose-300">
                                 <AlertTriangle className="h-3 w-3" />
-                                🔴 Vencida ({Math.abs(diff)}d em atraso)
+                                Vencida ({Math.abs(diff)}d em atraso)
                               </span>
                             ) : alerta ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                                 <Clock className="h-3 w-3" />
-                                🟡 Vencendo ({diff}d restantes)
+                                Vencendo ({diff}d restantes)
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                                🟢 No prazo ({diff}d restantes)
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                <CheckCircle2 className="h-3 w-3" />
+                                No prazo ({diff}d restantes)
                               </span>
                             )}
                           </td>

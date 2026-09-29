@@ -22,7 +22,8 @@ import {
   Clock,
   User,
   School,
-  FileText
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import { ActivityLog, ActivityLogActionType } from '@/lib/types';
 
@@ -570,15 +571,35 @@ export default function AuditoriaPage() {
                   <div className="flex items-center gap-3 pt-2">
                     <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-center flex-1 dark:border-slate-700 dark:bg-slate-800">
                       <span className="text-[10px] text-slate-400 uppercase font-bold">Status Anterior</span>
-                      <p className="font-black text-xs text-slate-700 dark:text-slate-300">
-                        {logSelecionado.details?.status_anterior ? '🟢 Ativada' : '🔴 Desativada'}
+                      <p className="font-black text-xs text-slate-700 dark:text-slate-300 flex items-center justify-center gap-1.5 mt-0.5">
+                        {logSelecionado.details?.status_anterior ? (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Ativada</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                            <span>Desativada</span>
+                          </>
+                        )}
                       </p>
                     </div>
                     <ArrowRightLeft className="h-4 w-4 text-slate-400 flex-shrink-0" />
                     <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-center flex-1 dark:border-slate-700 dark:bg-slate-800">
                       <span className="text-[10px] text-slate-400 uppercase font-bold">Novo Status</span>
-                      <p className="font-black text-xs text-slate-900 dark:text-white">
-                        {logSelecionado.details?.status_novo ? '🟢 Ativada (Estudantes Ativos)' : '🔴 Desativada (Estudantes Trancados)'}
+                      <p className="font-black text-xs text-slate-900 dark:text-white flex items-center justify-center gap-1.5 mt-0.5">
+                        {logSelecionado.details?.status_novo ? (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Ativada (Estudantes Ativos)</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                            <span>Desativada (Estudantes Trancados)</span>
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>

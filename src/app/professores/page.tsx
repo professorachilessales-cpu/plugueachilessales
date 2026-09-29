@@ -28,7 +28,8 @@ import {
   Info,
   Briefcase,
   Search,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Professor, FaltaProfessor, TitulacaoDocente, FuncaoEscola, TipoProfissional } from '@/lib/types';
 import { formatarTelefone, formatarCPF, formatarCEP, validarCPF } from '@/lib/validations';
@@ -43,7 +44,7 @@ const TITULACOES_DOCENTE: TitulacaoDocente[] = [
   'PÓS-DOUTORADO',
 ];
 
-export function getEmojiFuncao(funcao?: string): string {
+function getEmojiFuncao(funcao?: string): string {
   switch (funcao) {
     case 'Porteiro': return '🚪';
     case 'Serviços Gerais': return '🧹';
@@ -966,21 +967,24 @@ export default function ProfessoresPage() {
 
       {/* ABA 3: Gestão de Reposições de Aulas (Regra dos 30 Dias) */}
       {abaAtiva === 'reposicoes' && (() => {
-        const totalAulasARepor = reposicoesAulas.filter(r => r.status === 'pendente').reduce((a, c) => a + c.aulas_total, 0);
-        const reposicoesPendentes = reposicoesAulas.filter(r => r.status === 'pendente');
+        const totalAulasARepor = reposicoesAulas.filter(r => r.status === 'pendente' || r.status === 'Pendente').reduce((a, c) => a + (c.qtd_aulas_faltantes || c.aulas_total || 0), 0);
+        const reposicoesPendentes = reposicoesAulas.filter(r => r.status === 'pendente' || r.status === 'Pendente');
         const reposicoesVencidas = reposicoesPendentes.filter(r => {
-          const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          const limiteStr = r.data_limite_reposicao || r.data_limite || '';
+          const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           return diff < 0;
         });
         const reposicoesAlerta = reposicoesPendentes.filter(r => {
-          const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          const limiteStr = r.data_limite_reposicao || r.data_limite || '';
+          const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           return diff >= 0 && diff <= 5;
         });
         const reposicoesRegulares = reposicoesPendentes.filter(r => {
-          const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          const limiteStr = r.data_limite_reposicao || r.data_limite || '';
+          const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           return diff > 5;
         });
-        const reposicoesHomologadas = reposicoesAulas.filter(r => r.status === 'reposta' || r.homologado_por_admin);
+        const reposicoesHomologadas = reposicoesAulas.filter(r => r.status === 'reposta' || r.status === 'Reposta' || r.homologado_por_admin);
 
         return (
           <div className="space-y-6">
@@ -1046,10 +1050,11 @@ export default function ProfessoresPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {professores.map((prof) => {
-                  const repsProf = reposicoesAulas.filter(r => r.professor_id === prof.id && r.status === 'pendente');
-                  const totalAulas = repsProf.reduce((a, c) => a + c.aulas_total, 0);
+                  const repsProf = reposicoesAulas.filter(r => r.professor_id === prof.id && (r.status === 'pendente' || r.status === 'Pendente'));
+                  const totalAulas = repsProf.reduce((a, c) => a + (c.qtd_aulas_faltantes || c.aulas_total || 0), 0);
                   const vencidas = repsProf.filter(r => {
-                    const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    const limiteStr = r.data_limite_reposicao || r.data_limite || '';
+                    const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                     return diff < 0;
                   }).length;
 
@@ -1104,10 +1109,11 @@ export default function ProfessoresPage() {
                   ) : (
                     reposicoesAulas.map((rep) => {
                       const prof = professores.find(p => p.id === rep.professor_id);
-                      const diff = Math.ceil((new Date(rep.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                      const limiteStr = rep.data_limite_reposicao || rep.data_limite || '';
+                      const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                       const vencida = diff < 0;
                       const alerta = diff >= 0 && diff <= 5;
-                      const homologada = rep.status === 'reposta' || rep.homologado_por_admin;
+                      const homologada = rep.status === 'reposta' || rep.status === 'Reposta' || rep.homologado_por_admin;
 
                       return (
                         <tr key={rep.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
@@ -1118,7 +1124,7 @@ export default function ProfessoresPage() {
                             {new Date(rep.data_falta + 'T00:00:00').toLocaleDateString('pt-BR')}
                           </td>
                           <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
-                            {new Date(rep.data_limite + 'T00:00:00').toLocaleDateString('pt-BR')}
+                            {new Date((rep.data_limite_reposicao || rep.data_limite || rep.data_falta) + 'T00:00:00').toLocaleDateString('pt-BR')}
                           </td>
                           <td className="px-4 py-3.5">
                             {homologada ? (
@@ -1143,7 +1149,7 @@ export default function ProfessoresPage() {
                             )}
                           </td>
                           <td className="px-4 py-3.5 font-bold">
-                            {rep.aulas_total} aula(s)
+                            {rep.qtd_aulas_faltantes || rep.aulas_total || 0} aula(s)
                           </td>
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 max-w-xs truncate">
                             {rep.conteudo_programatico || 'Reposição curricular'}

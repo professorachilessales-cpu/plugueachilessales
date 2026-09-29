@@ -221,6 +221,10 @@ export default function LoginPage() {
         };
         try {
           sessionStorage.setItem('plugue_auth_user', JSON.stringify(fullUser));
+          sessionStorage.setItem('plugue_session_user', JSON.stringify(fullUser));
+          sessionStorage.setItem('plugue_session_active', 'true');
+          localStorage.setItem('school_os_current_user_id', fullUser.id);
+          localStorage.setItem('school_os_role', fullUser.role);
         } catch {}
         if (typeof setAuthenticatedUser === 'function') {
           setAuthenticatedUser(fullUser);

@@ -34,6 +34,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
     setRole, 
     escolaConfig, 
     currentUser, 
+    authenticatedUser,
     users, 
     setCurrentUser,
     notificacoesAdmin,
@@ -49,22 +50,26 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const notifDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Usuário efetivamente logado no sistema (prioriza o usuário autenticado da sessão)
+  const usuarioLogado = authenticatedUser || currentUser;
+
   // Vincula o registro oficial do professor do banco de dados para exibir o Nome Completo
-  const professorVinculado = role === 'professor'
+  const professorVinculado = (role === 'professor' || usuarioLogado?.role === 'professor')
     ? professores.find((p) => {
-        const cpfLimpoUser = currentUser?.cpf?.replace(/\D/g, '');
+        const cpfLimpoUser = usuarioLogado?.cpf?.replace(/\D/g, '');
         const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
         if (cpfLimpoUser && cpfLimpoProf && cpfLimpoUser === cpfLimpoProf) return true;
-        if (currentUser?.id && (p.id === currentUser.id || (p as any).user_id === currentUser.id)) return true;
-        if (currentUser?.email && p.email?.toLowerCase() === currentUser.email.toLowerCase()) return true;
-        if (currentUser?.name && p.nome_completo?.toLowerCase() === currentUser.name.toLowerCase()) return true;
+        if (usuarioLogado?.id && (p.id === usuarioLogado.id || (p as any).user_id === usuarioLogado.id)) return true;
+        if (usuarioLogado?.email && p.email && usuarioLogado.email.toLowerCase() === p.email.toLowerCase()) return true;
+        if (usuarioLogado?.name && p.nome_completo && usuarioLogado.name.toLowerCase() === p.nome_completo.toLowerCase()) return true;
         return false;
       })
     : null;
 
-  const nomeExibicaoUsuario = role === 'professor'
-    ? (professorVinculado?.nome_completo || currentUser?.name || 'Professor')
-    : (currentUser?.name || 'Administrador');
+  const nomeExibicaoUsuario = 
+    professorVinculado?.nome_completo || 
+    usuarioLogado?.name || 
+    (role === 'professor' ? 'Professor' : 'Administrador');
 
   // Fecha os dropdowns ao clicar fora (Click Outside) ou ao pressionar a tecla Esc
   useEffect(() => {

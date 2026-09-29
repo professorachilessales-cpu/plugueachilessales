@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const safeNomeAluno = (aluno.nome || 'Estudante').replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `Parecer_Pedagogico_Integrado_${safeNomeAluno}.docx`;
 
-    return new NextResponse(docxBuffer, {
+    return new NextResponse(docxBuffer as any, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
     const safeNomeAluno = (aluno.nome_completo || 'Estudante').replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `Parecer_Pedagogico_Integrado_${safeNomeAluno}.docx`;
 
-    return new NextResponse(docxBuffer, {
+    return new NextResponse(docxBuffer as any, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

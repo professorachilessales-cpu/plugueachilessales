@@ -276,7 +276,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
 
         <div className="flex items-center justify-between pt-1">
           <span className="text-[11px] text-slate-400">
-            Registrado por: <strong>{currentUser.nome}</strong> ({currentUser.role.toUpperCase()})
+            Registrado por: <strong>{currentUser.name}</strong> ({currentUser.role.toUpperCase()})
           </span>
 
           <button

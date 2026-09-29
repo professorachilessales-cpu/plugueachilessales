@@ -789,7 +789,7 @@ export default function DashboardPage() {
                 A Repor
               </span>
               <div className="mt-1 text-2xl font-black text-rose-600 dark:text-rose-400">
-                {reposicoesAulas?.filter(r => r.status === 'pendente').reduce((acc, curr) => acc + curr.aulas_total, 0) || 0}
+                {reposicoesAulas?.filter(r => r.status === 'Pendente').reduce((acc, curr) => acc + curr.qtd_aulas_faltantes, 0) || 0}
               </div>
               <span className="text-[10px] text-slate-500">Aulas pendentes</span>
             </div>
@@ -800,8 +800,8 @@ export default function DashboardPage() {
               </span>
               <div className="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
                 {reposicoesAulas?.filter(r => {
-                  if (r.status !== 'pendente') return false;
-                  const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  if (r.status !== 'Pendente') return false;
+                  const diff = Math.ceil((new Date(r.data_limite_reposicao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                   return diff >= 0 && diff <= 5;
                 }).length || 0}
               </div>
@@ -814,8 +814,8 @@ export default function DashboardPage() {
               </span>
               <div className="mt-1 text-2xl font-black text-red-600 dark:text-red-400">
                 {reposicoesAulas?.filter(r => {
-                  if (r.status !== 'pendente') return false;
-                  const diff = Math.ceil((new Date(r.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  if (r.status !== 'Pendente') return false;
+                  const diff = Math.ceil((new Date(r.data_limite_reposicao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                   return diff < 0;
                 }).length || 0}
               </div>
@@ -828,21 +828,21 @@ export default function DashboardPage() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Reposições Pendentes de Homologação:
             </span>
-            {reposicoesAulas?.filter(r => r.status === 'pendente').slice(0, 2).map((rep) => {
+            {reposicoesAulas?.filter(r => r.status === 'Pendente').slice(0, 2).map((rep) => {
               const prof = professores.find(p => p.id === rep.professor_id);
-              const diffDias = Math.ceil((new Date(rep.data_limite).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              const diffDias = Math.ceil((new Date(rep.data_limite_reposicao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
               const vencida = diffDias < 0;
               return (
                 <div key={rep.id} className="flex items-center justify-between rounded-xl bg-white/90 p-2.5 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-xs">
                   <div>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{prof?.nome || 'Professor'}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{prof?.nome_completo || 'Professor'}</span>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                      {rep.aulas_total} aula(s) • Limite: {new Date(rep.data_limite + 'T00:00:00').toLocaleDateString('pt-BR')} 
+                      {rep.qtd_aulas_faltantes} aula(s) • Limite: {new Date(rep.data_limite_reposicao + 'T00:00:00').toLocaleDateString('pt-BR')} 
                       {' '}({vencida ? <strong className="text-red-600">Vencido</strong> : `${diffDias}d restantes`})
                     </span>
                   </div>
                   <button
-                    onClick={() => homologarReposicaoAula(rep.id, true)}
+                    onClick={() => homologarReposicaoAula(rep.id)}
                     className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition-colors"
                   >
                     Homologar

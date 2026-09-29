@@ -29,26 +29,40 @@ interface SidebarProps {
 
 export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
   const pathname = usePathname() || '';
-  const { role, sidebarCollapsed, toggleSidebarCollapsed, currentUser, logout, professores } = useApp();
+  const { role, sidebarCollapsed, toggleSidebarCollapsed, currentUser, authenticatedUser, logout, professores } = useApp();
+
+  // Usuário efetivamente logado no sistema (prioriza o usuário autenticado da sessão)
+  const usuarioLogado = authenticatedUser || currentUser;
 
   // Vincula o registro oficial do professor do banco de dados para exibir o Nome Completo
-  const professorVinculado = role === 'professor'
+  const professorVinculado = (role === 'professor' || usuarioLogado?.role === 'professor')
     ? professores.find((p) => {
-        const cpfLimpoUser = currentUser?.cpf?.replace(/\D/g, '');
+        const cpfLimpoUser = usuarioLogado?.cpf?.replace(/\D/g, '');
         const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
         if (cpfLimpoUser && cpfLimpoProf && cpfLimpoUser === cpfLimpoProf) return true;
-        if (currentUser?.id && (p.id === currentUser.id || (p as any).user_id === currentUser.id)) return true;
-        if (currentUser?.email && p.email?.toLowerCase() === currentUser.email.toLowerCase()) return true;
-        if (currentUser?.name && p.nome_completo?.toLowerCase() === currentUser.name.toLowerCase()) return true;
+        if (usuarioLogado?.id && (p.id === usuarioLogado.id || (p as any).user_id === usuarioLogado.id)) return true;
+        if (usuarioLogado?.email && p.email && usuarioLogado.email.toLowerCase() === p.email.toLowerCase()) return true;
+        if (usuarioLogado?.name && p.nome_completo && usuarioLogado.name.toLowerCase() === p.nome_completo.toLowerCase()) return true;
         return false;
       })
     : null;
 
-  const nomeExibicaoUsuario = role === 'professor'
-    ? (professorVinculado?.nome_completo || currentUser?.name || 'Professor')
-    : (currentUser?.name || 'Administrador');
+  const nomeExibicaoUsuario = 
+    professorVinculado?.nome_completo || 
+    usuarioLogado?.name || 
+    (role === 'professor' ? 'Professor' : 'Administrador');
 
-  const allNavItems = [
+  interface NavItem {
+    title: string;
+    href: string;
+    icon: any;
+    roles: string[];
+    module?: AllowedModule;
+    highlight?: boolean;
+    badge?: string;
+  }
+
+  const allNavItems: NavItem[] = [
     {
       title: 'Dashboard',
       href: '/dashboard',
@@ -191,7 +205,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
               </span>
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                  role === 'admin'
+                  role === 'admin' || role === 'direcao'
                     ? 'bg-school-blue-100 text-school-blue-800 dark:bg-school-blue-950 dark:text-school-blue-300'
                     : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-school-gold-300'
                 }`}
@@ -200,6 +214,11 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
                   <>
                     <ShieldCheck className="h-3 w-3" />
                     <span>Secretaria / Admin</span>
+                  </>
+                ) : role === 'direcao' ? (
+                  <>
+                    <ShieldCheck className="h-3 w-3" />
+                    <span>Direção</span>
                   </>
                 ) : (
                   <>
@@ -217,12 +236,12 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
           <div className="mx-auto mt-3 group relative flex items-center justify-center">
             <div
               className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
-                role === 'admin'
+                role === 'admin' || role === 'direcao'
                   ? 'border-school-blue-200 bg-school-blue-50 text-school-blue-700 dark:border-school-blue-900 dark:bg-school-blue-950/60 dark:text-school-blue-300'
                   : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/60 dark:text-school-gold-300'
               }`}
             >
-              {role === 'admin' ? (
+              {role === 'admin' || role === 'direcao' ? (
                 <ShieldCheck className="h-4 w-4" />
               ) : (
                 <GraduationCap className="h-4 w-4" />
@@ -233,7 +252,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
             <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 hidden group-hover:flex items-center pointer-events-none">
               <div className="whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-xl dark:bg-slate-800 dark:border dark:border-slate-700">
                 <span className="block font-bold">
-                  {role === 'admin' ? 'Perfil: Administrador' : 'Perfil: Professor'}
+                  {role === 'admin' ? 'Perfil: Administrador' : role === 'direcao' ? 'Perfil: Direção' : 'Perfil: Professor'}
                 </span>
                 <span className="text-[10px] text-slate-300">
                   {nomeExibicaoUsuario}

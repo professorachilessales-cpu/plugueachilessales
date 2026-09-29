@@ -110,9 +110,9 @@ export interface Turma {
   professores_ids?: string[]; // IDs dos Professores Principais (relação many-to-many)
   equipe_apoio_ids?: string[]; // IDs da Equipe de Apoio / AEE (relação many-to-many)
   sala: string;
-  ativa?: boolean; // Controle de status: true = Ativa (padrão), false = Desativada
+  ativa?: boolean | number; // Controle de status: true/1 = Ativa (padrão), false/0 = Desativada
   grade_horaria: HorarioAula[];
-  created_at: string;
+  created_at?: string;
 }
 
 export type StatusMatricula = 'Ativo' | 'Transferido' | 'Trancado' | 'Evadido';
@@ -209,6 +209,19 @@ export const FUNCOES_ESCOLA_LISTA: FuncaoEscola[] = [
   'Ajudantes',
   'Outros',
 ];
+
+export type TitulacaoDocente = 
+  | 'GRADUAÇÃO' 
+  | 'MESTRADO' 
+  | 'PÓS-GRADUAÇÃO' 
+  | 'DOUTOR' 
+  | 'PÓS-DOUTORADO'
+  | 'Graduação' 
+  | 'Especialização' 
+  | 'Mestrado' 
+  | 'Doutorado' 
+  | 'Pós-Doutorado' 
+  | 'Outros';
 
 export interface Professor {
   id: string;
@@ -418,17 +431,34 @@ export interface ObservacaoAuditoria {
 // -------------------------------------------------------------
 // 7. REPOSITÓRIO DE DOCUMENTOS NO GOOGLE DRIVE (FICHA DO ESTUDANTE)
 // -------------------------------------------------------------
-export type TipoDocumentoDrive = 'Historico' | 'Ficha Cadastral' | 'Documentos Pessoais' | 'Atestado' | 'Outros';
+export type TipoDocumentoDrive = 
+  | 'Historico' 
+  | 'Ficha Cadastral' 
+  | 'Documentos Pessoais' 
+  | 'Atestado' 
+  | 'Outros'
+  | 'rg'
+  | 'comprovante_residencia'
+  | 'laudo_medico'
+  | 'certidao_nascimento'
+  | 'historico_escolar'
+  | 'outro';
 
 export interface DocumentoEstudanteDrive {
-  id: string;
+  id?: string;
   aluno_id: string;
   drive_file_id?: string;
   nome_arquivo: string;
   url_visualizacao?: string;
-  tipo_documento: TipoDocumentoDrive;
+  drive_view_url?: string;
+  drive_download_url?: string;
+  caminho_pasta?: string;
+  tamanho_bytes?: number;
+  mime_type?: string;
+  tipo?: TipoDocumentoDrive;
+  tipo_documento?: TipoDocumentoDrive;
   uploader_id?: string;
-  data_upload: string;
+  data_upload?: string;
 }
 
 // -------------------------------------------------------------
@@ -443,6 +473,11 @@ export interface AtestadoProfessor {
   data_fim: string;
   dias_afastamento: number;
   motivo_cid?: string;
+  cid?: string;
+  motivo?: string;
+  crm_medico?: string;
+  drive_view_url?: string;
+  status?: 'Pendente' | 'Aprovado' | 'Rejeitado' | string;
   data_upload: string;
   permite_exclusao: boolean;
 }
@@ -450,19 +485,23 @@ export interface AtestadoProfessor {
 // -------------------------------------------------------------
 // 8.1 LÓGICA DE DÉBITO & REPOSIÇÃO DE AULAS (REGRA DOS 30 DIAS)
 // -------------------------------------------------------------
-export type StatusReposicaoAula = 'Pendente' | 'Reposta' | 'Vencida';
+export type StatusReposicaoAula = 'Pendente' | 'Reposta' | 'Vencida' | 'pendente' | 'reposta' | 'vencida';
 
 export interface ReposicaoAula {
   id: string;
   professor_id: string;
   data_falta: string;
   qtd_aulas_faltantes: number;
+  aulas_total?: number;
   data_limite_reposicao: string; // calculada: data_falta + 30 dias
+  data_limite?: string;
   data_execucao_reposicao?: string;
   horario_reposicao?: string;
   conteudo_lecionado?: string;
+  conteudo_programatico?: string;
   turma_id?: string;
   status: StatusReposicaoAula;
+  homologado_por_admin?: boolean;
   created_at?: string;
 }
 

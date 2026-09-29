@@ -8,7 +8,7 @@ import {
   generateRefreshToken, 
   sanitizeString 
 } from '@/lib/security';
-import { initialUsers } from '@/lib/mock-data';
+import { initialUsers, initialProfessores } from '@/lib/mock-data';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
 
 export const dynamic = 'force-dynamic';
@@ -85,17 +85,29 @@ export async function POST(req: NextRequest) {
 
     // 5. Geração de Tokens JWT (Acesso curto + Refresh Token em HttpOnly)
     let userName = user.name;
-    if (user.role === 'professor' && isTursoConfigured) {
-      try {
-        const profRes = await executeTursoQuery(
-          'SELECT nome_completo FROM professores WHERE REPLACE(REPLACE(REPLACE(cpf, ".", ""), "-", ""), " ", "") = ? OR id = ? OR LOWER(email) = LOWER(?) LIMIT 1',
-          [loginCpf, user.id, user.email || '']
-        );
-        if (profRes.rows.length > 0 && profRes.rows[0]?.nome_completo) {
-          userName = String(profRes.rows[0].nome_completo);
+    if (user.role === 'professor') {
+      if (isTursoConfigured) {
+        try {
+          const profRes = await executeTursoQuery(
+            'SELECT nome_completo FROM professores WHERE REPLACE(REPLACE(REPLACE(cpf, ".", ""), "-", ""), " ", "") = ? OR id = ? OR LOWER(email) = LOWER(?) LIMIT 1',
+            [loginCpf, user.id, user.email || '']
+          );
+          if (profRes.rows.length > 0 && profRes.rows[0]?.nome_completo) {
+            userName = String(profRes.rows[0].nome_completo);
+          }
+        } catch (e) {
+          console.warn('Falha ao buscar nome completo do professor no Turso:', e);
         }
-      } catch (e) {
-        console.warn('Falha ao buscar nome completo do professor no Turso:', e);
+      }
+
+      if (!userName || userName === user.name) {
+        const profMock = initialProfessores.find((p: any) => {
+          const cpfProf = p.cpf?.replace(/\D/g, '');
+          return (cpfProf && cpfProf === loginCpf) || (user.id && p.id === user.id) || (user.email && p.email?.toLowerCase() === user.email?.toLowerCase());
+        });
+        if (profMock?.nome_completo) {
+          userName = profMock.nome_completo;
+        }
       }
     }
 

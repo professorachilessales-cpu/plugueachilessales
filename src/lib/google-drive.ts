@@ -353,7 +353,7 @@ export class GoogleDriveApiClient {
                 Authorization: authHeader,
                 'Content-Type': options.media.mimeType || 'application/octet-stream',
               },
-              body: mediaBuffer,
+              body: mediaBuffer as any,
             }
           );
           const data = await res.json();
@@ -707,7 +707,7 @@ export async function getGoogleDriveClient(): Promise<GoogleDriveClientResult> {
   const clientId = process.env.GOOGLE_CLIENT_ID || dbConfig?.client_id || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET || dbConfig?.client_secret;
 
-  if (Number(dbConfig?.is_connected) === 1 && dbConfig.refresh_token) {
+  if (dbConfig && Number(dbConfig.is_connected) === 1 && dbConfig.refresh_token) {
     // Caso seja modo de teste com token simulado
     if (dbConfig.refresh_token.startsWith('mock_') || dbConfig.access_token?.startsWith('mock_')) {
       return {

@@ -25,6 +25,7 @@ import {
   DocumentoEstudanteDrive,
   AtestadoProfessor,
   ReposicaoAula,
+  StatusReposicaoAula,
   TipoObservacaoAluno,
   TipoDocumentoDrive
 } from '@/lib/types';
@@ -91,14 +92,18 @@ interface AppContextType {
   relatoriosProfessores: RelatorioProfessor[];
   relatoriosConsolidados: RelatorioConsolidado[];
   notificacoesAdmin: NotificacaoAdmin[];
-  addSolicitacaoRelatorio: (alunoId: string) => string;
+  addSolicitacaoRelatorio: (alunoId: string, adminId?: string, professoresIdsParam?: string[], obs?: string) => string;
+  updateSolicitacaoRelatorio?: (id: string, updates: any) => void;
   salvarRascunhoProfessor: (relatorioId: string, rascunho: string) => void;
+  updateRelatorioProfessor: (relatorioId: string, updates: Partial<RelatorioProfessor>) => void;
+  deleteRelatorioProfessor: (relatorioId: string) => void;
   polirRelatorioComIA: (relatorioId: string, rascunho: string) => Promise<string>;
   enviarRelatorioProfessor: (relatorioId: string, textoFinal: string) => Promise<void>;
   marcarNotificacaoLida: (notificacaoId: string) => void;
+  marcarNotificacaoComoLida: (notificacaoId: string) => void;
   marcarTodasNotificacoesLidas: () => void;
   consolidarRelatorioComIA: (solicitacaoId: string, observacoesSecretaria?: string) => Promise<string>;
-  salvarRelatorioConsolidado: (solicitacaoId: string, conteudoFinal: string) => void;
+  salvarRelatorioConsolidado: (solicitacaoId: string, conteudoFinal: string, observacoesSecretaria?: string) => void;
   excluirSolicitacaoRelatorio: (solicitacaoId: string) => void;
 
   // 6. Observações Contínuas do Estudante (Ficha do Aluno) & Auditoria
@@ -111,16 +116,19 @@ interface AppContextType {
   // 7. Repositório Google Drive (Ficha do Estudante)
   documentosEstudanteDrive: DocumentoEstudanteDrive[];
   addDocumentoEstudanteDrive: (doc: DocumentoEstudanteDrive) => void;
+  deleteDocumentoEstudanteDrive: (id: string) => void;
 
   // 8. Gestão de Atestados dos Professores
   atestadosProfessor: AtestadoProfessor[];
   addAtestadoProfessor: (atestado: Omit<AtestadoProfessor, 'id' | 'data_upload' | 'permite_exclusao'>) => void;
   deleteAtestadoProfessor: (id: string) => void;
+  aprovarAtestadoProfessor: (id: string, aprovar?: boolean) => void;
 
   // 8.1 Lógica de Débito & Reposição de Aulas (Regra dos 30 Dias)
   reposicoesAulas: ReposicaoAula[];
   registrarReposicaoAula: (reposicaoId: string, dados: { data_execucao: string; horario: string; conteudo: string }) => void;
-  homologarReposicaoAula: (reposicaoId: string) => void;
+  homologarReposicaoAula: (reposicaoId: string, homologarOuStatus?: boolean | string) => void;
+  deleteReposicaoAula: (id: string) => void;
   addFaltaComReposicao: (dados: { professorId: string; professorNome: string; dataFalta: string; aulasFaltadas: number; justificativa: string; turmaId?: string }) => void;
 
   // Ações Estudantes
@@ -186,7 +194,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(false);
   const [users, setUsers] = useState<SystemUser[]>(initialUsers);
   const [currentUser, setCurrentUserState] = useState<SystemUser>(initialUsers[0]);
-  const [authenticatedUser, setAuthenticatedUserState] = useState<SystemUser | null>(initialUsers[0]);
+  const [authenticatedUser, setAuthenticatedUserState] = useState<SystemUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -264,9 +272,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch {}
       }
 
-      if (isSessionActive === 'true' && sessionUserJson) {
+      if ((isSessionActive === 'true' || authUserJson) && (sessionUserJson || authUserJson)) {
         try {
-          const parsedUser = JSON.parse(sessionUserJson);
+          const parsedUser = JSON.parse(sessionUserJson || authUserJson!);
           setCurrentUserState(parsedUser);
           setRoleState(parsedUser.role);
           if (!authUserJson) {
@@ -460,10 +468,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const cleanUsers = tUsers.filter((u: SystemUser) => !['user-prof-1', 'user-prof-2', 'user-prof-3'].includes(u.id));
             setUsers(cleanUsers);
             localStorage.setItem('school_os_users', JSON.stringify(cleanUsers));
-            const savedId = localStorage.getItem('school_os_current_user_id');
-            const found = cleanUsers.find((u: SystemUser) => u.id === savedId) || cleanUsers[0];
-            setCurrentUserState(found);
-            setRoleState(found.role);
+
+            // Preserva a sessão e os dados do usuário que efetuou login
+            let activeUser: SystemUser | null = null;
+            try {
+              const sessionUserStr = sessionStorage.getItem('plugue_auth_user') || sessionStorage.getItem('plugue_session_user');
+              if (sessionUserStr) {
+                activeUser = JSON.parse(sessionUserStr);
+              }
+            } catch {}
+
+            const activeCpf = activeUser?.cpf?.replace(/\D/g, '');
+            const activeId = activeUser?.id || localStorage.getItem('school_os_current_user_id');
+
+            const found = cleanUsers.find((u: SystemUser) => {
+              if (activeId && u.id === activeId) return true;
+              if (activeCpf && u.cpf?.replace(/\D/g, '') === activeCpf) return true;
+              return false;
+            }) || activeUser;
+
+            if (found) {
+              setCurrentUserState(found);
+              setRoleState(found.role);
+              if (activeUser) {
+                setAuthenticatedUserState(found);
+              }
+            } else if (!activeUser) {
+              setCurrentUserState(cleanUsers[0]);
+              setRoleState(cleanUsers[0].role);
+            }
           }
           if (tProf && tProf.length > 0) {
             const cleanProf = tProf.filter((p: Professor) => !p.id.startsWith('prof-'));
@@ -743,7 +776,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentUserState(user);
     setRoleState(user.role);
     setIsAuthenticated(true);
+    if (!authenticatedUser) {
+      setAuthenticatedUserState(user);
+    }
     try {
+      if (!authenticatedUser) {
+        sessionStorage.setItem('plugue_auth_user', JSON.stringify(user));
+      }
       sessionStorage.setItem('plugue_session_active', 'true');
       sessionStorage.setItem('plugue_session_user', JSON.stringify(user));
       localStorage.setItem('school_os_current_user_id', user.id);
@@ -1453,6 +1492,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNotificacoesAdmin(prev => [novaNotif, ...prev]);
   };
 
+  const updateRelatorioProfessor = (relatorioId: string, updates: Partial<RelatorioProfessor>) => {
+    setRelatoriosProfessores(prev =>
+      prev.map(r => (r.id === relatorioId ? { ...r, ...updates } : r))
+    );
+  };
+
+  const deleteRelatorioProfessor = (relatorioId: string) => {
+    setRelatoriosProfessores(prev => prev.filter(r => r.id !== relatorioId));
+  };
+
   const marcarNotificacaoLida = (notificacaoId: string) => {
     setNotificacoesAdmin(prev =>
       prev.map(n => (n.id === notificacaoId ? { ...n, lido: true } : n))
@@ -1525,7 +1574,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return conteudoConsolidado;
   };
 
-  const salvarRelatorioConsolidado = (solicitacaoId: string, conteudoFinal: string) => {
+  const salvarRelatorioConsolidado = (solicitacaoId: string, conteudoFinal: string, _observacoesSecretaria?: string) => {
     const agora = new Date().toISOString();
     setRelatoriosConsolidados(prev => {
       const existe = prev.find(c => c.solicitacao_id === solicitacaoId);
@@ -1809,7 +1858,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // 7. Repositório Google Drive
   const addDocumentoEstudanteDrive = (doc: DocumentoEstudanteDrive) => {
-    setDocumentosEstudanteDrive(prev => [doc, ...prev]);
+    const docCompleto: DocumentoEstudanteDrive = {
+      ...doc,
+      id: doc.id || `doc-drive-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      data_upload: doc.data_upload || new Date().toISOString(),
+    };
+    setDocumentosEstudanteDrive(prev => [docCompleto, ...prev]);
+  };
+
+  const deleteDocumentoEstudanteDrive = (id: string) => {
+    setDocumentosEstudanteDrive(prev => prev.filter(d => d.id !== id));
   };
 
   // 8. Gestão de Atestados dos Professores
@@ -1845,6 +1903,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setAtestadosProfessor(prev => prev.filter(a => a.id !== id));
   };
 
+  const aprovarAtestadoProfessor = (id: string, aprovar?: boolean) => {
+    setAtestadosProfessor(prev =>
+      prev.map(a => (a.id === id ? { ...a, status: aprovar !== false ? 'Aprovado' : 'Pendente' } : a))
+    );
+  };
+
   // 8.1 Débito & Reposição de Aulas (Regra dos 30 Dias)
   const registrarReposicaoAula = (reposicaoId: string, dados: { data_execucao: string; horario: string; conteudo: string }) => {
     setReposicoesAulas(prev =>
@@ -1862,10 +1926,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const homologarReposicaoAula = (reposicaoId: string) => {
+  const homologarReposicaoAula = (reposicaoId: string, homologarOuStatus?: boolean | string) => {
     setReposicoesAulas(prev =>
-      prev.map(r => (r.id === reposicaoId ? { ...r, status: 'Reposta' } : r))
+      prev.map(r => {
+        if (r.id === reposicaoId) {
+          if (typeof homologarOuStatus === 'boolean') {
+            return {
+              ...r,
+              status: homologarOuStatus ? 'Reposta' : 'Pendente',
+              homologado_por_admin: homologarOuStatus,
+            };
+          }
+          if (typeof homologarOuStatus === 'string') {
+            return {
+              ...r,
+              status: homologarOuStatus as StatusReposicaoAula,
+              homologado_por_admin: homologarOuStatus === 'Reposta' || homologarOuStatus === 'reposta',
+            };
+          }
+          return { ...r, status: 'Reposta', homologado_por_admin: true };
+        }
+        return r;
+      })
     );
+  };
+
+  const deleteReposicaoAula = (id: string) => {
+    setReposicoesAulas(prev => prev.filter(r => r.id !== id));
   };
 
   const addFaltaComReposicao = (dados: {
@@ -1945,9 +2032,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notificacoesAdmin,
         addSolicitacaoRelatorio,
         salvarRascunhoProfessor,
+        updateRelatorioProfessor,
+        deleteRelatorioProfessor,
         polirRelatorioComIA,
         enviarRelatorioProfessor,
         marcarNotificacaoLida,
+        marcarNotificacaoComoLida: marcarNotificacaoLida,
         marcarTodasNotificacoesLidas,
         consolidarRelatorioComIA,
         salvarRelatorioConsolidado,
@@ -1959,12 +2049,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteObservacaoAluno,
         documentosEstudanteDrive,
         addDocumentoEstudanteDrive,
+        deleteDocumentoEstudanteDrive,
         atestadosProfessor,
         addAtestadoProfessor,
         deleteAtestadoProfessor,
+        aprovarAtestadoProfessor,
         reposicoesAulas,
         registrarReposicaoAula,
         homologarReposicaoAula,
+        deleteReposicaoAula,
         addFaltaComReposicao,
         addEstudante,
         updateEstudante,

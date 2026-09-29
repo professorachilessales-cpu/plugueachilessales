@@ -24,7 +24,7 @@ import {
 import { ModalRedacaoParecerIA } from '@/components/relatorios/ModalRedacaoParecerIA';
 import { ModalRegistrarReposicao } from '@/components/professores/ModalRegistrarReposicao';
 import { ModalAnexarAtestado } from '@/components/professores/ModalAnexarAtestado';
-import { RelatorioProfessor, SolicitacaoRelatorio, Estudante, ReposicaoAula, AtestadoProfessor } from '@/lib/types';
+import { RelatorioProfessor, SolicitacaoRelatorio, Estudante, Turma, ReposicaoAula, AtestadoProfessor } from '@/lib/types';
 
 export function ProfessorDashboard() {
   const { 
@@ -69,20 +69,30 @@ export function ProfessorDashboard() {
 
   // 1. SOLICITAÇÕES ATIVAS PARA O PROFESSOR (Bloco de Alertas Críticos)
   const relatoriosPendentesDoProfessor = useMemo(() => {
-    return relatoriosProfessores
+    const itens: Array<{
+      relatorio: RelatorioProfessor;
+      solicitacao: SolicitacaoRelatorio;
+      aluno: Estudante;
+      turma?: Turma;
+    }> = [];
+
+    relatoriosProfessores
       .filter(r => r.professor_id === professorAtual.id && r.status === 'pendente')
-      .map(r => {
+      .forEach(r => {
         const sol = solicitacoesRelatorio.find(s => s.id === r.solicitacao_id);
         const aluno = estudantes.find(e => e.id === sol?.aluno_id);
         const turma = turmas.find(t => t.id === aluno?.turma_id);
-        return {
-          relatorio: r,
-          solicitacao: sol,
-          aluno,
-          turma,
-        };
-      })
-      .filter(item => Boolean(item.solicitacao && item.aluno));
+        if (sol && aluno) {
+          itens.push({
+            relatorio: r,
+            solicitacao: sol,
+            aluno,
+            turma,
+          });
+        }
+      });
+
+    return itens;
   }, [relatoriosProfessores, solicitacoesRelatorio, estudantes, turmas, professorAtual]);
 
   // 2. REPOSIÇÕES E AULAS DEVIDAS (Regra dos 30 dias)
@@ -222,7 +232,7 @@ export function ProfessorDashboard() {
               Olá, {professorAtual.nome_completo}!
             </h1>
             <p className="mt-1 text-xs sm:text-sm text-blue-100 max-w-xl">
-              Disciplinas: <strong className="text-school-gold-300">{professorAtual.disciplinas.join(', ')}</strong> • {turmasAtribuidas.length} turma(s) sob sua regência pedagógica.
+              Disciplinas: <strong className="text-school-gold-300">{professorAtual.disciplinas?.join(', ') || 'Docência Geral'}</strong> • {turmasAtribuidas.length} turma(s) sob sua regência pedagógica.
             </p>
           </div>
 
@@ -283,11 +293,11 @@ export function ProfessorDashboard() {
                 <div>
                   <div className="flex items-start gap-3">
                     <div className="relative h-12 w-12 rounded-xl overflow-hidden bg-rose-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 border border-rose-200 dark:border-rose-900">
-                      {aluno.foto_url ? (
+                      {aluno?.foto_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={aluno.foto_url}
-                          alt={aluno.nome_completo}
+                          alt={aluno?.nome_completo || 'Estudante'}
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -300,11 +310,11 @@ export function ProfessorDashboard() {
                         {turma?.nome || 'Turma não atribuída'}
                       </span>
                       <h3 className="mt-1 text-sm font-bold text-slate-900 dark:text-white truncate">
-                        {aluno.nome_completo}
+                        {aluno?.nome_completo}
                       </h3>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                         <Calendar className="h-3 w-3" />
-                        <span>Solicitado em: {new Date(solicitacao.data_solicitacao).toLocaleDateString('pt-BR')}</span>
+                        <span>Solicitado em: {solicitacao?.data_solicitacao ? new Date(solicitacao.data_solicitacao).toLocaleDateString('pt-BR') : '—'}</span>
                       </p>
                     </div>
                   </div>

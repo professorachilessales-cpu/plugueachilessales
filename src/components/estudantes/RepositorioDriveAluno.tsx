@@ -31,6 +31,11 @@ const TIPOS_DOC_LABELS: Record<TipoDocumentoDrive, string> = {
   certidao_nascimento: 'Certidão de Nascimento',
   historico_escolar: 'Histórico Escolar',
   outro: 'Outro Documento',
+  Historico: 'Histórico Escolar',
+  'Ficha Cadastral': 'Ficha Cadastral',
+  'Documentos Pessoais': 'Documentos Pessoais',
+  Atestado: 'Atestado Médico',
+  Outros: 'Outro Documento',
 };
 
 export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps) {
@@ -70,7 +75,7 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
   const documentos = useMemo(() => {
     return documentosEstudanteDrive
       .filter(d => d.aluno_id === estudante.id)
-      .filter(d => filtroTipo === 'todos' || d.tipo === filtroTipo)
+      .filter(d => filtroTipo === 'todos' || (d.tipo_documento || d.tipo) === filtroTipo)
       .sort((a, b) => {
         const timeA = new Date(a.data_upload || (a as any).createdTime || 0).getTime() || 0;
         const timeB = new Date(b.data_upload || (b as any).createdTime || 0).getTime() || 0;
@@ -136,15 +141,19 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
       }
 
       await addDocumentoEstudanteDrive({
+        id: `doc-drive-${Date.now()}`,
         aluno_id: estudante.id,
         tipo: tipoDoc,
+        tipo_documento: tipoDoc,
         nome_arquivo: arquivo.name,
         caminho_pasta: caminhoPastaDrive,
         drive_file_id: data.file_id || 'drive_' + Date.now(),
         drive_view_url: data.view_url || 'https://drive.google.com',
+        url_visualizacao: data.view_url || 'https://drive.google.com',
         drive_download_url: data.download_url || 'https://drive.google.com',
         tamanho_bytes: arquivo.size,
         mime_type: arquivo.type,
+        data_upload: new Date().toISOString(),
       });
 
       setSucessoUpload(`Arquivo "${arquivo.name}" anexado com sucesso na pasta institucional do Drive!`);
@@ -298,7 +307,7 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
                   <tr key={doc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                     <td className="px-4 py-3">
                       <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300 uppercase">
-                        {TIPOS_DOC_LABELS[doc.tipo] || doc.tipo}
+                        {TIPOS_DOC_LABELS[(doc.tipo_documento || doc.tipo) as TipoDocumentoDrive] || doc.tipo_documento || doc.tipo || 'Documento'}
                       </span>
                     </td>
                     <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -314,7 +323,7 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <a
-                          href={doc.drive_view_url}
+                          href={doc.drive_view_url || doc.url_visualizacao || '#'}
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Visualizar no Google Drive"
@@ -326,7 +335,7 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
 
                         <button
                           onClick={() => {
-                            if (confirm(`Deseja remover o registro do arquivo "${doc.nome_arquivo}"?`)) {
+                            if (doc.id && confirm(`Deseja remover o registro do arquivo "${doc.nome_arquivo}"?`)) {
                               deleteDocumentoEstudanteDrive(doc.id);
                             }
                           }}

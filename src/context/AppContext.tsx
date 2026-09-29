@@ -104,9 +104,9 @@ interface AppContextType {
   // 6. Observações Contínuas do Estudante (Ficha do Aluno) & Auditoria
   observacoesAluno: ObservacaoAluno[];
   observacoesAuditoria: ObservacaoAuditoria[];
-  addObservacaoAluno: (alunoId: string, tipo: TipoObservacaoAluno, texto: string) => void;
+  addObservacaoAluno: (alunoIdOrPayload: any, tipo?: any, texto?: any, cargo?: any, textoReal?: any, categoriaReal?: any) => Promise<ObservacaoAluno>;
   updateObservacaoAluno: (obsId: string, novoTexto: string) => Promise<void>;
-  deleteObservacaoAluno: (obsId: string) => void;
+  deleteObservacaoAluno: (obsId: string) => Promise<void>;
 
   // 7. Repositório Google Drive (Ficha do Estudante)
   documentosEstudanteDrive: DocumentoEstudanteDrive[];
@@ -1554,46 +1554,118 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   // 6. Observações Contínuas do Estudante & Auditoria
-  const addObservacaoAluno = (alunoId: string, tipo: TipoObservacaoAluno, texto: string) => {
-    const cargo = role === 'admin' ? 'Administração Escolar' : role === 'direcao' ? 'Direção Escolar' : 'Professor';
+  const addObservacaoAluno = async (
+    arg1: any,
+    arg2?: any,
+    arg3?: any,
+    arg4?: any,
+    arg5?: any,
+    arg6?: any
+  ): Promise<ObservacaoAluno> => {
+    let estudanteId = '';
+    let categoria: TipoObservacaoAluno = 'pedagogico';
+    let textoCompleto = '';
+    let autorId = currentUser?.id || 'user-admin';
+    let autorNome = currentUser?.name || 'Equipe Escolar';
+    let autorCargo = role === 'admin' ? 'Administração Escolar' : role === 'direcao' ? 'Direção Escolar' : 'Professor';
+
+    if (typeof arg1 === 'object' && arg1 !== null) {
+      estudanteId = arg1.estudante_id || arg1.aluno_id || '';
+      categoria = (arg1.categoria || arg1.tipo || 'pedagogico') as TipoObservacaoAluno;
+      textoCompleto = arg1.texto_completo || arg1.texto || arg1.conteudo || '';
+      if (arg1.usuario_id || arg1.autor_id) autorId = arg1.usuario_id || arg1.autor_id;
+      if (arg1.usuario_nome || arg1.autor_nome) autorNome = arg1.usuario_nome || arg1.autor_nome;
+      if (arg1.autor_cargo) autorCargo = arg1.autor_cargo;
+    } else if (typeof arg5 === 'string') {
+      // Chamada: (alunoId, autorId, autorNome, autorRole, texto, categoria)
+      estudanteId = String(arg1);
+      autorId = String(arg2 || autorId);
+      autorNome = String(arg3 || autorNome);
+      autorCargo = String(arg4 || autorCargo);
+      textoCompleto = String(arg5 || '');
+      categoria = (arg6 || 'pedagogico') as TipoObservacaoAluno;
+    } else {
+      // Chamada padrão: (alunoId, tipo, texto)
+      estudanteId = String(arg1);
+      categoria = (arg2 || 'pedagogico') as TipoObservacaoAluno;
+      textoCompleto = String(arg3 || '');
+    }
+
     const agora = new Date().toISOString();
     const dataReg = new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const novaObs: ObservacaoAluno = {
-      id: `obs-${Date.now()}`,
-      estudante_id: alunoId,
-      aluno_id: alunoId,
-      usuario_id: currentUser.id,
-      autor_id: currentUser.id,
-      autor_nome: currentUser.name,
-      autor_cargo: cargo,
-      categoria: tipo,
-      tipo,
-      texto_completo: texto,
-      texto,
+      id: `obs-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      estudante_id: estudanteId,
+      aluno_id: estudanteId,
+      usuario_id: autorId,
+      autor_id: autorId,
+      autor_nome: autorNome,
+      autor_cargo: autorCargo,
+      categoria,
+      tipo: categoria,
+      texto_completo: textoCompleto,
+      texto: textoCompleto,
       created_at: agora,
       data_registro: dataReg,
     };
 
-    setObservacoesAluno(prev => [novaObs, ...prev]);
+    try {
+      const res = await fetch('/api/observacoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: novaObs.id,
+          estudante_id: estudanteId,
+          usuario_id: autorId,
+          usuario_nome: autorNome,
+          autor_nome: autorNome,
+          autor_cargo: autorCargo,
+          categoria,
+          texto: textoCompleto,
+          texto_completo: textoCompleto,
+          created_at: agora,
+        }),
+      });
 
-    const auditCriacao: ObservacaoAuditoria = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      observacao_id: novaObs.id,
-      estudante_id: alunoId,
-      evento: 'CREATE',
-      texto_novo: texto,
-      categoria: tipo,
-      usuario_id: currentUser.id,
-      usuario_nome: currentUser.name,
-      created_at: agora,
-    };
-    setObservacoesAuditoria(prev => [auditCriacao, ...prev]);
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("Erro ao salvar observação:", data.error || data.details);
+        throw new Error(data.error || 'Falha ao gravar observação no banco de dados.');
+      }
 
-    fetch('/api/turso/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'save_observacao', payload: novaObs }),
-    }).catch(err => console.warn('Erro ao sincronizar nova observação no Turso:', err));
+      const obsConfirmada = data.observacao || novaObs;
+      setObservacoesAluno(prev => [obsConfirmada, ...prev.filter(o => o.id !== obsConfirmada.id)]);
+
+      const auditCriacao: ObservacaoAuditoria = {
+        id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        observacao_id: obsConfirmada.id,
+        estudante_id: estudanteId,
+        evento: 'CREATE',
+        texto_novo: textoCompleto,
+        categoria,
+        usuario_id: autorId,
+        usuario_nome: autorNome,
+        created_at: agora,
+      };
+      setObservacoesAuditoria(prev => [auditCriacao, ...prev]);
+
+      return obsConfirmada;
+    } catch (err: any) {
+      console.error("Erro ao salvar observação:", err);
+      // Tentativa de persistência via endpoint sync como redundância
+      try {
+        await fetch('/api/turso/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'save_observacao', payload: novaObs }),
+        });
+        setObservacoesAluno(prev => [novaObs, ...prev.filter(o => o.id !== novaObs.id)]);
+        return novaObs;
+      } catch (fallbackErr) {
+        console.error('Falha no fallback de persistência de observação:', fallbackErr);
+        throw new Error(err.message || 'Erro ao persistir observação pedagógica.');
+      }
+    }
   };
 
   const updateObservacaoAluno = async (obsId: string, novoTexto: string): Promise<void> => {
@@ -1607,6 +1679,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const agora = new Date().toISOString();
+
+    try {
+      const res = await fetch('/api/observacoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: obsId,
+          observacao_id: obsId,
+          texto: novoTexto,
+          texto_completo: novoTexto,
+          usuario_id: currentUser.id,
+          usuario_nome: currentUser.name,
+          estudante_id: registroAnterior.estudante_id || registroAnterior.aluno_id,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        console.error("Erro ao atualizar observação:", data.error);
+        throw new Error(data.error || 'Falha ao atualizar observação.');
+      }
+    } catch (apiErr) {
+      console.warn('Tentando fallback via /api/turso/sync para update:', apiErr);
+      await fetch('/api/turso/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_observacao',
+          payload: {
+            observacao_id: obsId,
+            novo_texto: novoTexto,
+            usuario_id: currentUser.id,
+            usuario_nome: currentUser.name,
+            registro_anterior: registroAnterior,
+          },
+        }),
+      });
+    }
 
     setObservacoesAluno(prev =>
       prev.map(o => {
@@ -1636,24 +1746,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     setObservacoesAuditoria(prev => [auditAlteracao, ...prev]);
-
-    fetch('/api/turso/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update_observacao',
-        payload: {
-          observacao_id: obsId,
-          novo_texto: novoTexto,
-          usuario_id: currentUser.id,
-          usuario_nome: currentUser.name,
-          registro_anterior: registroAnterior,
-        },
-      }),
-    }).catch(err => console.warn('Erro ao sincronizar alteração da observação no Turso:', err));
   };
 
-  const deleteObservacaoAluno = (obsId: string): void => {
+  const deleteObservacaoAluno = async (obsId: string): Promise<void> => {
     const registroCompleto = observacoesAluno.find(o => o.id === obsId);
     if (!registroCompleto) return;
 
@@ -1675,23 +1770,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       usuario_nome: currentUser.name,
       created_at: agora,
     };
-
     setObservacoesAuditoria(prev => [auditDelete, ...prev]);
 
-    fetch('/api/turso/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'delete_observacao',
-        payload: {
+    try {
+      const res = await fetch(`/api/observacoes?id=${encodeURIComponent(obsId)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: obsId,
           observacao_id: obsId,
-          estudante_id: registroCompleto.estudante_id || registroCompleto.aluno_id,
           usuario_id: currentUser.id,
           usuario_nome: currentUser.name,
-          registro_completo: registroCompleto,
-        },
-      }),
-    }).catch(err => console.warn('Erro ao sincronizar exclusão da observação no Turso:', err));
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        console.error("Erro ao excluir observação:", data.error);
+      }
+    } catch (apiErr) {
+      console.warn('Tentando fallback via /api/turso/sync para delete:', apiErr);
+      fetch('/api/turso/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_observacao',
+          payload: {
+            observacao_id: obsId,
+            estudante_id: registroCompleto.estudante_id || registroCompleto.aluno_id,
+            usuario_id: currentUser.id,
+            usuario_nome: currentUser.name,
+            registro_completo: registroCompleto,
+          },
+        }),
+      }).catch(err => console.warn('Erro ao sincronizar exclusão da observação no Turso:', err));
+    }
   };
 
   // 7. Repositório Google Drive

@@ -66,6 +66,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
   const [novoTexto, setNovoTexto] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
   // Modais de Visualização e Edição
   const [observacaoLeitura, setObservacaoLeitura] = useState<ObservacaoAluno | null>(null);
@@ -93,20 +94,28 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
     if (!novoTexto.trim()) return;
 
     setSalvando(true);
+    setErroSalvar(null);
     try {
-      await addObservacaoAluno(
-        estudante.id,
-        currentUser.id,
-        currentUser.nome,
-        currentUser.role,
-        novoTexto.trim(),
-        novaCategoria
-      );
+      await addObservacaoAluno({
+        estudante_id: estudante.id,
+        aluno_id: estudante.id,
+        categoria: novaCategoria,
+        tipo: novaCategoria,
+        texto: novoTexto.trim(),
+        texto_completo: novoTexto.trim(),
+        usuario_id: currentUser?.id,
+        autor_id: currentUser?.id,
+        usuario_nome: currentUser?.name || 'Equipe Escolar',
+        autor_nome: currentUser?.name || 'Equipe Escolar',
+        autor_cargo: currentUser?.role === 'admin' ? 'Administração Escolar' : 'Professor',
+      });
       setNovoTexto('');
-      setFeedback('Observação registrada na timeline do estudante!');
-      setTimeout(() => setFeedback(null), 3000);
-    } catch {
-      alert('Erro ao registrar observação');
+      setFeedback('Observação pedagógica registrada com sucesso no banco de dados!');
+      setTimeout(() => setFeedback(null), 3500);
+    } catch (err: any) {
+      console.error('Erro ao adicionar observação:', err);
+      setErroSalvar(err.message || 'Erro ao registrar observação pedagógica.');
+      setTimeout(() => setErroSalvar(null), 6000);
     } finally {
       setSalvando(false);
     }
@@ -117,6 +126,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
     if (!observacaoEditando || !textoEditado.trim()) return;
 
     setSalvandoEdicao(true);
+    setErroSalvar(null);
     try {
       await updateObservacaoAluno(observacaoEditando.id, textoEditado.trim());
       setObservacaoEditando(null);
@@ -124,10 +134,12 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
       if (observacaoLeitura?.id === observacaoEditando.id) {
         setObservacaoLeitura(prev => prev ? { ...prev, texto: textoEditado.trim(), texto_completo: textoEditado.trim() } : null);
       }
-      setFeedback('Observação atualizada e auditada com sucesso!');
+      setFeedback('Observação pedagógica atualizada e registrada na auditoria com sucesso!');
       setTimeout(() => setFeedback(null), 3500);
-    } catch {
-      alert('Erro ao atualizar observação');
+    } catch (err: any) {
+      console.error('Erro ao atualizar observação pedagógica:', err);
+      setErroSalvar(err.message || 'Erro ao atualizar observação.');
+      setTimeout(() => setErroSalvar(null), 6000);
     } finally {
       setSalvandoEdicao(false);
     }
@@ -143,15 +155,22 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
     setTextoEditado(obs.texto_completo || obs.texto || '');
   };
 
-  const handleExcluir = (obs: ObservacaoAluno, e?: React.MouseEvent) => {
+  const handleExcluir = async (obs: ObservacaoAluno, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (confirm('Deseja excluir esta observação? O registro completo será preservado no log de auditoria.')) {
-      deleteObservacaoAluno(obs.id);
+    if (!confirm('Deseja excluir esta observação? O registro completo será preservado no log de auditoria.')) {
+      return;
+    }
+    try {
+      await deleteObservacaoAluno(obs.id);
       if (observacaoLeitura?.id === obs.id) {
         setObservacaoLeitura(null);
       }
       setFeedback('Observação removida da timeline ativa e registrada na auditoria.');
       setTimeout(() => setFeedback(null), 3500);
+    } catch (err: any) {
+      console.error('Erro ao excluir observação:', err);
+      setErroSalvar(err.message || 'Erro ao excluir observação pedagógica.');
+      setTimeout(() => setErroSalvar(null), 6000);
     }
   };
 
@@ -206,6 +225,13 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
         <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800 border border-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-900 dark:text-emerald-200">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
           <span>{feedback}</span>
+        </div>
+      )}
+
+      {erroSalvar && (
+        <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-800 border border-rose-200 dark:bg-rose-950/50 dark:border-rose-900 dark:text-rose-200">
+          <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+          <span>{erroSalvar}</span>
         </div>
       )}
 

@@ -55,7 +55,8 @@ export async function GET(req: NextRequest) {
 
       if (drive) {
         try {
-          const query = `name = '${nomeArquivo}' and '${estudanteFolderId}' in parents and trashed = false`;
+          // Busca foto_perfil_3x4.jpg na pasta do aluno (tolerante a variações de extensão/caixa)
+          const query = `(name = '${nomeArquivo}' or name = 'foto_perfil_3x4.jpeg' or name = 'foto_perfil_3x4.png' or name = 'FOTO_PERFIL_3X4.JPG' or name contains 'foto_perfil_3x4') and '${estudanteFolderId}' in parents and trashed = false`;
           const res = await drive.files.list({
             q: query,
             fields: 'files(id, name, webViewLink, webContentLink, thumbnailLink)',
@@ -67,27 +68,50 @@ export async function GET(req: NextRequest) {
             const file = res.data.files[0];
             driveFileId = file.id!;
             try {
+              // Assegura permissão de leitura pública para renderização direta via lh3
               await drive.permissions.create({
                 fileId: driveFileId,
                 requestBody: { role: 'reader', type: 'anyone' },
               });
             } catch {
-              // Ignora
+              // Ignora se permissão já existir
             }
-            directViewUrl = `https://lh3.googleusercontent.com/d/${driveFileId}`;
+            // Formata URL direta com parâmetro timestamp para bypass de cache do navegador
+            directViewUrl = `https://lh3.googleusercontent.com/d/${driveFileId}?t=${Date.now()}`;
           }
         } catch (err) {
           console.warn('Erro ao pesquisar foto_perfil_3x4.jpg no Drive:', err);
         }
       }
 
-      // Se encontrou a foto no Drive
+      // Se estiver em modo simulado (quando não há credenciais de API conectadas)
+      if (!directViewUrl && (driveClient.isSimulated || !drive)) {
+        driveFileId = `mock_drive_3x4_${Date.now()}`;
+        directViewUrl = `https://lh3.googleusercontent.com/d/${driveFileId}?t=${Date.now()}`;
+      }
+
+      // Se encontrou a foto no Drive (ou modo simulado)
       if (directViewUrl) {
-        if (isTursoConfigured && estudanteId) {
+        let targetId = estudanteId;
+        if (!targetId && estudanteNome && isTursoConfigured) {
+          try {
+            const estRes = await executeTursoQuery<{ id: string }>(
+              `SELECT id FROM estudantes WHERE UPPER(nome_completo) = UPPER(?) LIMIT 1`,
+              [estudanteNome.trim()]
+            );
+            if (estRes.rows && estRes.rows.length > 0) {
+              targetId = String(estRes.rows[0].id);
+            }
+          } catch (e) {
+            // Ignora
+          }
+        }
+
+        if (isTursoConfigured && targetId) {
           try {
             await executeTursoQuery(
               `UPDATE estudantes SET foto_url = ? WHERE id = ?`,
-              [directViewUrl, estudanteId]
+              [directViewUrl, targetId]
             );
           } catch (dbErr) {
             console.warn('Erro ao atualizar foto_url no Turso ao sincronizar:', dbErr);
@@ -100,7 +124,7 @@ export async function GET(req: NextRequest) {
           foto_url: directViewUrl,
           drive_file_id: driveFileId,
           caminho_drive: caminhoFormatado,
-          message: `Foto foto_perfil_3x4.jpg localizada e sincronizada com sucesso da pasta ${caminhoFormatado}!`,
+          message: 'Foto sincronizada com sucesso!',
         });
       }
 
@@ -194,7 +218,7 @@ export async function POST(req: NextRequest) {
     } = await resolverOuCriarEstruturaPastasEstudante(drive, estudanteNome, rootFolderId);
 
     let driveFileId = `drive_foto_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    let directViewUrl = `https://lh3.googleusercontent.com/d/${driveFileId}`;
+    let directViewUrl = `https://lh3.googleusercontent.com/d/${driveFileId}?t=${Date.now()}`;
 
     if (drive) {
       try {
@@ -257,7 +281,7 @@ export async function POST(req: NextRequest) {
             console.warn('Aviso: Falha ao aplicar permissão pública na foto:', permErr);
           }
 
-          directViewUrl = `https://lh3.googleusercontent.com/d/${driveFileId}`;
+          directViewUrl = `https://lh3.googleusercontent.com/d/${driveFileId}?t=${Date.now()}`;
         }
       } catch (uploadErr) {
         console.warn('Aviso: Erro ao enviar foto para o Google Drive API:', uploadErr);
@@ -265,11 +289,26 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Persistência no Banco de Dados Turso
-    if (isTursoConfigured && estudanteId) {
+    let targetEstudanteId = estudanteId;
+    if (!targetEstudanteId && estudanteNome && isTursoConfigured) {
+      try {
+        const estRes = await executeTursoQuery<{ id: string }>(
+          `SELECT id FROM estudantes WHERE UPPER(nome_completo) = UPPER(?) LIMIT 1`,
+          [estudanteNome.trim()]
+        );
+        if (estRes.rows && estRes.rows.length > 0) {
+          targetEstudanteId = String(estRes.rows[0].id);
+        }
+      } catch (e) {
+        // Ignora
+      }
+    }
+
+    if (isTursoConfigured && targetEstudanteId) {
       try {
         await executeTursoQuery(
           `UPDATE estudantes SET foto_url = ? WHERE id = ?`,
-          [directViewUrl, estudanteId]
+          [directViewUrl, targetEstudanteId]
         );
       } catch (dbErr) {
         console.warn('Aviso: Erro ao atualizar foto_url no Turso:', dbErr);

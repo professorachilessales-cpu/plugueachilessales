@@ -192,24 +192,57 @@ export async function GET() {
     // 11. Observações Contínuas do Estudante & Auditoria
     let observacoesAluno: any[] = [];
     try {
-      const obsRes = await executeTursoQuery('SELECT * FROM observacoes_aluno ORDER BY created_at DESC, data_registro DESC');
-      observacoesAluno = obsRes.rows.map((row: any) => ({
-        id: row.id,
-        estudante_id: row.estudante_id || row.aluno_id,
-        aluno_id: row.aluno_id || row.estudante_id,
-        usuario_id: row.usuario_id || row.autor_id,
-        autor_id: row.autor_id || row.usuario_id,
-        autor_nome: row.autor_nome || 'Usuário',
-        autor_cargo: row.autor_cargo || 'Equipe Escolar',
-        categoria: row.categoria || row.tipo || 'pedagogico',
-        tipo: row.tipo || row.categoria || 'pedagogico',
-        texto_completo: row.texto_completo || row.texto || '',
-        texto: row.texto || row.texto_completo || '',
-        created_at: row.created_at || row.data_registro || new Date().toISOString(),
-        data_registro: row.data_registro || row.created_at || new Date().toISOString(),
-      }));
+      // 1. Tentar ler da tabela observacoes_pedagogicas
+      let carregou = false;
+      try {
+        const pedRes = await executeTursoQuery(
+          'SELECT * FROM observacoes_pedagogicas WHERE (ativo = 1 OR ativo IS NULL) ORDER BY created_at DESC'
+        );
+        if (pedRes.rows && pedRes.rows.length > 0) {
+          observacoesAluno = pedRes.rows.map((row: any) => ({
+            id: row.id,
+            estudante_id: row.estudante_id,
+            aluno_id: row.estudante_id,
+            usuario_id: row.usuario_id,
+            autor_id: row.usuario_id,
+            autor_nome: row.autor_nome || 'Equipe Escolar',
+            autor_cargo: 'Equipe Escolar',
+            categoria: row.categoria || 'pedagogico',
+            tipo: row.categoria || 'pedagogico',
+            texto_completo: row.texto,
+            texto: row.texto,
+            created_at: row.created_at || new Date().toISOString(),
+            data_registro: row.created_at || new Date().toISOString(),
+          }));
+          carregou = true;
+        }
+      } catch (errPed) {
+        // Tabela pode ainda estar sendo inicializada
+      }
+
+      // 2. Se não carregou da nova tabela, busca na observacoes_aluno
+      if (!carregou) {
+        const obsRes = await executeTursoQuery(
+          'SELECT * FROM observacoes_aluno WHERE (ativo = 1 OR ativo IS NULL) ORDER BY created_at DESC, data_registro DESC'
+        );
+        observacoesAluno = obsRes.rows.map((row: any) => ({
+          id: row.id,
+          estudante_id: row.estudante_id || row.aluno_id,
+          aluno_id: row.aluno_id || row.estudante_id,
+          usuario_id: row.usuario_id || row.autor_id,
+          autor_id: row.autor_id || row.usuario_id,
+          autor_nome: row.autor_nome || 'Usuário',
+          autor_cargo: row.autor_cargo || 'Equipe Escolar',
+          categoria: row.categoria || row.tipo || 'pedagogico',
+          tipo: row.tipo || row.categoria || 'pedagogico',
+          texto_completo: row.texto_completo || row.texto || '',
+          texto: row.texto || row.texto_completo || '',
+          created_at: row.created_at || row.data_registro || new Date().toISOString(),
+          data_registro: row.data_registro || row.created_at || new Date().toISOString(),
+        }));
+      }
     } catch (e) {
-      console.warn('Tabela observacoes_aluno ainda não criada no Turso:', e);
+      console.warn('Tabela de observações ainda não criada no Turso:', e);
     }
 
     let observacoesAuditoria: any[] = [];

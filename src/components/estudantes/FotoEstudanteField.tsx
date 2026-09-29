@@ -41,6 +41,27 @@ export function FotoEstudanteField({
   // Detecção de dispositivo Mobile vs Desktop
   const [isMobile, setIsMobile] = useState<boolean>(false);
 
+  // Estado local para visualização imediata da foto antes e após o upload (Padrão 3x4)
+  const [previewUrl, setPreviewUrl] = useState<string>(fotoUrl || '');
+  const objectUrlRef = useRef<string | null>(null);
+
+  // Sincroniza o preview local quando a prop fotoUrl muda externamente (sem blob local ativo)
+  useEffect(() => {
+    if (!objectUrlRef.current) {
+      setPreviewUrl(fotoUrl || '');
+    }
+  }, [fotoUrl]);
+
+  // Limpeza de memória do objeto gerado (URL.revokeObjectURL) ao desmontar o componente
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, []);
+
   // Estados dos modais de escolha
   const [modalDesktopAberto, setModalDesktopAberto] = useState<boolean>(false);
   const [actionSheetMobileAberto, setActionSheetMobileAberto] = useState<boolean>(false);
@@ -88,20 +109,36 @@ export function FotoEstudanteField({
     }
   };
 
-  // Conversão de arquivo local selecionado para DataURL e abertura do corte
+  // Conversão de arquivo local selecionado com preview imediato (createObjectURL) e abertura do corte
   const processarArquivoSelecionado = (file: File) => {
     if (!file.type.startsWith('image/')) {
       setMensagemErro('Selecione um arquivo de imagem válido (JPG, PNG, WEBP).');
       return;
     }
 
+    // 1. Limpeza de memória do objeto temporário anterior se existente
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
+    // 2. Leitura imediata via URL.createObjectURL para feedback visual instantâneo na tela
+    const localUrl = URL.createObjectURL(file);
+    objectUrlRef.current = localUrl;
+    setPreviewUrl(localUrl);
+    setMensagemErro(null);
+    setMensagemSucesso(null);
+
+    // Fecha modais de seleção
+    setModalDesktopAberto(false);
+    setActionSheetMobileAberto(false);
+
+    // 3. Lê via FileReader para carregar no modal interativo de recorte/enquadramento 3x4
     const reader = new FileReader();
     reader.onload = (e) => {
       const resultado = e.target?.result as string;
       if (resultado) {
         setImagemParaRecorte(resultado);
-        setModalDesktopAberto(false);
-        setActionSheetMobileAberto(false);
       }
     };
     reader.readAsDataURL(file);
@@ -152,8 +189,14 @@ export function FotoEstudanteField({
       const data = await res.json();
 
       if (data.found && data.foto_url) {
+        // Limpa URL de blob local caso estivesse ativo
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = null;
+        }
+        setPreviewUrl(data.foto_url);
         onChangeFotoUrl(data.foto_url);
-        setMensagemSucesso('Foto foto_perfil_3x4.jpg sincronizada com sucesso do Google Drive!');
+        setMensagemSucesso(data.message || 'Foto sincronizada com sucesso!');
         if (onFotoSalvaNoDrive) {
           onFotoSalvaNoDrive({
             foto_url: data.foto_url,
@@ -261,10 +304,24 @@ export function FotoEstudanteField({
   };
 
   // Confirmar recorte e disparar upload para a rota da API com persistência no Google Drive
-  const handleConfirmarRecorte = async (blob: Blob) => {
+  const handleConfirmarRecorte = async (blob: Blob, croppedPreviewUrl?: string) => {
     setUploadando(true);
     setMensagemErro(null);
     setMensagemSucesso(null);
+
+    // Feedback visual imediato: atualiza o preview local com a versão recortada antes mesmo do upload terminar
+    if (objectUrlRef.current && objectUrlRef.current !== croppedPreviewUrl) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    if (croppedPreviewUrl) {
+      objectUrlRef.current = croppedPreviewUrl;
+      setPreviewUrl(croppedPreviewUrl);
+    } else {
+      const novoBlobUrl = URL.createObjectURL(blob);
+      objectUrlRef.current = novoBlobUrl;
+      setPreviewUrl(novoBlobUrl);
+    }
 
     const conectado = await verificarConexaoGoogle();
     if (!conectado) {
@@ -292,7 +349,12 @@ export function FotoEstudanteField({
         throw new Error(data.error || 'Falha ao realizar upload para o Google Drive.');
       }
 
-      // Atualiza a URL no formulário
+      // Atualiza a URL definitiva do Google Drive e limpa o blob local
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      setPreviewUrl(data.foto_url);
       onChangeFotoUrl(data.foto_url);
       setMensagemSucesso('Foto 3x4 enviada com sucesso para o Google Drive!');
       setImagemParaRecorte(null);
@@ -300,7 +362,7 @@ export function FotoEstudanteField({
       if (onFotoSalvaNoDrive) {
         onFotoSalvaNoDrive({
           foto_url: data.foto_url,
-          caminho_drive: data.caminho_drive || 'PLUGUE / FICHA DOS ESTUDANTES',
+          caminho_drive: data.caminho_drive || 'FICHA DOS ESTUDANTES',
         });
       }
     } catch (err: any) {
@@ -312,6 +374,11 @@ export function FotoEstudanteField({
   };
 
   const handleRemoverFoto = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setPreviewUrl('');
     onChangeFotoUrl('');
     setMensagemSucesso(null);
     setMensagemErro(null);
@@ -359,10 +426,10 @@ export function FotoEstudanteField({
             onClick={handleAbrirSeletor}
             className="cursor-pointer relative h-36 w-28 sm:h-40 sm:w-32 rounded-2xl overflow-hidden border-2 border-school-blue-300 dark:border-school-blue-700 bg-white dark:bg-slate-800 shadow-md flex items-center justify-center transition-all hover:scale-105 hover:shadow-lg"
           >
-            {fotoUrl ? (
+            {previewUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={fotoUrl}
+                src={previewUrl}
                 alt="Foto do Estudante"
                 className="h-full w-full object-cover"
                 onError={(e) => {
@@ -379,18 +446,26 @@ export function FotoEstudanteField({
               </div>
             )}
 
+            {/* Indicador de envio/upload ativo */}
+            {uploadando && (
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px] flex flex-col items-center justify-center text-white p-2 z-10">
+                <Loader2 className="h-6 w-6 animate-spin text-school-gold-400 mb-1" />
+                <span className="text-[9px] font-bold text-center">Salvando no Drive...</span>
+              </div>
+            )}
+
             {/* Overlay com hover */}
             <div className="absolute inset-0 bg-school-blue-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-bold text-center p-2 backdrop-blur-[1px]">
-              {fotoUrl ? 'Alterar Foto 3x4' : 'Adicionar Foto'}
+              {previewUrl ? 'Alterar Foto 3x4' : 'Adicionar Foto'}
             </div>
           </div>
 
           {/* Botão de Excluir Foto */}
-          {fotoUrl && (
+          {previewUrl && (
             <button
               type="button"
               onClick={handleRemoverFoto}
-              className="absolute -top-2 -right-2 rounded-full bg-rose-600 text-white p-1.5 shadow-md hover:bg-rose-700 transition-colors"
+              className="absolute -top-2 -right-2 rounded-full bg-rose-600 text-white p-1.5 shadow-md hover:bg-rose-700 transition-colors z-20"
               title="Remover Foto Atual"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -408,6 +483,16 @@ export function FotoEstudanteField({
             <span className="text-[10px] font-bold text-school-blue-700 dark:text-school-gold-400 bg-school-blue-100 dark:bg-school-blue-950/70 px-2.5 py-0.5 rounded-full uppercase">
               Google Drive Integrado
             </span>
+          </div>
+
+          {/* Legenda com Especificações Oficiais de Resolução 3x4 */}
+          <div className="rounded-xl border border-school-blue-200 bg-school-blue-50/70 p-2.5 dark:border-school-blue-900/50 dark:bg-school-blue-950/30 flex items-start gap-2 shadow-xs">
+            <span className="text-sm select-none shrink-0 mt-0.5">📐</span>
+            <p className="text-[11px] leading-tight text-slate-700 dark:text-slate-300">
+              <strong className="font-bold text-school-blue-950 dark:text-white">Padrão Oficial 3x4:</strong>{' '}
+              Resolução recomendada de <strong className="font-bold text-school-blue-700 dark:text-school-gold-400">600 × 800 px</strong>{' '}
+              (mínimo de <strong className="font-semibold text-slate-900 dark:text-slate-200">300 × 400 px</strong>, proporção estrita 3:4, formato JPG/PNG até 5 MB).
+            </p>
           </div>
 
           {/* Árvore de Diretórios Padronizada do Google Drive */}
@@ -434,7 +519,7 @@ export function FotoEstudanteField({
                     <div className="flex items-center gap-1.5 text-emerald-400">
                       <span className="text-slate-500">├──</span>
                       <span className="font-semibold text-emerald-300">foto_perfil_3x4.jpg</span>
-                      {fotoUrl && (
+                      {previewUrl && (
                         <span className="text-[9px] bg-emerald-950/80 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-800/60 font-bold">
                           ✓ Sincronizada
                         </span>
@@ -458,7 +543,7 @@ export function FotoEstudanteField({
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-school-blue-600 text-white text-xs font-bold hover:bg-school-blue-700 shadow-sm transition-all"
             >
               <Camera className="h-4 w-4" />
-              {fotoUrl ? 'Alterar Foto do Estudante' : 'Adicionar Foto do Estudante'}
+              {previewUrl ? 'Alterar Foto do Estudante' : 'Adicionar Foto do Estudante'}
             </button>
 
             {/* Botão Sincronizar foto diretamente do Drive */}
@@ -473,9 +558,9 @@ export function FotoEstudanteField({
               <span>{sincronizando ? 'Sincronizando...' : 'Sincronizar foto'}</span>
             </button>
 
-            {fotoUrl && (
+            {previewUrl && (
               <a
-                href={fotoUrl}
+                href={previewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
@@ -530,7 +615,17 @@ export function FotoEstudanteField({
               </button>
             </div>
 
-            <div className="mt-5 space-y-3">
+            {/* Legenda com Especificações Oficiais de Resolução 3x4 */}
+            <div className="mt-3.5 rounded-2xl border border-school-blue-200 bg-school-blue-50/80 p-2.5 dark:border-school-blue-900/50 dark:bg-school-blue-950/40 flex items-start gap-2 shadow-xs">
+              <span className="text-sm select-none shrink-0 mt-0.5">📐</span>
+              <p className="text-[11px] leading-tight text-slate-700 dark:text-slate-300">
+                <strong className="font-bold text-school-blue-950 dark:text-white">Padrão Oficial 3x4:</strong>{' '}
+                Resolução recomendada de <strong className="font-bold text-school-blue-700 dark:text-school-gold-400">600 × 800 px</strong>{' '}
+                (mínimo de <strong className="font-semibold text-slate-900 dark:text-slate-200">300 × 400 px</strong>, proporção estrita 3:4, formato JPG/PNG até 5 MB).
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-3">
               {/* Opção 1: Selecionar do Google Drive */}
               <button
                 type="button"
@@ -582,12 +677,22 @@ export function FotoEstudanteField({
             {/* Barra de arraste visual */}
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-300 dark:bg-slate-700" />
 
-            <div className="mb-4 text-center">
+            <div className="mb-3 text-center">
               <h4 className="text-sm font-black text-slate-900 dark:text-white">
                 Foto do Estudante (Formato 3x4)
               </h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Selecione como deseja capturar a fotografia
+              </p>
+            </div>
+
+            {/* Legenda com Especificações Oficiais de Resolução 3x4 */}
+            <div className="mb-3.5 rounded-2xl border border-school-blue-200 bg-school-blue-50/80 p-2.5 dark:border-school-blue-900/50 dark:bg-school-blue-950/40 flex items-start gap-2 shadow-xs">
+              <span className="text-sm select-none shrink-0 mt-0.5">📐</span>
+              <p className="text-[11px] leading-tight text-slate-700 dark:text-slate-300">
+                <strong className="font-bold text-school-blue-950 dark:text-white">Padrão Oficial 3x4:</strong>{' '}
+                Resolução recomendada de <strong className="font-bold text-school-blue-700 dark:text-school-gold-400">600 × 800 px</strong>{' '}
+                (mínimo de <strong className="font-semibold text-slate-900 dark:text-slate-200">300 × 400 px</strong>, proporção 3:4, até 5 MB).
               </p>
             </div>
 
@@ -684,6 +789,16 @@ export function FotoEstudanteField({
             </div>
 
             <div className="mt-4 space-y-4">
+              {/* Legenda com Especificações Oficiais de Resolução 3x4 */}
+              <div className="rounded-2xl border border-school-blue-200 bg-school-blue-50/80 p-3 dark:border-school-blue-800/60 dark:bg-school-blue-950/40 flex items-start gap-2.5 shadow-xs">
+                <span className="text-base select-none shrink-0 mt-0.5">📐</span>
+                <p className="text-[11px] leading-relaxed text-slate-700 dark:text-slate-300">
+                  <strong className="font-bold text-school-blue-950 dark:text-white">Padrão Oficial 3x4:</strong>{' '}
+                  Resolução recomendada de <strong className="font-bold text-school-blue-700 dark:text-school-gold-400">600 × 800 px</strong>{' '}
+                  (mínimo de <strong className="font-semibold text-slate-900 dark:text-slate-200">300 × 400 px</strong>, proporção estrita 3:4, formato JPG/PNG até 5 MB).
+                </p>
+              </div>
+
               {/* Pasta do Estudante no Drive */}
               <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">

@@ -263,7 +263,7 @@ export function ModalRecorteFotoEstudante({
                 Enquadramento & Recorte 3x4 Oficial
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                {nomeEstudante || 'Estudante'} &bull; Proporção Estrita 3:4 (600x800px)
+                {nomeEstudante || 'Estudante'} &bull; Padrão 3x4 (600 × 800 px, máx. 5 MB)
               </p>
             </div>
           </div>
@@ -455,8 +455,17 @@ export function ModalRecorteFotoEstudante({
             </div>
           )}
 
+          {/* Legenda com Especificações Oficiais de Resolução 3x4 */}
+          <div className="mt-3.5 w-full max-w-sm rounded-xl border border-school-blue-500/30 bg-school-blue-950/80 p-2.5 text-center backdrop-blur-sm shadow-md">
+            <p className="text-[11px] leading-tight text-slate-200">
+              <strong className="text-white font-bold">📐 Padrão Oficial 3x4:</strong> Resolução recomendada de{' '}
+              <strong className="text-school-gold-400 font-bold">600 × 800 px</strong> (mínimo de{' '}
+              <strong className="text-white font-semibold">300 × 400 px</strong>, proporção estrita 3:4, formato JPG/PNG até 5 MB).
+            </p>
+          </div>
+
           {/* Dica de proporção oficial */}
-          <div className="mt-3 flex items-center justify-between w-full max-w-[270px] text-[10px] text-slate-400">
+          <div className="mt-2.5 flex items-center justify-between w-full max-w-[270px] text-[10px] text-slate-400">
             <span className="flex items-center gap-1 font-semibold text-slate-300">
               <Maximize2 className="h-3 w-3 text-school-blue-400" />
               Proporção 3x4

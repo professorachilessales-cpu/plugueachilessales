@@ -268,7 +268,22 @@ CREATE TABLE IF NOT EXISTS notificacoes_admin (
     data_criacao TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 11. OBSERVAÇÕES CONTÍNUAS DO ESTUDANTE (FICHA DO ALUNO) & AUDITORIA
+-- 11. OBSERVAÇÕES CONTÍNUAS DO ESTUDANTE & HISTÓRICO PEDAGÓGICO
+CREATE TABLE IF NOT EXISTS observacoes_pedagogicas (
+    id TEXT PRIMARY KEY,
+    estudante_id TEXT NOT NULL REFERENCES estudantes(id) ON DELETE CASCADE,
+    usuario_id TEXT NOT NULL,
+    autor_nome TEXT,
+    categoria TEXT DEFAULT 'pedagogico',
+    texto TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    ativo INTEGER DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_observacoes_pedagogicas_est ON observacoes_pedagogicas(estudante_id);
+CREATE INDEX IF NOT EXISTS idx_observacoes_pedagogicas_created ON observacoes_pedagogicas(created_at DESC);
+
+-- TABELA LEGADA COMPATÍVEL (observacoes_aluno)
 CREATE TABLE IF NOT EXISTS observacoes_aluno (
     id TEXT PRIMARY KEY,
     estudante_id TEXT REFERENCES estudantes(id) ON DELETE CASCADE,
@@ -282,7 +297,8 @@ CREATE TABLE IF NOT EXISTS observacoes_aluno (
     texto_completo TEXT NOT NULL,
     texto TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    data_registro TEXT
+    data_registro TEXT,
+    ativo INTEGER DEFAULT 1
 );
 
 -- TABELA DE AUDITORIA DE OBSERVAÇÕES (HISTÓRICO IMUTÁVEL DE ALTERAÇÕES E EXCLUSÕES)

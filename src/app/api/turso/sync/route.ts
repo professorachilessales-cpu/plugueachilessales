@@ -455,40 +455,70 @@ export async function POST(req: NextRequest) {
       case 'save_observacao': {
         const obs = payload;
         const estudanteId = obs.estudante_id || obs.aluno_id;
-        const usuarioId = obs.usuario_id || obs.autor_id;
-        const textoCompleto = obs.texto_completo || obs.texto;
+        const usuarioId = obs.usuario_id || obs.autor_id || 'user-admin';
+        const textoCompleto = obs.texto_completo || obs.texto || '';
         const categoria = obs.categoria || obs.tipo || 'pedagogico';
         const createdAt = obs.created_at || obs.data_registro || new Date().toISOString();
 
-        await executeTursoQuery(
-          `INSERT INTO observacoes_aluno (
-            id, estudante_id, aluno_id, usuario_id, autor_id,
-            autor_nome, autor_cargo, categoria, tipo,
-            texto_completo, texto, created_at, data_registro
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            categoria = excluded.categoria,
-            tipo = excluded.tipo,
-            texto_completo = excluded.texto_completo,
-            texto = excluded.texto`,
-          [
-            obs.id,
-            estudanteId,
-            estudanteId,
-            usuarioId,
-            usuarioId,
-            obs.autor_nome || 'Usuário',
-            obs.autor_cargo || 'Equipe Escolar',
-            categoria,
-            categoria,
-            textoCompleto,
-            textoCompleto,
-            createdAt,
-            createdAt,
-          ]
-        );
+        // 1. Inserir em observacoes_pedagogicas
+        try {
+          await executeTursoQuery(
+            `INSERT INTO observacoes_pedagogicas (
+              id, estudante_id, usuario_id, autor_nome, categoria, texto, created_at, ativo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(id) DO UPDATE SET
+              categoria = excluded.categoria,
+              texto = excluded.texto,
+              ativo = 1`,
+            [
+              obs.id,
+              estudanteId,
+              usuarioId,
+              obs.autor_nome || 'Usuário',
+              categoria,
+              textoCompleto,
+              createdAt,
+            ]
+          );
+        } catch (ePed) {
+          console.warn('Erro ao inserir em observacoes_pedagogicas:', ePed);
+        }
 
-        // Registro de Auditoria de Criação
+        // 2. Inserir em observacoes_aluno
+        try {
+          await executeTursoQuery(
+            `INSERT INTO observacoes_aluno (
+              id, estudante_id, aluno_id, usuario_id, autor_id,
+              autor_nome, autor_cargo, categoria, tipo,
+              texto_completo, texto, created_at, data_registro, ativo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(id) DO UPDATE SET
+              categoria = excluded.categoria,
+              tipo = excluded.tipo,
+              texto_completo = excluded.texto_completo,
+              texto = excluded.texto,
+              ativo = 1`,
+            [
+              obs.id,
+              estudanteId,
+              estudanteId,
+              usuarioId,
+              usuarioId,
+              obs.autor_nome || 'Usuário',
+              obs.autor_cargo || 'Equipe Escolar',
+              categoria,
+              categoria,
+              textoCompleto,
+              textoCompleto,
+              createdAt,
+              createdAt,
+            ]
+          );
+        } catch (eAlu) {
+          console.warn('Erro ao inserir em observacoes_aluno:', eAlu);
+        }
+
+        // 3. Registro de Auditoria de Criação
         try {
           const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
           await executeTursoQuery(
@@ -518,15 +548,27 @@ export async function POST(req: NextRequest) {
         const { observacao_id, novo_texto, usuario_id, usuario_nome, registro_anterior } = payload;
         const agora = new Date().toISOString();
 
-        await executeTursoQuery(
-          `UPDATE observacoes_aluno SET
-            texto_completo = ?,
-            texto = ?
-          WHERE id = ?`,
-          [novo_texto, novo_texto, observacao_id]
-        );
+        // 1. Atualizar observacoes_pedagogicas
+        try {
+          await executeTursoQuery(
+            `UPDATE observacoes_pedagogicas SET texto = ? WHERE id = ?`,
+            [novo_texto, observacao_id]
+          );
+        } catch (e) {
+          console.warn('Erro ao atualizar observacoes_pedagogicas:', e);
+        }
 
-        // Grava na tabela de auditoria o registro anterior completo
+        // 2. Atualizar observacoes_aluno
+        try {
+          await executeTursoQuery(
+            `UPDATE observacoes_aluno SET texto_completo = ?, texto = ? WHERE id = ?`,
+            [novo_texto, novo_texto, observacao_id]
+          );
+        } catch (e) {
+          console.warn('Erro ao atualizar observacoes_aluno:', e);
+        }
+
+        // 3. Grava na tabela de auditoria o registro anterior completo
         const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         const estudanteId = registro_anterior?.estudante_id || registro_anterior?.aluno_id || '';
         const textoAnterior = registro_anterior?.texto_completo || registro_anterior?.texto || '';
@@ -563,10 +605,21 @@ export async function POST(req: NextRequest) {
         const { observacao_id, estudante_id, usuario_id, usuario_nome, registro_completo } = payload;
         const agora = new Date().toISOString();
 
-        // 1. Remove da listagem ativa
-        await executeTursoQuery('DELETE FROM observacoes_aluno WHERE id = ?', [observacao_id]);
+        // 1. Soft delete em observacoes_pedagogicas
+        try {
+          await executeTursoQuery('UPDATE observacoes_pedagogicas SET ativo = 0 WHERE id = ?', [observacao_id]);
+        } catch (e) {
+          console.warn('Erro ao soft delete observacoes_pedagogicas:', e);
+        }
 
-        // 2. Preserva na tabela de auditoria o registro completo com evento DELETE
+        // 2. Soft delete em observacoes_aluno
+        try {
+          await executeTursoQuery('UPDATE observacoes_aluno SET ativo = 0 WHERE id = ?', [observacao_id]);
+        } catch (e) {
+          await executeTursoQuery('DELETE FROM observacoes_aluno WHERE id = ?', [observacao_id]);
+        }
+
+        // 3. Preserva na tabela de auditoria o registro completo com evento DELETE
         const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         const textoAnterior = registro_completo?.texto_completo || registro_completo?.texto || '';
         const categoria = registro_completo?.categoria || registro_completo?.tipo || 'pedagogico';

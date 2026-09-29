@@ -123,3 +123,13 @@ export function validarCPF(cpf: string, options?: { permitirEstudanteSemCpf?: bo
 
   return true;
 }
+
+/**
+ * Formata CEP no padrão 00000-000 progressivamente
+ */
+export function formatarCEP(valor: string): string {
+  if (!valor) return '';
+  const digitos = valor.replace(/\D/g, '').substring(0, 8);
+  if (digitos.length <= 5) return digitos;
+  return `${digitos.substring(0, 5)}-${digitos.substring(5)}`;
+}

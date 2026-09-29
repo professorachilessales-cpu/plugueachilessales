@@ -49,13 +49,16 @@ function SecaoEquipeTurmaForm({
   onRemoverProfessorHistorico,
   onRemoverApoioHistorico,
 }: SecaoEquipeTurmaFormProps) {
-  // Apenas professores com status ativo podem ser disponibilizados para seleção de regência
-  const professoresAtivos = professores.filter((p) => p.ativo !== false);
+  // Apenas docentes com status ativo podem ser disponibilizados para seleção de regência (exclui funcionários)
+  const professoresAtivos = professores.filter(
+    (p) => p.ativo !== false && (p.tipo_profissional === 'docente' || !p.tipo_profissional)
+  );
 
-  // Equipe de Apoio & Inclusão: estritamente colaboradores com perfil de Apoio (eh_apoio === true / is_apoio === true / role === 'apoio')
+  // Equipe de Apoio & Inclusão: estritamente docentes/colaboradores pedagógicos com perfil de Apoio
   const equipeApoioElegivel = professores.filter(
     (p) =>
       p.ativo !== false &&
+      (p.tipo_profissional === 'docente' || !p.tipo_profissional) &&
       (p.eh_apoio === true ||
         (p as any).is_apoio === true ||
         (p as any).role === 'apoio' ||
@@ -1717,7 +1720,7 @@ export default function TurmasPage() {
                 >
                   <option value="">Selecione um docente</option>
                   {professores
-                    .filter((p) => p.ativo !== false)
+                    .filter((p) => p.ativo !== false && (p.tipo_profissional === 'docente' || !p.tipo_profissional))
                     .map((p) => (
                       <option key={p.id} value={p.nome_completo}>
                         {p.nome_completo} ({p.disciplinas?.join(', ') || 'Docente'})

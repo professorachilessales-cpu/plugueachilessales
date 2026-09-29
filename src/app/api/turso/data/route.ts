@@ -58,6 +58,8 @@ export async function GET() {
       const profRes = await executeTursoQuery('SELECT * FROM professores ORDER BY nome_completo ASC');
       professores = profRes.rows.map((row: any) => ({
         ...row,
+        tipo_profissional: row.tipo_profissional || 'docente',
+        funcao_escola: row.funcao_escola || null,
         ativo: toBoolean(row.ativo, true),
         eh_apoio: toBoolean(row.eh_apoio),
         disciplinas: row.disciplinas ? (typeof row.disciplinas === 'string' ? JSON.parse(row.disciplinas) : row.disciplinas) : [],

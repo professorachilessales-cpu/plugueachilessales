@@ -62,12 +62,14 @@ CREATE TABLE IF NOT EXISTS profiles (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. TABELA DE PROFESSORES (FICHA FUNCIONAL)
+-- 3. TABELA DE PROFESSORES E FUNCIONÁRIOS (FICHA FUNCIONAL / QUADRO DE PESSOAL)
 CREATE TABLE IF NOT EXISTS professores (
     id TEXT PRIMARY KEY,
     profile_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,
     nome_completo TEXT NOT NULL,
     matricula TEXT NOT NULL UNIQUE,
+    tipo_profissional TEXT NOT NULL DEFAULT 'docente' CHECK (tipo_profissional IN ('docente', 'funcionario')),
+    funcao_escola TEXT CHECK (funcao_escola IN ('Porteiro', 'Serviços Gerais', 'Administrativo', 'Readaptado', 'Merendeira', 'Ajudantes', 'Outros') OR funcao_escola IS NULL),
     formacao TEXT,
     disciplinas TEXT DEFAULT '[]', -- JSON Array string
     telefone TEXT,
@@ -78,6 +80,9 @@ CREATE TABLE IF NOT EXISTS professores (
     cpf TEXT,
     rg TEXT,
     rg_data_expedicao TEXT,
+    data_nascimento TEXT,
+    genero TEXT,
+    vinculo_empregaticio TEXT,
     graduacao_instituicao TEXT,
     titulacao TEXT,
     pos_graduacao_instituicao TEXT,
@@ -85,12 +90,23 @@ CREATE TABLE IF NOT EXISTS professores (
     graduacao_fim TEXT,
     pos_graduacao_inicio TEXT,
     pos_graduacao_fim TEXT,
-    endereco_completo TEXT,
+    filiacao_1 TEXT,
+    filiacao_2 TEXT,
     nome_mae TEXT,
     nome_pai TEXT,
+    cep TEXT,
+    logradouro TEXT,
+    numero TEXT,
+    complemento TEXT,
+    bairro TEXT,
+    cidade TEXT,
+    uf TEXT,
+    endereco_completo TEXT,
+    celular_whatsapp TEXT,
     telefone_emergencia TEXT,
     telefone_emergencia2 TEXT,
     contato_emergencia_nome TEXT,
+    contato_emergencia_parentesco TEXT,
     observacoes TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );

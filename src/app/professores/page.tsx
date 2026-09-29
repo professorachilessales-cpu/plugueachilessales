@@ -25,10 +25,15 @@ import {
   Users,
   Save,
   AlertTriangle,
-  Info
+  Info,
+  Briefcase,
+  Search,
+  Loader2
 } from 'lucide-react';
-import { Professor, FaltaProfessor, TitulacaoDocente } from '@/lib/types';
-import { formatarTelefone, formatarCPF, validarCPF } from '@/lib/validations';
+import { Professor, FaltaProfessor, TitulacaoDocente, FuncaoEscola, TipoProfissional } from '@/lib/types';
+import { formatarTelefone, formatarCPF, formatarCEP, validarCPF } from '@/lib/validations';
+import FuncaoEscolaSelector from '@/components/professores/FuncaoEscolaSelector';
+import ModalNovoFuncionario from '@/components/professores/ModalNovoFuncionario';
 
 const TITULACOES_DOCENTE: TitulacaoDocente[] = [
   'GRADUAÇÃO',
@@ -37,6 +42,19 @@ const TITULACOES_DOCENTE: TitulacaoDocente[] = [
   'DOUTOR',
   'PÓS-DOUTORADO',
 ];
+
+export function getEmojiFuncao(funcao?: string): string {
+  switch (funcao) {
+    case 'Porteiro': return '🚪';
+    case 'Serviços Gerais': return '🧹';
+    case 'Administrativo': return '📂';
+    case 'Readaptado': return '🔄';
+    case 'Merendeira': return '🍲';
+    case 'Ajudantes': return '🤝';
+    case 'Outros': return '🏷️';
+    default: return '💼';
+  }
+}
 
 const formProfInicial = {
   nome_completo: '',
@@ -66,6 +84,50 @@ const formProfInicial = {
   ativo: true, // Valor Padrão: Ativo (true)
 };
 
+const formEditProfInicial = {
+  tipo_profissional: 'docente' as TipoProfissional,
+  funcao_escola: '' as FuncaoEscola | '',
+  nome_completo: '',
+  matricula: '',
+  cpf: '',
+  rg: '',
+  rg_data_expedicao: '',
+  data_nascimento: '',
+  genero: 'NÃO INFORMADO',
+  vinculo_empregaticio: 'EFETIVO',
+  formacao: '',
+  disciplinasStr: '',
+  titulacao: 'GRADUAÇÃO' as TitulacaoDocente,
+  graduacao_instituicao: '',
+  graduacao_inicio: '',
+  graduacao_fim: '',
+  pos_graduacao_instituicao: '',
+  pos_graduacao_inicio: '',
+  pos_graduacao_fim: '',
+  filiacao_1: '',
+  filiacao_2: '',
+  nome_mae: '',
+  nome_pai: '',
+  cep: '',
+  logradouro: '',
+  numero: '',
+  complemento: '',
+  bairro: '',
+  cidade: '',
+  uf: '',
+  endereco_completo: '',
+  telefone: '',
+  celular_whatsapp: '',
+  email: '',
+  telefone_emergencia: '',
+  telefone_emergencia2: '',
+  contato_emergencia_nome: '',
+  contato_emergencia_parentesco: '',
+  observacoes: '',
+  eh_apoio: false,
+  ativo: true,
+};
+
 export default function ProfessoresPage() {
   const { 
     professores, 
@@ -85,10 +147,15 @@ export default function ProfessoresPage() {
   } = useApp();
 
   const [abaAtiva, setAbaAtiva] = useState<'docentes' | 'faltas' | 'reposicoes' | 'atestados'>('docentes');
-  // Controle de filtro de visualização: 'ativos' (padrão inicial), 'inativos', 'todos'
+  // Controle de Categoria do Quadro Funcional: 'docentes' | 'funcionarios' | 'todos'
+  const [categoriaFiltro, setCategoriaFiltro] = useState<'docentes' | 'funcionarios' | 'todos'>('docentes');
+  // Controle de filtro de status: 'ativos' (padrão inicial), 'inativos', 'todos'
   const [filtroStatus, setFiltroStatus] = useState<'ativos' | 'inativos' | 'todos'>('ativos');
+  // Busca textual rápida
+  const [buscaTermo, setBuscaTermo] = useState('');
 
   const [modalNovoProfAberto, setModalNovoProfAberto] = useState(false);
+  const [modalNovoFuncAberto, setModalNovoFuncAberto] = useState(false);
   const [modalEditProfAberto, setModalEditProfAberto] = useState(false);
   const [modalFichaProfAberto, setModalFichaProfAberto] = useState(false);
   const [modalNovaFaltaAberto, setModalNovaFaltaAberto] = useState(false);
@@ -96,11 +163,13 @@ export default function ProfessoresPage() {
   const [professorSelecionado, setProfessorSelecionado] = useState<Professor | null>(null);
   const [professorEditandoId, setProfessorEditandoId] = useState<string | null>(null);
 
-  // Form Novo Professor
+  // Form Novo Docente
   const [formProf, setFormProf] = useState(formProfInicial);
 
-  // Form Editar Professor
-  const [formEditProf, setFormEditProf] = useState(formProfInicial);
+  // Form Editar Colaborador (Docente ou Funcionário)
+  const [formEditProf, setFormEditProf] = useState(formEditProfInicial);
+  const [buscandoCepEdit, setBuscandoCepEdit] = useState(false);
+  const [cepEditFeedback, setCepEditFeedback] = useState<string | null>(null);
 
   // Form Nova Falta
   const [formFalta, setFormFalta] = useState({
@@ -126,15 +195,50 @@ export default function ProfessoresPage() {
     }));
   };
 
+  // Busca de CEP para o formulário de edição
+  const handleConsultarCepEdit = async (cepInput: string) => {
+    const limpo = cepInput.replace(/\D/g, '');
+    if (limpo.length !== 8) return;
+    setBuscandoCepEdit(true);
+    setCepEditFeedback('Buscando CEP...');
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+      const data = await res.json();
+      if (data.erro) {
+        setCepEditFeedback('CEP não encontrado.');
+      } else {
+        setFormEditProf((prev) => ({
+          ...prev,
+          logradouro: (data.logradouro || '').toUpperCase(),
+          bairro: (data.bairro || '').toUpperCase(),
+          cidade: (data.localidade || '').toUpperCase(),
+          uf: (data.uf || '').toUpperCase(),
+        }));
+        setCepEditFeedback('Endereço preenchido via CEP!');
+      }
+    } catch (err) {
+      console.warn('Erro ao consultar CEP na edição:', err);
+      setCepEditFeedback('Falha na busca.');
+    } finally {
+      setBuscandoCepEdit(false);
+      setTimeout(() => setCepEditFeedback(null), 4000);
+    }
+  };
+
   // Abrir Modal de Edição
   const handleAbrirEditar = (prof: Professor) => {
     setProfessorEditandoId(prof.id);
     setFormEditProf({
+      tipo_profissional: prof.tipo_profissional || 'docente',
+      funcao_escola: (prof.funcao_escola as FuncaoEscola) || '',
       nome_completo: (prof.nome_completo || '').toUpperCase(),
       matricula: (prof.matricula || '').toUpperCase(),
       cpf: (prof.cpf || '').toUpperCase(),
       rg: (prof.rg || '').toUpperCase(),
       rg_data_expedicao: prof.rg_data_expedicao || '',
+      data_nascimento: prof.data_nascimento || '',
+      genero: prof.genero || 'NÃO INFORMADO',
+      vinculo_empregaticio: prof.vinculo_empregaticio || 'EFETIVO',
       formacao: (prof.formacao || '').toUpperCase(),
       disciplinasStr: (prof.disciplinas?.join(', ') || '').toUpperCase(),
       titulacao: (prof.titulacao as TitulacaoDocente) || 'GRADUAÇÃO',
@@ -144,14 +248,25 @@ export default function ProfessoresPage() {
       pos_graduacao_instituicao: (prof.pos_graduacao_instituicao || '').toUpperCase(),
       pos_graduacao_inicio: prof.pos_graduacao_inicio || '',
       pos_graduacao_fim: prof.pos_graduacao_fim || '',
+      filiacao_1: (prof.filiacao_1 || prof.nome_mae || '').toUpperCase(),
+      filiacao_2: (prof.filiacao_2 || prof.nome_pai || '').toUpperCase(),
+      nome_mae: (prof.nome_mae || prof.filiacao_1 || '').toUpperCase(),
+      nome_pai: (prof.nome_pai || prof.filiacao_2 || '').toUpperCase(),
+      cep: prof.cep || '',
+      logradouro: (prof.logradouro || '').toUpperCase(),
+      numero: (prof.numero || '').toUpperCase(),
+      complemento: (prof.complemento || '').toUpperCase(),
+      bairro: (prof.bairro || '').toUpperCase(),
+      cidade: (prof.cidade || '').toUpperCase(),
+      uf: (prof.uf || '').toUpperCase(),
       endereco_completo: (prof.endereco_completo || '').toUpperCase(),
-      nome_mae: (prof.nome_mae || '').toUpperCase(),
-      nome_pai: (prof.nome_pai || '').toUpperCase(),
       telefone: prof.telefone || '',
+      celular_whatsapp: prof.celular_whatsapp || prof.telefone || '',
       email: (prof.email || '').toUpperCase(),
       telefone_emergencia: prof.telefone_emergencia || '',
       telefone_emergencia2: prof.telefone_emergencia2 || '',
       contato_emergencia_nome: (prof.contato_emergencia_nome || '').toUpperCase(),
+      contato_emergencia_parentesco: (prof.contato_emergencia_parentesco || '').toUpperCase(),
       observacoes: (prof.observacoes || '').toUpperCase(),
       eh_apoio: Boolean(prof.eh_apoio),
       ativo: prof.ativo !== false,
@@ -176,6 +291,7 @@ export default function ProfessoresPage() {
     }
 
     addProfessor({
+      tipo_profissional: 'docente',
       nome_completo: formProf.nome_completo.trim().toUpperCase(),
       matricula: (formProf.matricula?.trim() || `DOC-${Date.now().toString().slice(-6)}`).toUpperCase(),
       cpf: formProf.cpf.trim().toUpperCase(),
@@ -206,24 +322,53 @@ export default function ProfessoresPage() {
 
     setModalNovoProfAberto(false);
     setFormProf(formProfInicial);
+    setCategoriaFiltro('docentes');
   };
 
-  // Salvar Alteração dos Dados do Professor (em Caixa Alta)
+  // Cadastrar Novo Funcionário
+  const handleCadastrarFuncionario = (novoFunc: Omit<Professor, 'id' | 'created_at'>) => {
+    addProfessor(novoFunc);
+    setCategoriaFiltro('funcionarios');
+  };
+
+  // Salvar Alteração dos Dados do Colaborador (Docente ou Funcionário)
   const handleSalvarEdicaoProfessor = (e: React.FormEvent) => {
     e.preventDefault();
     if (!professorEditandoId || !formEditProf.nome_completo) return;
 
     if (formEditProf.cpf && !validarCPF(formEditProf.cpf)) {
-      alert('CPF informado para o docente é inválido. Por favor, verifique os dígitos digitados.');
+      alert('CPF informado é inválido. Por favor, verifique os dígitos digitados.');
       return;
     }
 
+    if (formEditProf.tipo_profissional === 'funcionario' && !formEditProf.funcao_escola) {
+      alert('Por favor, selecione a "Função na Escola" para o funcionário.');
+      return;
+    }
+
+    const partesEndereco = [
+      formEditProf.logradouro,
+      formEditProf.numero ? `Nº ${formEditProf.numero}` : '',
+      formEditProf.complemento,
+      formEditProf.bairro,
+      formEditProf.cidade && formEditProf.uf ? `${formEditProf.cidade} - ${formEditProf.uf}` : (formEditProf.cidade || formEditProf.uf),
+      formEditProf.cep ? `CEP: ${formEditProf.cep}` : '',
+    ].filter(Boolean);
+    const enderecoGerado = partesEndereco.length > 0 
+      ? partesEndereco.join(', ').toUpperCase() 
+      : formEditProf.endereco_completo.trim().toUpperCase();
+
     const updates: Partial<Professor> = {
+      tipo_profissional: formEditProf.tipo_profissional || 'docente',
+      funcao_escola: formEditProf.tipo_profissional === 'funcionario' ? formEditProf.funcao_escola : undefined,
       nome_completo: formEditProf.nome_completo.trim().toUpperCase(),
       matricula: formEditProf.matricula.trim().toUpperCase(),
       cpf: formEditProf.cpf.trim().toUpperCase(),
       rg: formEditProf.rg.trim().toUpperCase(),
       rg_data_expedicao: formEditProf.rg_data_expedicao,
+      data_nascimento: formEditProf.data_nascimento,
+      genero: formEditProf.genero,
+      vinculo_empregaticio: formEditProf.vinculo_empregaticio,
       formacao: formEditProf.formacao.trim().toUpperCase(),
       disciplinas: formEditProf.disciplinasStr.split(',').map((d) => d.trim().toUpperCase()).filter(Boolean),
       titulacao: formEditProf.titulacao,
@@ -233,16 +378,27 @@ export default function ProfessoresPage() {
       pos_graduacao_instituicao: formEditProf.pos_graduacao_instituicao.trim().toUpperCase(),
       pos_graduacao_inicio: formEditProf.pos_graduacao_inicio,
       pos_graduacao_fim: formEditProf.pos_graduacao_fim,
-      endereco_completo: formEditProf.endereco_completo.trim().toUpperCase(),
-      nome_mae: formEditProf.nome_mae.trim().toUpperCase(),
-      nome_pai: formEditProf.nome_pai.trim().toUpperCase(),
+      filiacao_1: formEditProf.filiacao_1.trim().toUpperCase(),
+      filiacao_2: formEditProf.filiacao_2.trim().toUpperCase(),
+      nome_mae: (formEditProf.nome_mae || formEditProf.filiacao_1).trim().toUpperCase(),
+      nome_pai: (formEditProf.nome_pai || formEditProf.filiacao_2).trim().toUpperCase(),
+      cep: formEditProf.cep.trim(),
+      logradouro: formEditProf.logradouro.trim().toUpperCase(),
+      numero: formEditProf.numero.trim().toUpperCase(),
+      complemento: formEditProf.complemento.trim().toUpperCase(),
+      bairro: formEditProf.bairro.trim().toUpperCase(),
+      cidade: formEditProf.cidade.trim().toUpperCase(),
+      uf: formEditProf.uf.trim().toUpperCase(),
+      endereco_completo: enderecoGerado,
       telefone: formEditProf.telefone.trim(),
+      celular_whatsapp: formEditProf.celular_whatsapp.trim() || formEditProf.telefone.trim(),
       email: formEditProf.email.trim().toUpperCase(),
       telefone_emergencia: formEditProf.telefone_emergencia.trim(),
       telefone_emergencia2: formEditProf.telefone_emergencia2.trim(),
       contato_emergencia_nome: formEditProf.contato_emergencia_nome.trim().toUpperCase(),
+      contato_emergencia_parentesco: formEditProf.contato_emergencia_parentesco.trim().toUpperCase(),
       observacoes: formEditProf.observacoes.trim().toUpperCase(),
-      eh_apoio: formEditProf.eh_apoio,
+      eh_apoio: formEditProf.tipo_profissional === 'funcionario' ? false : formEditProf.eh_apoio,
       ativo: formEditProf.ativo !== false,
     };
 
@@ -301,6 +457,14 @@ export default function ProfessoresPage() {
           >
             <Plus className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
             <span>Novo Docente</span>
+          </button>
+
+          <button
+            onClick={() => setModalNovoFuncAberto(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-bold text-amber-900 shadow-sm hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/50"
+          >
+            <Plus className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+            <span>Novo Funcionário</span>
           </button>
 
           <button
@@ -364,26 +528,119 @@ export default function ProfessoresPage() {
         </button>
       </div>
 
-      {/* ABA 1: Quadro Funcional dos Professores */}
+      {/* ABA 1: Quadro Funcional (Docentes & Funcionários) */}
       {abaAtiva === 'docentes' && (() => {
-        const totalAtivos = professores.filter((p) => p.ativo !== false).length;
-        const totalInativos = professores.filter((p) => p.ativo === false).length;
-        const totalGeral = professores.length;
+        const docentesList = professores.filter((p) => p.tipo_profissional === 'docente' || !p.tipo_profissional);
+        const funcionariosList = professores.filter((p) => p.tipo_profissional === 'funcionario');
 
-        const professoresFiltrados = professores.filter((p) => {
+        const totalDocentes = docentesList.length;
+        const totalFuncionarios = funcionariosList.length;
+        const totalTodos = professores.length;
+
+        // Base de acordo com a aba/categoria selecionada
+        let listaBase = professores;
+        if (categoriaFiltro === 'docentes') {
+          listaBase = docentesList;
+        } else if (categoriaFiltro === 'funcionarios') {
+          listaBase = funcionariosList;
+        }
+
+        const totalAtivos = listaBase.filter((p) => p.ativo !== false).length;
+        const totalInativos = listaBase.filter((p) => p.ativo === false).length;
+
+        // Aplicar filtro de status
+        let resultado = listaBase.filter((p) => {
           const isAtivo = p.ativo !== false;
           if (filtroStatus === 'ativos') return isAtivo;
           if (filtroStatus === 'inativos') return !isAtivo;
           return true;
         });
 
+        // Aplicar busca textual se preenchida
+        if (buscaTermo.trim()) {
+          const t = buscaTermo.trim().toLowerCase();
+          resultado = resultado.filter((p) => {
+            const nome = (p.nome_completo || '').toLowerCase();
+            const cpf = (p.cpf || '').toLowerCase();
+            const mat = (p.matricula || '').toLowerCase();
+            const func = (p.funcao_escola || '').toLowerCase();
+            const disc = (p.disciplinas || []).join(' ').toLowerCase();
+            return nome.includes(t) || cpf.includes(t) || mat.includes(t) || func.includes(t) || disc.includes(t);
+          });
+        }
+
         return (
           <div className="space-y-4">
+            {/* Seletor Segmentado de Abas (Tabs) + Busca Rápida */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
+              {/* Tabs Segmentadas: Docentes | Funcionários | Todos */}
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFiltro('docentes')}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 font-bold transition-all ${
+                    categoriaFiltro === 'docentes'
+                      ? 'bg-white text-school-blue-700 shadow-sm dark:bg-slate-700 dark:text-school-gold-400'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`}
+                >
+                  <GraduationCap className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
+                  <span>Docentes ({totalDocentes})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFiltro('funcionarios')}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 font-bold transition-all ${
+                    categoriaFiltro === 'funcionarios'
+                      ? 'bg-white text-amber-700 shadow-sm dark:bg-slate-700 dark:text-amber-400'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`}
+                >
+                  <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span>Funcionários ({totalFuncionarios})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFiltro('todos')}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 font-bold transition-all ${
+                    categoriaFiltro === 'todos'
+                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`}
+                >
+                  <Users className="h-4 w-4 text-slate-500" />
+                  <span>Todos ({totalTodos})</span>
+                </button>
+              </div>
+
+              {/* Campo de Busca Rápida */}
+              <div className="relative min-w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={buscaTermo}
+                  onChange={(e) => setBuscaTermo(e.target.value)}
+                  placeholder="Buscar nome, CPF ou função..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
+                {buscaTermo && (
+                  <button
+                    onClick={() => setBuscaTermo('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Filtro de Exibição de Status */}
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
-                  Exibição:
+                  Status:
                 </span>
                 <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800 text-xs">
                   <button
@@ -421,132 +678,207 @@ export default function ProfessoresPage() {
                         : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                     }`}
                   >
-                    <span>Todos ({totalGeral})</span>
+                    <span>Todos ({listaBase.length})</span>
                   </button>
                 </div>
               </div>
 
               <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Mostrando <strong>{professoresFiltrados.length}</strong> de {totalGeral} docente(s)
+                Mostrando <strong>{resultado.length}</strong> de {listaBase.length}{' '}
+                {categoriaFiltro === 'docentes'
+                  ? 'docente(s)'
+                  : categoriaFiltro === 'funcionarios'
+                  ? 'funcionário(s)'
+                  : 'colaborador(es)'}
               </div>
             </div>
 
-            {/* Grid dos Docentes */}
-            {professoresFiltrados.length === 0 ? (
+            {/* Grid do Quadro Funcional */}
+            {resultado.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center dark:border-slate-800 dark:bg-slate-900/20">
-                <GraduationCap className="mx-auto h-12 w-12 text-slate-400" />
+                {categoriaFiltro === 'funcionarios' ? (
+                  <Briefcase className="mx-auto h-12 w-12 text-slate-400" />
+                ) : (
+                  <GraduationCap className="mx-auto h-12 w-12 text-slate-400" />
+                )}
                 <h4 className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-300">
-                  Nenhum docente encontrado
+                  Nenhum colaborador encontrado
                 </h4>
                 <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
                   {filtroStatus === 'inativos'
-                    ? 'Não há professores com status Inativo no quadro funcional no momento.'
-                    : 'Nenhum professor atende aos critérios do filtro selecionado.'}
+                    ? 'Não há colaboradores inativos atendendo aos critérios no momento.'
+                    : 'Nenhum cadastro atende aos filtros e buscas selecionados.'}
                 </p>
+                {categoriaFiltro === 'funcionarios' && (
+                  <div className="mt-4">
+                    <button
+                      onClick={() => setModalNovoFuncAberto(true)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-700"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Cadastrar Primeiro Funcionário</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {professoresFiltrados.map((prof) => (
-                  <div
-                    key={prof.id}
-                    className={`flex flex-col justify-between rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${
-                      prof.ativo !== false
-                        ? 'border-slate-200 bg-white dark:border-school-dark-border dark:bg-school-dark-surface'
-                        : 'border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/40 opacity-85 hover:opacity-100'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-black text-slate-900 dark:text-white uppercase truncate">
-                            {prof.nome_completo}
-                          </h3>
+                {resultado.map((prof) => {
+                  const isFuncionario = prof.tipo_profissional === 'funcionario';
+
+                  return (
+                    <div
+                      key={prof.id}
+                      className={`flex flex-col justify-between rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${
+                        prof.ativo !== false
+                          ? isFuncionario
+                            ? 'border-amber-200/80 bg-white dark:border-amber-900/40 dark:bg-school-dark-surface'
+                            : 'border-slate-200 bg-white dark:border-school-dark-border dark:bg-school-dark-surface'
+                          : 'border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/40 opacity-85 hover:opacity-100'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 block uppercase">
+                              {prof.matricula || 'MATRÍCULA N/I'}
+                            </span>
+                            <h3 className="text-base font-black text-slate-900 dark:text-white uppercase truncate mt-0.5">
+                              {prof.nome_completo}
+                            </h3>
+                          </div>
+
+                          {/* Badges de Status e Categoria */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                            {isFuncionario ? (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300/80">
+                                <span>{getEmojiFuncao(prof.funcao_escola)}</span>
+                                <span>{prof.funcao_escola || 'FUNCIONÁRIO'}</span>
+                              </span>
+                            ) : (
+                              prof.eh_apoio && (
+                                <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60">
+                                  Apoio
+                                </span>
+                              )
+                            )}
+
+                            {prof.ativo !== false ? (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                Ativo
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/70">
+                                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                                Inativo
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Badges de Status e Apoio */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {prof.eh_apoio && (
-                            <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60">
-                              Apoio
-                            </span>
-                          )}
-                          {prof.ativo !== false ? (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              Ativo
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/70">
-                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                              Inativo
-                            </span>
-                          )}
+                        {/* CPF e RG */}
+                        <div className="mt-2.5 flex items-center gap-3 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                          <span>CPF: <strong>{prof.cpf || 'NÃO INFORMADO'}</strong></span>
+                          <span>RG: <strong>{prof.rg || 'NÃO INFORMADO'}</strong></span>
                         </div>
+
+                        {/* Informações Específicas por Tipo */}
+                        {isFuncionario ? (
+                          <div className="mt-3 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                            <div className="flex items-center justify-between rounded-lg bg-amber-50/60 dark:bg-amber-950/20 px-2.5 py-1 border border-amber-200/40">
+                              <span className="text-[10px] uppercase font-bold text-amber-900 dark:text-amber-300">
+                                Vínculo:
+                              </span>
+                              <span className="font-semibold uppercase text-slate-800 dark:text-slate-200">
+                                {prof.vinculo_empregaticio || 'EFETIVO'}
+                              </span>
+                            </div>
+
+                            {(prof.bairro || prof.logradouro || prof.cidade) && (
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase truncate">
+                                📍 {prof.bairro ? `${prof.bairro}, ` : ''}{prof.cidade || ''} {prof.uf ? `(${prof.uf})` : ''}
+                              </p>
+                            )}
+
+                            {(prof.contato_emergencia_nome || prof.telefone_emergencia) && (
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase truncate">
+                                🚨 Emergência: {prof.contato_emergencia_nome || 'CONTATO'} {prof.contato_emergencia_parentesco ? `(${prof.contato_emergencia_parentesco})` : ''}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            {/* Graduação / Instituição Docente */}
+                            {prof.graduacao_instituicao && (
+                              <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 uppercase line-clamp-1">
+                                Graduação: <strong className="text-slate-700 dark:text-slate-300">{prof.graduacao_instituicao}</strong>
+                              </p>
+                            )}
+
+                            {/* Disciplinas Habilitadas */}
+                            <div className="mt-3">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                Disciplinas:
+                              </span>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {prof.disciplinas && prof.disciplinas.length > 0 ? (
+                                  prof.disciplinas.map((disc) => (
+                                    <span
+                                      key={disc}
+                                      className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300 uppercase"
+                                    >
+                                      {disc}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 uppercase">
+                                    Nenhuma disciplina cadastrada
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
 
-                {/* CPF e RG */}
-                <div className="mt-2.5 flex items-center gap-3 text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                  <span>CPF: <strong>{prof.cpf || 'NÃO INFORMADO'}</strong></span>
-                  <span>RG: <strong>{prof.rg || 'NÃO INFORMADO'}</strong></span>
-                </div>
+                      {/* Rodapé do Card: Contatos e Botões de Ação */}
+                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                          <span className="truncate pr-2">{prof.email || 'SEM EMAIL'}</span>
+                          <span className="font-mono">{prof.telefone || prof.celular_whatsapp || 'SEM TEL'}</span>
+                        </div>
 
-                {/* Graduação / Instituição */}
-                {prof.graduacao_instituicao && (
-                  <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 uppercase line-clamp-1">
-                    Graduação: <strong className="text-slate-700 dark:text-slate-300">{prof.graduacao_instituicao}</strong>
-                  </p>
-                )}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => handleAbrirFicha(prof)}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-all"
+                          >
+                            <Eye className="h-3.5 w-3.5 text-slate-500" />
+                            <span>Ver Ficha</span>
+                          </button>
 
-                {/* Disciplinas Habilitadas */}
-                <div className="mt-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Disciplinas:
-                  </span>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {prof.disciplinas?.map((disc) => (
-                      <span
-                        key={disc}
-                        className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300 uppercase"
-                      >
-                        {disc}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                          <button
+                            onClick={() => handleAbrirEditar(prof)}
+                            className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all ${
+                              isFuncionario
+                                ? 'bg-amber-600 hover:bg-amber-700 dark:bg-amber-700'
+                                : 'bg-school-blue-800 hover:bg-school-blue-700 dark:bg-school-blue-600'
+                            }`}
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span>Editar Dados</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-
-              {/* Rodapé do Card: Contatos e Botões de Ação */}
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="truncate pr-2">{prof.email}</span>
-                  <span className="font-mono">{prof.telefone}</span>
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={() => handleAbrirFicha(prof)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-all"
-                  >
-                    <Eye className="h-3.5 w-3.5 text-slate-500" />
-                    <span>Ver Ficha</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleAbrirEditar(prof)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-school-blue-800 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 dark:bg-school-blue-600 transition-all"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                    <span>Editar Dados</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-            ))}
+            )}
           </div>
-        )}
-      </div>
-    );
-  })()}
+        );
+      })()}
 
       {/* ABA 2: Registro de Faltas */}
       {abaAtiva === 'faltas' && (
@@ -1439,7 +1771,7 @@ export default function ProfessoresPage() {
         </div>
       )}
 
-      {/* MODAL 2: Alterar Dados do Professor (Em Caixa Alta) */}
+      {/* MODAL 2: Alterar Dados do Colaborador (Docente ou Funcionário) */}
       {modalEditProfAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto">
@@ -1447,7 +1779,9 @@ export default function ProfessoresPage() {
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Edit2 className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
-                  Alterar Dados do Professor
+                  {formEditProf.tipo_profissional === 'funcionario'
+                    ? 'Alterar Ficha do Funcionário'
+                    : 'Alterar Dados do Docente'}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Atualização cadastral e funcional em CAIXA ALTA
@@ -1482,8 +1816,6 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-
-
                   <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
                       CPF
@@ -1499,7 +1831,7 @@ export default function ProfessoresPage() {
 
                   <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      RG
+                      RG / Órgão Emissor
                     </label>
                     <input
                       type="text"
@@ -1521,137 +1853,246 @@ export default function ProfessoresPage() {
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </div>
-                </div>
-              </div>
 
-              {/* Seção 2: Formação Acadêmica & Titulação */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
-                <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
-                  <Award className="h-4 w-4 text-school-blue-600" />
-                  2. Formação Acadêmica & Titulação
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Titulação Acadêmica
+                      Data de Nascimento
+                    </label>
+                    <input
+                      type="date"
+                      value={formEditProf.data_nascimento}
+                      onChange={(e) => setFormEditProf({ ...formEditProf, data_nascimento: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                      Gênero
                     </label>
                     <select
-                      value={formEditProf.titulacao}
-                      onChange={(e) => setFormEditProf({ ...formEditProf, titulacao: e.target.value as TitulacaoDocente })}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase font-bold text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      value={formEditProf.genero || 'NÃO INFORMADO'}
+                      onChange={(e) => setFormEditProf({ ...formEditProf, genero: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-bold"
                     >
-                      {TITULACOES_DOCENTE.map((tit) => (
-                        <option key={tit} value={tit}>
-                          {tit}
-                        </option>
-                      ))}
+                      <option value="MASCULINO">MASCULINO</option>
+                      <option value="FEMININO">FEMININO</option>
+                      <option value="OUTRO">OUTRO</option>
+                      <option value="NÃO INFORMADO">NÃO INFORMADO</option>
                     </select>
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Faculdade / Universidade onde fez Graduação
+                      Matrícula Funcional
                     </label>
                     <input
                       type="text"
-                      value={formEditProf.graduacao_instituicao}
-                      onChange={(e) => handleEditUpperChange('graduacao_instituicao', e.target.value)}
-                      placeholder="EX: UFPE"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      value={formEditProf.matricula}
+                      onChange={(e) => handleEditUpperChange('matricula', e.target.value)}
+                      placeholder="MATRÍCULA"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
                     />
                   </div>
 
                   <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Início da Graduação
+                      Vínculo Empregatício / Contrato
                     </label>
-                    <input
-                      type="date"
-                      value={formEditProf.graduacao_inicio}
-                      onChange={(e) => setFormEditProf({ ...formEditProf, graduacao_inicio: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
+                    <select
+                      value={formEditProf.vinculo_empregaticio || 'EFETIVO'}
+                      onChange={(e) => setFormEditProf({ ...formEditProf, vinculo_empregaticio: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-bold"
+                    >
+                      <option value="EFETIVO">EFETIVO</option>
+                      <option value="CONTRATO TEMPORÁRIO">CONTRATO TEMPORÁRIO</option>
+                      <option value="CLT">CLT</option>
+                      <option value="COMISSIONADO">COMISSIONADO</option>
+                      <option value="OUTRO">OUTRO</option>
+                    </select>
                   </div>
 
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Fim da Graduação
-                    </label>
-                    <input
-                      type="date"
-                      value={formEditProf.graduacao_fim}
-                      onChange={(e) => setFormEditProf({ ...formEditProf, graduacao_fim: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Área / Curso de Formação
-                    </label>
-                    <input
-                      type="text"
-                      value={formEditProf.formacao}
-                      onChange={(e) => handleEditUpperChange('formacao', e.target.value)}
-                      placeholder="EX: LICENCIATURA EM LETRAS"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-3">
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Universidade da Pós-Graduação (Mestrado / Doutorado / Especialização)
-                    </label>
-                    <input
-                      type="text"
-                      value={formEditProf.pos_graduacao_instituicao}
-                      onChange={(e) => handleEditUpperChange('pos_graduacao_instituicao', e.target.value)}
-                      placeholder="EX: USP / UNICAMP"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Início da Pós-Graduação
-                    </label>
-                    <input
-                      type="date"
-                      value={formEditProf.pos_graduacao_inicio}
-                      onChange={(e) => setFormEditProf({ ...formEditProf, pos_graduacao_inicio: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Fim da Pós-Graduação
-                    </label>
-                    <input
-                      type="date"
-                      value={formEditProf.pos_graduacao_fim}
-                      onChange={(e) => setFormEditProf({ ...formEditProf, pos_graduacao_fim: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Disciplinas Habilitadas
-                    </label>
-                    <input
-                      type="text"
-                      value={formEditProf.disciplinasStr}
-                      onChange={(e) => handleEditUpperChange('disciplinasStr', e.target.value)}
-                      placeholder="EX: PORTUGUÊS, LITERATURA"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                    />
+                  {/* Toggle Status Ativo/Inativo */}
+                  <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30 sm:col-span-3">
+                    <div>
+                      <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
+                        Status do Colaborador
+                      </span>
+                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                        {formEditProf.ativo ? 'Ativo no Quadro' : 'Inativo / Afastado'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={formEditProf.ativo}
+                      onClick={() => setFormEditProf((prev) => ({ ...prev, ativo: !prev.ativo }))}
+                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        formEditProf.ativo ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          formEditProf.ativo ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Seção 3: Filiação e Endereço */}
+              {/* Seção 2: Específica por Categoria */}
+              {formEditProf.tipo_profissional === 'funcionario' ? (
+                /* Função na Escola para Funcionários (SELEÇÃO ÚNICA SEM DROPDOWN) */
+                <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900/40 dark:bg-amber-950/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-amber-900 dark:text-amber-200 uppercase text-[11px] flex items-center gap-1.5">
+                      <Briefcase className="h-4 w-4 text-amber-600" />
+                      2. Função na Escola * (Seleção Visual Exclusiva)
+                    </h4>
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                      Obrigatório
+                    </span>
+                  </div>
+                  <FuncaoEscolaSelector
+                    value={formEditProf.funcao_escola as FuncaoEscola}
+                    onChange={(novaFuncao) =>
+                      setFormEditProf((prev) => ({ ...prev, funcao_escola: novaFuncao }))
+                    }
+                  />
+                </div>
+              ) : (
+                /* Formação Acadêmica & Titulação para Docentes */
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+                  <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
+                    <Award className="h-4 w-4 text-school-blue-600" />
+                    2. Formação Acadêmica & Titulação
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Titulação Acadêmica
+                      </label>
+                      <select
+                        value={formEditProf.titulacao}
+                        onChange={(e) =>
+                          setFormEditProf({ ...formEditProf, titulacao: e.target.value as TitulacaoDocente })
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase font-bold text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      >
+                        {TITULACOES_DOCENTE.map((tit) => (
+                          <option key={tit} value={tit}>
+                            {tit}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Faculdade / Universidade onde fez Graduação
+                      </label>
+                      <input
+                        type="text"
+                        value={formEditProf.graduacao_instituicao}
+                        onChange={(e) => handleEditUpperChange('graduacao_instituicao', e.target.value)}
+                        placeholder="EX: UFPE"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Início da Graduação
+                      </label>
+                      <input
+                        type="date"
+                        value={formEditProf.graduacao_inicio}
+                        onChange={(e) => setFormEditProf({ ...formEditProf, graduacao_inicio: e.target.value })}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Fim da Graduação
+                      </label>
+                      <input
+                        type="date"
+                        value={formEditProf.graduacao_fim}
+                        onChange={(e) => setFormEditProf({ ...formEditProf, graduacao_fim: e.target.value })}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Área / Curso de Formação
+                      </label>
+                      <input
+                        type="text"
+                        value={formEditProf.formacao}
+                        onChange={(e) => handleEditUpperChange('formacao', e.target.value)}
+                        placeholder="EX: LICENCIATURA EM LETRAS"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Universidade da Pós-Graduação (Mestrado / Doutorado / Especialização)
+                      </label>
+                      <input
+                        type="text"
+                        value={formEditProf.pos_graduacao_instituicao}
+                        onChange={(e) => handleEditUpperChange('pos_graduacao_instituicao', e.target.value)}
+                        placeholder="EX: USP / UNICAMP"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Início da Pós-Graduação
+                      </label>
+                      <input
+                        type="date"
+                        value={formEditProf.pos_graduacao_inicio}
+                        onChange={(e) => setFormEditProf({ ...formEditProf, pos_graduacao_inicio: e.target.value })}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Fim da Pós-Graduação
+                      </label>
+                      <input
+                        type="date"
+                        value={formEditProf.pos_graduacao_fim}
+                        onChange={(e) => setFormEditProf({ ...formEditProf, pos_graduacao_fim: e.target.value })}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Disciplinas Habilitadas
+                      </label>
+                      <input
+                        type="text"
+                        value={formEditProf.disciplinasStr}
+                        onChange={(e) => handleEditUpperChange('disciplinasStr', e.target.value)}
+                        placeholder="EX: PORTUGUÊS, LITERATURA"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Seção 3: Filiação & Endereço Completo */}
               <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                   <MapPin className="h-4 w-4 text-school-blue-600" />
@@ -1661,41 +2102,154 @@ export default function ProfessoresPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Nome da Mãe
+                      Filiação 1 (Mãe)
                     </label>
                     <input
                       type="text"
-                      value={formEditProf.nome_mae}
-                      onChange={(e) => handleEditUpperChange('nome_mae', e.target.value)}
-                      placeholder="NOME COMPLETO DA MÃE"
+                      value={formEditProf.filiacao_1 || formEditProf.nome_mae}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setFormEditProf((prev) => ({ ...prev, filiacao_1: val, nome_mae: val }));
+                      }}
+                      placeholder="NOME COMPLETO DA MÃE / FILIAÇÃO 1"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </div>
 
                   <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Nome do Pai
+                      Filiação 2 (Pai / Outro)
                     </label>
                     <input
                       type="text"
-                      value={formEditProf.nome_pai}
-                      onChange={(e) => handleEditUpperChange('nome_pai', e.target.value)}
-                      placeholder="NOME COMPLETO DO PAI"
+                      value={formEditProf.filiacao_2 || formEditProf.nome_pai}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setFormEditProf((prev) => ({ ...prev, filiacao_2: val, nome_pai: val }));
+                      }}
+                      placeholder="NOME COMPLETO DO PAI / FILIAÇÃO 2"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </div>
 
+                  {/* CEP com busca automática ViaCEP */}
                   <div className="sm:col-span-2">
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                          CEP (Busca Automática)
+                        </label>
+                        <input
+                          type="text"
+                          value={formEditProf.cep}
+                          onChange={(e) => {
+                            const cepFormatado = formatarCEP(e.target.value);
+                            setFormEditProf((prev) => ({ ...prev, cep: cepFormatado }));
+                            if (cepFormatado.replace(/\D/g, '').length === 8) {
+                              handleConsultarCepEdit(cepFormatado);
+                            }
+                          }}
+                          placeholder="00000-000"
+                          maxLength={9}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleConsultarCepEdit(formEditProf.cep)}
+                        disabled={buscandoCepEdit || formEditProf.cep.replace(/\D/g, '').length !== 8}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                      >
+                        {buscandoCepEdit ? <Loader2 className="h-4 w-4 animate-spin text-school-blue-600" /> : <Search className="h-4 w-4" />}
+                        <span>Buscar</span>
+                      </button>
+                    </div>
+                    {cepEditFeedback && (
+                      <span className="text-[11px] font-semibold text-school-blue-600 dark:text-school-gold-400 mt-1 block">
+                        {cepEditFeedback}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                      Endereço Completo
+                      Logradouro (Rua, Av.)
                     </label>
                     <input
                       type="text"
-                      value={formEditProf.endereco_completo}
-                      onChange={(e) => handleEditUpperChange('endereco_completo', e.target.value)}
-                      placeholder="RUA, NÚMERO, BAIRRO, CIDADE - UF"
+                      value={formEditProf.logradouro}
+                      onChange={(e) => handleEditUpperChange('logradouro', e.target.value)}
+                      placeholder="RUA DAS FLORES"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Número
+                      </label>
+                      <input
+                        type="text"
+                        value={formEditProf.numero}
+                        onChange={(e) => handleEditUpperChange('numero', e.target.value)}
+                        placeholder="123"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Complemento
+                      </label>
+                      <input
+                        type="text"
+                        value={formEditProf.complemento}
+                        onChange={(e) => handleEditUpperChange('complemento', e.target.value)}
+                        placeholder="APTO 101"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                      Bairro
+                    </label>
+                    <input
+                      type="text"
+                      value={formEditProf.bairro}
+                      onChange={(e) => handleEditUpperChange('bairro', e.target.value)}
+                      placeholder="CENTRO"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2">
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        Cidade
+                      </label>
+                      <input
+                        type="text"
+                        value={formEditProf.cidade}
+                        onChange={(e) => handleEditUpperChange('cidade', e.target.value)}
+                        placeholder="CIDADE"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                        UF
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={2}
+                        value={formEditProf.uf}
+                        onChange={(e) => handleEditUpperChange('uf', e.target.value)}
+                        placeholder="PE"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1723,13 +2277,26 @@ export default function ProfessoresPage() {
 
                   <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                      Celular / WhatsApp
+                    </label>
+                    <input
+                      type="text"
+                      value={formEditProf.celular_whatsapp}
+                      onChange={(e) => setFormEditProf({ ...formEditProf, celular_whatsapp: formatarTelefone(e.target.value) })}
+                      placeholder="(81) 98888-7777"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
                       E-mail Institucional
                     </label>
                     <input
                       type="email"
                       value={formEditProf.email}
                       onChange={(e) => handleEditUpperChange('email', e.target.value)}
-                      placeholder="DOCENTE@ESCOLA.EDU.BR"
+                      placeholder="COLABORADOR@ESCOLA.EDU.BR"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </div>
@@ -1742,7 +2309,20 @@ export default function ProfessoresPage() {
                       type="text"
                       value={formEditProf.contato_emergencia_nome}
                       onChange={(e) => handleEditUpperChange('contato_emergencia_nome', e.target.value)}
-                      placeholder="EX: MARIA SILVA (ESPOSA)"
+                      placeholder="EX: MARIA SILVA"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                      Parentesco do Contato
+                    </label>
+                    <input
+                      type="text"
+                      value={formEditProf.contato_emergencia_parentesco}
+                      onChange={(e) => handleEditUpperChange('contato_emergencia_parentesco', e.target.value)}
+                      placeholder="EX: CÔNJUGE, MÃE, IRMÃO"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </div>
@@ -1773,52 +2353,27 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-                  {/* Toggle Apoio */}
-                  <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30">
-                    <span className="font-bold text-purple-900 dark:text-purple-200 text-xs">
-                      Apoio Escolar / AEE
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setFormEditProf((prev) => ({ ...prev, eh_apoio: !prev.eh_apoio }))}
-                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        formEditProf.eh_apoio ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          formEditProf.eh_apoio ? 'translate-x-4' : 'translate-x-0'
+                  {/* Toggle Apoio (somente para Docentes) */}
+                  {formEditProf.tipo_profissional !== 'funcionario' && (
+                    <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30 sm:col-span-2">
+                      <span className="font-bold text-purple-900 dark:text-purple-200 text-xs">
+                        Apoio Escolar / AEE
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFormEditProf((prev) => ({ ...prev, eh_apoio: !prev.eh_apoio }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formEditProf.eh_apoio ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Toggle Status Ativo/Inativo */}
-                  <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-                    <div>
-                      <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
-                        Status do Docente
-                      </span>
-                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
-                        {formEditProf.ativo ? 'Ativo no Quadro' : 'Inativo / Afastado'}
-                      </span>
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            formEditProf.eh_apoio ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={formEditProf.ativo}
-                      onClick={() => setFormEditProf((prev) => ({ ...prev, ativo: !prev.ativo }))}
-                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        formEditProf.ativo ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          formEditProf.ativo ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -1831,7 +2386,7 @@ export default function ProfessoresPage() {
                   rows={2}
                   value={formEditProf.observacoes}
                   onChange={(e) => handleEditUpperChange('observacoes', e.target.value)}
-                  placeholder="OBSERVAÇÕES ADICIONAIS SOBRE O DOCENTE..."
+                  placeholder="OBSERVAÇÕES ADICIONAIS SOBRE O COLABORADOR..."
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                 />
               </div>
@@ -1857,7 +2412,7 @@ export default function ProfessoresPage() {
         </div>
       )}
 
-      {/* MODAL 3: Ficha Funcional Completa do Professor */}
+      {/* MODAL 3: Ficha Funcional Completa do Colaborador (Docente ou Funcionário) */}
       {modalFichaProfAberto && professorSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
@@ -1865,8 +2420,27 @@ export default function ProfessoresPage() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-xs font-bold text-school-blue-700 dark:text-school-gold-400 uppercase">
-                    {professorSelecionado.matricula}
+                    {professorSelecionado.matricula || 'MATRÍCULA N/I'}
                   </span>
+
+                  {professorSelecionado.tipo_profissional === 'funcionario' ? (
+                    <>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300/80">
+                        <span>{getEmojiFuncao(professorSelecionado.funcao_escola)}</span>
+                        <span>{professorSelecionado.funcao_escola || 'FUNCIONÁRIO'}</span>
+                      </span>
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        {professorSelecionado.vinculo_empregaticio || 'EFETIVO'}
+                      </span>
+                    </>
+                  ) : (
+                    professorSelecionado.eh_apoio && (
+                      <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60">
+                        Apoio / AEE
+                      </span>
+                    )
+                  )}
+
                   {professorSelecionado.ativo !== false ? (
                     <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -1876,11 +2450,6 @@ export default function ProfessoresPage() {
                     <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/70">
                       <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
                       Inativo
-                    </span>
-                  )}
-                  {professorSelecionado.eh_apoio && (
-                    <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60">
-                      Apoio / AEE
                     </span>
                   )}
                 </div>
@@ -1908,69 +2477,181 @@ export default function ProfessoresPage() {
               </div>
             </div>
 
-            <div className="mt-5 space-y-4 text-xs uppercase text-slate-700 dark:text-slate-300">
-              {/* Documentação */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-1.5">
-                <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Documentos Pessoais</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <div><strong>CPF:</strong> {professorSelecionado.cpf || 'NÃO INFORMADO'}</div>
-                  <div><strong>RG:</strong> {professorSelecionado.rg || 'NÃO INFORMADO'}</div>
-                  <div><strong>Expedição RG:</strong> {professorSelecionado.rg_data_expedicao ? new Date(professorSelecionado.rg_data_expedicao).toLocaleDateString('pt-BR') : 'NÃO INFORMADA'}</div>
-                </div>
-              </div>
-
-              {/* Formação e Titulação */}
-              <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/40 dark:bg-blue-950/20 space-y-1.5">
-                <h4 className="font-bold text-school-blue-950 dark:text-blue-200 text-[11px]">Formação & Titulação</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div><strong>Titulação:</strong> <span className="font-bold text-school-blue-700 dark:text-school-gold-400">{professorSelecionado.titulacao || 'GRADUAÇÃO'}</span></div>
-                  <div><strong>Curso / Área:</strong> {professorSelecionado.formacao || 'NÃO DECLARADA'}</div>
-                  <div className="sm:col-span-2">
-                    <strong>Graduação:</strong> {professorSelecionado.graduacao_instituicao || 'NÃO INFORMADA'} 
-                    {professorSelecionado.graduacao_inicio && ` (${professorSelecionado.graduacao_inicio} a ${professorSelecionado.graduacao_fim || 'ATUAL'})`}
-                  </div>
-                  <div className="sm:col-span-2">
-                    <strong>Pós-Graduação:</strong> {professorSelecionado.pos_graduacao_instituicao || 'NÃO INFORMADA'}
-                    {professorSelecionado.pos_graduacao_inicio && ` (${professorSelecionado.pos_graduacao_inicio} a ${professorSelecionado.pos_graduacao_fim || 'ATUAL'})`}
-                  </div>
-                  <div className="sm:col-span-2">
-                    <strong>Disciplinas:</strong> {professorSelecionado.disciplinas?.join(', ') || 'NENHUMA'}
+            {/* Conteúdo da Ficha: Condicional para Funcionário vs Docente */}
+            {professorSelecionado.tipo_profissional === 'funcionario' ? (
+              <div className="mt-5 space-y-4 text-xs uppercase text-slate-700 dark:text-slate-300">
+                {/* 1. Identificação Civil e Funcional */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
+                    <UserCheck className="h-4 w-4 text-amber-600" />
+                    1. Identificação Civil e Funcional
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    <div><strong>CPF:</strong> {professorSelecionado.cpf || 'NÃO INFORMADO'}</div>
+                    <div><strong>RG:</strong> {professorSelecionado.rg || 'NÃO INFORMADO'}</div>
+                    <div>
+                      <strong>Data Nascimento:</strong>{' '}
+                      {professorSelecionado.data_nascimento
+                        ? new Date(professorSelecionado.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR')
+                        : 'NÃO INFORMADA'}
+                    </div>
+                    <div><strong>Gênero:</strong> {professorSelecionado.genero || 'NÃO INFORMADO'}</div>
+                    <div><strong>Matrícula:</strong> {professorSelecionado.matricula || 'NÃO INFORMADA'}</div>
+                    <div><strong>Vínculo:</strong> {professorSelecionado.vinculo_empregaticio || 'EFETIVO'}</div>
                   </div>
                 </div>
-              </div>
 
-              {/* Filiação e Residência */}
-              <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-1.5">
-                <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Filiação & Residência</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div><strong>Mãe:</strong> {professorSelecionado.nome_mae || 'NÃO INFORMADA'}</div>
-                  <div><strong>Pai:</strong> {professorSelecionado.nome_pai || 'NÃO INFORMADO'}</div>
-                  <div className="sm:col-span-2"><strong>Endereço Completo:</strong> {professorSelecionado.endereco_completo || 'NÃO INFORMADO'}</div>
+                {/* 2. Função na Escola */}
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20 space-y-2">
+                  <h4 className="font-bold text-amber-900 dark:text-amber-200 text-[11px] flex items-center gap-1.5">
+                    <Briefcase className="h-4 w-4 text-amber-600" />
+                    2. Função na Escola
+                  </h4>
+                  <div className="inline-flex items-center gap-3 rounded-xl bg-white p-3 border border-amber-300 dark:bg-school-dark-surface dark:border-amber-700/60 shadow-sm w-full">
+                    <span className="text-3xl">{getEmojiFuncao(professorSelecionado.funcao_escola)}</span>
+                    <div>
+                      <span className="text-sm font-black text-amber-950 dark:text-amber-200 block">
+                        {professorSelecionado.funcao_escola || 'NÃO DEFINIDA'}
+                      </span>
+                      <span className="text-[10px] text-slate-500 normal-case block">
+                        Profissional do quadro funcional e operacional da unidade escolar
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Telefones e Emergência */}
-              <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-1.5">
-                <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Contatos & Emergência</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div><strong>Telefone:</strong> {professorSelecionado.telefone || 'NÃO INFORMADO'}</div>
-                  <div><strong>E-mail:</strong> {professorSelecionado.email || 'NÃO INFORMADO'}</div>
-                  <div><strong>Contato Emergência:</strong> {professorSelecionado.contato_emergencia_nome || 'NÃO INFORMADO'}</div>
-                  <div><strong>Tel. Emergência 1:</strong> {professorSelecionado.telefone_emergencia || 'NÃO INFORMADO'}</div>
-                  <div className="sm:col-span-2"><strong>Tel. Emergência 2:</strong> {professorSelecionado.telefone_emergencia2 || 'NÃO INFORMADO'}</div>
+                {/* 3. Filiação & Endereço Completo */}
+                <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4 text-school-blue-600" />
+                    3. Filiação & Endereço Completo
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div><strong>Filiação 1 (Mãe):</strong> {professorSelecionado.filiacao_1 || professorSelecionado.nome_mae || 'NÃO INFORMADA'}</div>
+                    <div><strong>Filiação 2 (Pai):</strong> {professorSelecionado.filiacao_2 || professorSelecionado.nome_pai || 'NÃO INFORMADO'}</div>
+                    <div><strong>CEP:</strong> {professorSelecionado.cep || 'NÃO INFORMADO'}</div>
+                    <div><strong>Bairro:</strong> {professorSelecionado.bairro || 'NÃO INFORMADO'}</div>
+                    <div className="sm:col-span-2">
+                      <strong>Logradouro / Nº / Compl:</strong>{' '}
+                      {[
+                        professorSelecionado.logradouro,
+                        professorSelecionado.numero ? `Nº ${professorSelecionado.numero}` : '',
+                        professorSelecionado.complemento,
+                      ].filter(Boolean).join(', ') || professorSelecionado.endereco_completo || 'NÃO INFORMADO'}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <strong>Cidade / UF:</strong>{' '}
+                      {professorSelecionado.cidade
+                        ? `${professorSelecionado.cidade} - ${professorSelecionado.uf || 'PE'}`
+                        : 'NÃO INFORMADA'}
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Observações */}
-              {professorSelecionado.observacoes && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-1">
-                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Observações</h4>
-                  <p className="text-slate-600 dark:text-slate-300 font-normal">
-                    {professorSelecionado.observacoes}
-                  </p>
+                {/* 4. Contatos & Telefones de Emergência */}
+                <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
+                    <Phone className="h-4 w-4 text-school-blue-600" />
+                    4. Contatos & Telefones de Emergência
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div><strong>E-mail:</strong> {professorSelecionado.email || 'NÃO INFORMADO'}</div>
+                    <div><strong>Telefone Principal:</strong> {professorSelecionado.telefone || 'NÃO INFORMADO'}</div>
+                    <div><strong>Celular / WhatsApp:</strong> {professorSelecionado.celular_whatsapp || professorSelecionado.telefone || 'NÃO INFORMADO'}</div>
+                    <div>
+                      <strong>Contato de Emergência:</strong>{' '}
+                      {professorSelecionado.contato_emergencia_nome || 'NÃO INFORMADO'}{' '}
+                      {professorSelecionado.contato_emergencia_parentesco
+                        ? `(${professorSelecionado.contato_emergencia_parentesco})`
+                        : ''}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <strong>Telefone de Emergência:</strong>{' '}
+                      {professorSelecionado.telefone_emergencia || professorSelecionado.telefone_emergencia2 || 'NÃO INFORMADO'}
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* 5. Observações */}
+                {professorSelecionado.observacoes && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-1">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Observações / Histórico</h4>
+                    <p className="text-slate-600 dark:text-slate-300 font-normal normal-case">
+                      {professorSelecionado.observacoes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-5 space-y-4 text-xs uppercase text-slate-700 dark:text-slate-300">
+                {/* Documentação */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-1.5">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Documentos Pessoais</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div><strong>CPF:</strong> {professorSelecionado.cpf || 'NÃO INFORMADO'}</div>
+                    <div><strong>RG:</strong> {professorSelecionado.rg || 'NÃO INFORMADO'}</div>
+                    <div>
+                      <strong>Expedição RG:</strong>{' '}
+                      {professorSelecionado.rg_data_expedicao
+                        ? new Date(professorSelecionado.rg_data_expedicao + 'T00:00:00').toLocaleDateString('pt-BR')
+                        : 'NÃO INFORMADA'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Formação e Titulação */}
+                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/40 dark:bg-blue-950/20 space-y-1.5">
+                  <h4 className="font-bold text-school-blue-950 dark:text-blue-200 text-[11px]">Formação & Titulação</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div><strong>Titulação:</strong> <span className="font-bold text-school-blue-700 dark:text-school-gold-400">{professorSelecionado.titulacao || 'GRADUAÇÃO'}</span></div>
+                    <div><strong>Curso / Área:</strong> {professorSelecionado.formacao || 'NÃO DECLARADA'}</div>
+                    <div className="sm:col-span-2">
+                      <strong>Graduação:</strong> {professorSelecionado.graduacao_instituicao || 'NÃO INFORMADA'} 
+                      {professorSelecionado.graduacao_inicio && ` (${professorSelecionado.graduacao_inicio} a ${professorSelecionado.graduacao_fim || 'ATUAL'})`}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <strong>Pós-Graduação:</strong> {professorSelecionado.pos_graduacao_instituicao || 'NÃO INFORMADA'}
+                      {professorSelecionado.pos_graduacao_inicio && ` (${professorSelecionado.pos_graduacao_inicio} a ${professorSelecionado.pos_graduacao_fim || 'ATUAL'})`}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <strong>Disciplinas:</strong> {professorSelecionado.disciplinas?.join(', ') || 'NENHUMA'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filiação e Residência */}
+                <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-1.5">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Filiação & Residência</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div><strong>Mãe:</strong> {professorSelecionado.nome_mae || 'NÃO INFORMADA'}</div>
+                    <div><strong>Pai:</strong> {professorSelecionado.nome_pai || 'NÃO INFORMADO'}</div>
+                    <div className="sm:col-span-2"><strong>Endereço Completo:</strong> {professorSelecionado.endereco_completo || 'NÃO INFORMADO'}</div>
+                  </div>
+                </div>
+
+                {/* Telefones e Emergência */}
+                <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-1.5">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Contatos & Emergência</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div><strong>Telefone:</strong> {professorSelecionado.telefone || 'NÃO INFORMADO'}</div>
+                    <div><strong>E-mail:</strong> {professorSelecionado.email || 'NÃO INFORMADO'}</div>
+                    <div><strong>Contato Emergência:</strong> {professorSelecionado.contato_emergencia_nome || 'NÃO INFORMADO'}</div>
+                    <div><strong>Tel. Emergência 1:</strong> {professorSelecionado.telefone_emergencia || 'NÃO INFORMADO'}</div>
+                    <div className="sm:col-span-2"><strong>Tel. Emergência 2:</strong> {professorSelecionado.telefone_emergencia2 || 'NÃO INFORMADO'}</div>
+                  </div>
+                </div>
+
+                {/* Observações */}
+                {professorSelecionado.observacoes && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-1">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Observações</h4>
+                    <p className="text-slate-600 dark:text-slate-300 font-normal">
+                      {professorSelecionado.observacoes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2086,6 +2767,13 @@ export default function ProfessoresPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL 5: Cadastrar Novo Funcionário */}
+      <ModalNovoFuncionario
+        isOpen={modalNovoFuncAberto}
+        onClose={() => setModalNovoFuncAberto(false)}
+        onCadastrar={handleCadastrarFuncionario}
+      />
     </div>
   );
 }

@@ -189,25 +189,51 @@ export interface Estudante {
   created_at: string;
 }
 
-export type TitulacaoDocente = 'GRADUAÇÃO' | 'MESTRADO' | 'PÓS-GRADUAÇÃO' | 'DOUTOR' | 'PÓS-DOUTORADO';
+export type TipoProfissional = 'docente' | 'funcionario';
+
+export type FuncaoEscola = 
+  | 'Porteiro'
+  | 'Serviços Gerais'
+  | 'Administrativo'
+  | 'Readaptado'
+  | 'Merendeira'
+  | 'Ajudantes'
+  | 'Outros';
+
+export const FUNCOES_ESCOLA_LISTA: FuncaoEscola[] = [
+  'Porteiro',
+  'Serviços Gerais',
+  'Administrativo',
+  'Readaptado',
+  'Merendeira',
+  'Ajudantes',
+  'Outros',
+];
 
 export interface Professor {
   id: string;
   profile_id?: string;
   nome_completo: string;
   matricula: string;
-  formacao: string;
-  disciplinas: string[];
+  tipo_profissional?: TipoProfissional; // 'docente' | 'funcionario' (padrão: 'docente')
+  funcao_escola?: FuncaoEscola | string; // Obrigatório para funcionários: Porteiro, Serviços Gerais, Administrativo, etc.
+  formacao?: string;
+  disciplinas?: string[];
   telefone: string;
   email: string;
   ativo: boolean;
   eh_apoio?: boolean; // Opção de Profissional de Apoio Escolar / AEE (estilo toggle)
-  turmas_atribuidas_ids: string[];
+  turmas_atribuidas_ids?: string[];
 
-  // Novos campos funcionais e acadêmicos em caixa alta
+  // Identificação Civil e Funcional
   cpf?: string;
   rg?: string;
   rg_data_expedicao?: string;
+  data_nascimento?: string;
+  genero?: string; // 'MASCULINO' | 'FEMININO' | 'OUTRO' | 'NÃO INFORMADO'
+  vinculo_empregaticio?: string; // 'EFETIVO' | 'CONTRATADO' | 'CLT' | 'ESTAGIÁRIO' | 'TERCEIRIZADO' | 'OUTRO'
+
+  // Formação acadêmica (Docentes)
   graduacao_instituicao?: string;
   titulacao?: TitulacaoDocente | string;
   pos_graduacao_instituicao?: string;
@@ -215,16 +241,35 @@ export interface Professor {
   graduacao_fim?: string;
   pos_graduacao_inicio?: string;
   pos_graduacao_fim?: string;
-  endereco_completo?: string;
+
+  // Filiação & Endereço Completo
+  filiacao_1?: string; // Filiação 1 (ex: Mãe)
+  filiacao_2?: string; // Filiação 2 (ex: Pai)
   nome_mae?: string;
   nome_pai?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+  endereco_completo?: string;
+
+  // Contatos & Emergência
+  celular_whatsapp?: string;
   telefone_emergencia?: string;
   telefone_emergencia2?: string;
   contato_emergencia_nome?: string;
+  contato_emergencia_parentesco?: string;
   observacoes?: string;
 
   created_at: string;
 }
+
+export type Funcionario = Professor;
+export type Colaborador = Professor;
+
 
 export interface FaltaProfessor {
   id: string;

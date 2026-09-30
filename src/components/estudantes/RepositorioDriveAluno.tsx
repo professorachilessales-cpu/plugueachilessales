@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Estudante, DocumentoEstudanteDrive, TipoDocumentoDrive } from '@/lib/types';
 import { 
   Upload, 
   FileText, 
   Folder, 
+  FolderOpen,
   ExternalLink, 
   Trash2, 
   CheckCircle2, 
@@ -43,9 +44,43 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
   const { documentosEstudanteDrive, addDocumentoEstudanteDrive, deleteDocumentoEstudanteDrive } = useApp();
 
   // Cálculo da pasta normalizada
-  const primeiraLetra = (estudante.nome_completo || 'A').trim().charAt(0).toUpperCase();
+  const primeiraLetra = (estudante.nome_completo || 'A').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().charAt(0).toUpperCase();
   const nomeEstudanteFormatado = (estudante.nome_completo || 'ESTUDANTE').trim().toUpperCase();
   const caminhoPastaDrive = `FICHA DOS ESTUDANTES / ${primeiraLetra} / ${nomeEstudanteFormatado}`;
+
+  // Estado do link direto da pasta do estudante no Google Drive e arquivos físicos
+  const [pastaDriveUrl, setPastaDriveUrl] = useState<string | null>(null);
+  const [arquivosDriveFisicos, setArquivosDriveFisicos] = useState<DocumentoEstudanteDrive[]>([]);
+  const [carregandoPastaDrive, setCarregandoPastaDrive] = useState<boolean>(true);
+
+  // Efeito para carregar ou resolver a URL da pasta do estudante no Google Drive e listar arquivos físicos
+  useEffect(() => {
+    let ativo = true;
+    const buscarPasta = async () => {
+      try {
+        setCarregandoPastaDrive(true);
+        const res = await fetch(
+          `/api/drive/pasta-estudante?estudanteId=${encodeURIComponent(estudante.id)}&estudanteNome=${encodeURIComponent(estudante.nome_completo || '')}`
+        );
+        const data = await res.json();
+        if (ativo) {
+          if (data?.folder_url) {
+            setPastaDriveUrl(data.folder_url);
+          }
+          if (Array.isArray(data?.arquivos) && data.arquivos.length > 0) {
+            setArquivosDriveFisicos(data.arquivos);
+          }
+        }
+      } catch (err) {
+        console.warn('Falha ao resolver pasta do estudante no Google Drive:', err);
+      } finally {
+        if (ativo) setCarregandoPastaDrive(false);
+      }
+    };
+
+    buscarPasta();
+    return () => { ativo = false; };
+  }, [estudante.id, estudante.nome_completo]);
 
   // Estados de upload
   const [tipoDoc, setTipoDoc] = useState<TipoDocumentoDrive>('laudo_medico');
@@ -76,51 +111,80 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
   const [arquivoParaExcluir, setArquivoParaExcluir] = useState<DocumentoEstudanteDrive | null>(null);
   const [excluindo, setExcluindo] = useState(false);
 
-  // Resolução inteligente da URL de abertura do arquivo (Web View ou Mídia Direta)
+  // Validador estrito de IDs emitidos pelo Google Drive API
+  const isRealDriveId = (id?: string | null): boolean => {
+    if (!id || typeof id !== 'string') return false;
+    const limpo = id.trim();
+    if (
+      limpo.startsWith('drive_') ||
+      limpo.startsWith('mock_') ||
+      limpo.endsWith('_mock') ||
+      limpo.includes('mock') ||
+      limpo.startsWith('doc-') ||
+      limpo === 'default' ||
+      limpo.length < 25
+    ) {
+      return false;
+    }
+    return /^[a-zA-Z0-9_-]{25,50}$/.test(limpo);
+  };
+
+  // Resolução inteligente e garantida da URL de abertura do arquivo no Google Drive (Elimina Erro 400)
   const obterLinkVisualizacao = (doc: DocumentoEstudanteDrive): string => {
-    // 1. Extração do File ID real do Google Drive
+    // 1. Extração preliminar de File ID do Google Drive
     let fileId = doc.drive_file_id;
-    if (!fileId && doc.id && !doc.id.startsWith('doc-')) {
+    if (!fileId && doc.id && isRealDriveId(doc.id)) {
       fileId = doc.id;
     }
-    if (!fileId && (doc.drive_view_url || doc.url_visualizacao)) {
-      const urlStr = doc.drive_view_url || doc.url_visualizacao || '';
-      const match = urlStr.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        fileId = match[1];
+
+    const urlSalva = doc.drive_view_url || doc.url_visualizacao || (doc as any).drive_view_link || '';
+
+    // Se temos uma URL salva contendo /file/d/ com ID real do Google Drive
+    if (urlSalva) {
+      const match = urlSalva.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1] && isRealDriveId(match[1])) {
+        return `https://drive.google.com/file/d/${match[1]}/view`;
+      }
+      if (urlSalva.includes('/drive/folders/')) {
+        return urlSalva;
+      }
+      if (urlSalva.includes('/document/d/') || urlSalva.includes('/forms/d/') || urlSalva.includes('/spreadsheets/d/')) {
+        return urlSalva;
+      }
+      // Se for uma URL lh3 antiga salva, extrai o ID real dela para abrir no Google Drive
+      if (urlSalva.includes('googleusercontent.com/d/')) {
+        const matchLh3 = urlSalva.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        if (matchLh3 && matchLh3[1] && isRealDriveId(matchLh3[1])) {
+          return `https://drive.google.com/file/d/${matchLh3[1]}/view`;
+        }
       }
     }
 
-    const nome = (doc.nome_arquivo || '').toLowerCase();
-    const isImagemOuMidia =
-      nome.endsWith('.png') ||
-      nome.endsWith('.jpg') ||
-      nome.endsWith('.jpeg') ||
-      (doc.mime_type && doc.mime_type.startsWith('image/'));
-
-    // Link direto de imagem/mídia formatado (lh3)
-    if (fileId && isImagemOuMidia && !fileId.startsWith('drive_sim_') && !fileId.startsWith('mock_')) {
-      return `https://lh3.googleusercontent.com/d/${fileId}`;
+    // 2. Se o fileId atual é um ID real comprovado do Google Drive
+    if (isRealDriveId(fileId)) {
+      return `https://drive.google.com/file/d/${fileId}/view`;
     }
 
-    // Link padrão de visualização web do Google Drive
-    if (fileId && !fileId.startsWith('drive_sim_') && !fileId.startsWith('mock_')) {
-      return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+    // 3. Se for ID simulado / legado, busca se há correspondência nos arquivos físicos reais da pasta do aluno
+    if (arquivosDriveFisicos.length > 0) {
+      const docNomeLimpo = (doc.nome_arquivo || '').toLowerCase().replace(/\[[^\]]+\]_/g, '').trim();
+      const correspondente = arquivosDriveFisicos.find(af => {
+        const afNomeLimpo = (af.nome_arquivo || '').toLowerCase().replace(/\[[^\]]+\]_/g, '').trim();
+        return afNomeLimpo.includes(docNomeLimpo) || docNomeLimpo.includes(afNomeLimpo);
+      });
+      if (correspondente && isRealDriveId(correspondente.drive_file_id)) {
+        return `https://drive.google.com/file/d/${correspondente.drive_file_id}/view`;
+      }
     }
 
-    // Fallbacks para URLs salvas válidas
-    if (doc.drive_view_url && doc.drive_view_url !== 'https://drive.google.com' && doc.drive_view_url !== '#') {
-      return doc.drive_view_url;
-    }
-    if (doc.url_visualizacao && doc.url_visualizacao !== 'https://drive.google.com' && doc.url_visualizacao !== '#') {
-      return doc.url_visualizacao;
+    // 4. Fallback 100% à prova de Erro 400:
+    // Nunca gere /file/d/ para IDs não validados pelo Google. Abra a pasta do estudante no Drive
+    if (pastaDriveUrl) {
+      return pastaDriveUrl;
     }
 
-    if (fileId) {
-      return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
-    }
-
-    return 'https://drive.google.com';
+    const termoBusca = doc.nome_arquivo || estudante.nome_completo || '';
+    return `https://drive.google.com/drive/u/0/search?q=${encodeURIComponent(termoBusca)}`;
   };
 
   // Confirmação de exclusão física no Google Drive com auditoria
@@ -146,17 +210,69 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
     }
   };
 
-  // Documentos cadastrados para este estudante com ordenação segura
+  // Documentos cadastrados para este estudante com ordenação segura e mesclagem de fontes
   const documentos = useMemo(() => {
-    return documentosEstudanteDrive
-      .filter(d => d.aluno_id === estudante.id)
+    const lista1 = documentosEstudanteDrive.filter(
+      d => d.aluno_id === estudante.id || (d as any).estudante_id === estudante.id
+    );
+
+    // Complementa com documentos anexados diretamente na ficha do estudante (se houver)
+    const lista2 = ((estudante as any).documentos || []).map((doc: any) => ({
+      id: doc.id || `doc-${doc.drive_file_id}`,
+      aluno_id: estudante.id,
+      estudante_id: estudante.id,
+      drive_file_id: doc.drive_file_id,
+      nome_arquivo: doc.nome_arquivo,
+      url_visualizacao: doc.drive_view_link,
+      drive_view_url: doc.drive_view_link,
+      tipo_documento: doc.tipo_documento,
+      tipo: doc.tipo_documento,
+      tamanho_bytes: doc.tamanho_bytes,
+      mime_type: doc.mime_type,
+      data_upload: doc.created_at,
+    }));
+
+    // Complementa com arquivos físicos reais detectados na pasta do Google Drive
+    const lista3 = arquivosDriveFisicos.map((af: any) => ({
+      ...af,
+      aluno_id: estudante.id,
+      estudante_id: estudante.id,
+    }));
+
+    // Mescla sem duplicatas priorizando arquivos com IDs reais do Google Drive
+    const mapa = new Map<string, DocumentoEstudanteDrive>();
+    [...lista1, ...lista2, ...lista3].forEach(doc => {
+      // Normalização de nome para cruzar arquivos físicos reais com metadados do banco
+      const nomeBase = (doc.nome_arquivo || '').toLowerCase().replace(/\[[^\]]+\]_/g, '').trim();
+      const chave = nomeBase || doc.drive_file_id || doc.id || '';
+
+      if (chave) {
+        const existente = mapa.get(chave);
+        if (!existente) {
+          mapa.set(chave, doc);
+        } else {
+          // Se o novo registro tiver ID real do Drive e o anterior não tinha, substitui
+          if (!isRealDriveId(existente.drive_file_id) && isRealDriveId(doc.drive_file_id)) {
+            mapa.set(chave, {
+              ...existente,
+              drive_file_id: doc.drive_file_id,
+              url_visualizacao: doc.url_visualizacao,
+              drive_view_url: doc.drive_view_url,
+              drive_download_url: doc.drive_download_url || existente.drive_download_url,
+            });
+          }
+        }
+      }
+    });
+
+    return Array.from(mapa.values())
       .filter(d => filtroTipo === 'todos' || (d.tipo_documento || d.tipo) === filtroTipo)
       .sort((a, b) => {
         const timeA = new Date(a.data_upload || (a as any).createdTime || 0).getTime() || 0;
         const timeB = new Date(b.data_upload || (b as any).createdTime || 0).getTime() || 0;
         return timeB - timeA;
       });
-  }, [documentosEstudanteDrive, estudante.id, filtroTipo]);
+  }, [documentosEstudanteDrive, estudante.id, (estudante as any).documentos, arquivosDriveFisicos, filtroTipo]);
 
   const handleSelecionarArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErroUpload(null);
@@ -263,10 +379,31 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
           </p>
         </div>
 
-        {/* Caminho normalizado */}
-        <div className="rounded-xl bg-slate-100 px-3 py-1.5 text-[11px] font-mono font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
-          <Folder className="h-3.5 w-3.5 text-amber-500" />
-          <span>{caminhoPastaDrive}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Botão de Acesso Direto à Pasta no Google Drive */}
+          <a
+            href={pastaDriveUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(estudante.nome_completo || '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir pasta deste estudante no Google Drive"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition-all"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            <span>Abrir Pasta no Google Drive</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
+
+          {/* Caminho normalizado com link de acesso rápido */}
+          <a
+            href={pastaDriveUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(estudante.nome_completo || '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir no Google Drive"
+            className="rounded-xl bg-slate-100 hover:bg-slate-200 px-3 py-1.5 text-[11px] font-mono font-bold text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition-colors"
+          >
+            <Folder className="h-3.5 w-3.5 text-amber-500" />
+            <span>{caminhoPastaDrive}</span>
+          </a>
         </div>
       </div>
 

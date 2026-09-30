@@ -1686,17 +1686,27 @@ export default function EstudantesPage() {
                         </div>
                       </div>
 
-                      {doc.drive_view_link && (
-                        <a
-                          href={doc.drive_view_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 font-semibold text-school-blue-600 hover:underline dark:text-school-gold-400"
-                        >
-                          <span>Abrir no Drive</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
+                      {(() => {
+                        let link = doc.drive_view_link;
+                        if (!link || link === 'https://drive.google.com' || link === '#') {
+                          if (doc.drive_file_id && !doc.drive_file_id.startsWith('drive_mock') && !doc.drive_file_id.startsWith('drive_doc_') && doc.drive_file_id.length > 20) {
+                            link = `https://drive.google.com/file/d/${doc.drive_file_id}/view?usp=sharing`;
+                          } else {
+                            link = `https://drive.google.com/drive/search?q=${encodeURIComponent(doc.nome_arquivo || (estudanteSelecionado ? estudanteSelecionado.nome_completo : '') || '')}`;
+                          }
+                        }
+                        return (
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-semibold text-school-blue-600 hover:underline dark:text-school-gold-400"
+                          >
+                            <span>Abrir no Drive</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -2107,17 +2117,24 @@ export default function EstudantesPage() {
 
             {/* Ações */}
             <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-              {fotoPreviewEstudante.foto_url && (
-                <a
-                  href={fotoPreviewEstudante.foto_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 shadow-sm"
-                >
-                  <ExternalLink className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                  <span>Abrir no Google Drive</span>
-                </a>
-              )}
+              {fotoPreviewEstudante.foto_url && (() => {
+                let driveUrl = fotoPreviewEstudante.foto_url;
+                const match = driveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                if (match && match[1] && !match[1].startsWith('drive_foto_')) {
+                  driveUrl = `https://drive.google.com/file/d/${match[1]}/view?usp=sharing`;
+                }
+                return (
+                  <a
+                    href={driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 shadow-sm"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                    <span>Abrir no Google Drive</span>
+                  </a>
+                );
+              })()}
 
               <button
                 type="button"

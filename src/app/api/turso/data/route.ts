@@ -293,10 +293,58 @@ export async function GET() {
     // 12. Documentos do Estudante no Google Drive
     let documentosEstudanteDrive: any[] = [];
     try {
-      const driveDocsRes = await executeTursoQuery('SELECT * FROM documentos_estudante ORDER BY data_upload DESC');
-      documentosEstudanteDrive = driveDocsRes.rows;
+      // 12.1 Busca primariamente em documentos_estudantes (onde os uploads oficiais do Drive são gravados)
+      const driveDocsRes1 = await executeTursoQuery('SELECT * FROM documentos_estudantes ORDER BY created_at DESC');
+      const docs1 = (driveDocsRes1.rows || []).map((row: any) => ({
+        id: row.id,
+        aluno_id: row.estudante_id,
+        estudante_id: row.estudante_id,
+        nome_arquivo: row.nome_arquivo,
+        tamanho_bytes: row.tamanho_bytes,
+        mime_type: row.mime_type,
+        drive_file_id: row.drive_file_id,
+        drive_view_link: row.drive_view_link,
+        url_visualizacao: row.drive_view_link,
+        drive_view_url: row.drive_view_link,
+        tipo_documento: row.tipo_documento,
+        tipo: row.tipo_documento,
+        data_upload: row.created_at,
+        created_at: row.created_at,
+      }));
+
+      // 12.2 Busca complementar em documentos_estudante (se houver registros adicionais)
+      let docs2: any[] = [];
+      try {
+        const driveDocsRes2 = await executeTursoQuery('SELECT * FROM documentos_estudante ORDER BY data_upload DESC');
+        docs2 = (driveDocsRes2.rows || []).map((row: any) => ({
+          id: row.id,
+          aluno_id: row.aluno_id,
+          estudante_id: row.aluno_id,
+          nome_arquivo: row.nome_arquivo,
+          tamanho_bytes: row.tamanho_bytes,
+          mime_type: row.mime_type,
+          drive_file_id: row.drive_file_id,
+          drive_view_link: row.url_visualizacao,
+          url_visualizacao: row.url_visualizacao,
+          drive_view_url: row.url_visualizacao,
+          tipo_documento: row.tipo_documento,
+          tipo: row.tipo_documento,
+          data_upload: row.data_upload,
+          created_at: row.data_upload,
+        }));
+      } catch {}
+
+      // Mescla evitando duplicados por id ou drive_file_id
+      const idMap = new Set<string>();
+      for (const d of [...docs1, ...docs2]) {
+        const key = d.id || d.drive_file_id;
+        if (key && !idMap.has(key)) {
+          idMap.add(key);
+          documentosEstudanteDrive.push(d);
+        }
+      }
     } catch (e) {
-      console.warn('Tabela documentos_estudante ainda não criada no Turso:', e);
+      console.warn('Tabela de documentos do Drive ainda não criada no Turso:', e);
     }
 
     // 13. Atestados dos Professores

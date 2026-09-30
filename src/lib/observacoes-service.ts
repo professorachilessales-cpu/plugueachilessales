@@ -2,11 +2,13 @@ import { NextRequest } from 'next/server';
 import { executeTursoQuery, executeTursoTransaction, isTursoConfigured, TursoStatement } from '@/lib/turso';
 import { verifyJwt } from '@/lib/security';
 
+let tabelasGarantidas = false;
+
 /**
  * Garante que as tabelas necessárias de observações e auditoria existem no Turso com todas as colunas
  */
 export async function garantirTabelasObservacoes(): Promise<void> {
-  if (!isTursoConfigured) return;
+  if (!isTursoConfigured || tabelasGarantidas) return;
   try {
     // 1. Tabela observacoes_pedagogicas
     await executeTursoQuery(`
@@ -102,6 +104,7 @@ export async function garantirTabelasObservacoes(): Promise<void> {
         // Ignora erro se coluna já existir no SQLite
       }
     }
+    tabelasGarantidas = true;
   } catch (e) {
     console.warn('Aviso ao verificar tabelas de observações e auditoria:', e);
   }
@@ -219,7 +222,12 @@ export async function removerObservacaoComAuditoria(
   // 1.1 Consulta na tabela principal (observacoes_pedagogicas) ativa
   try {
     const res = await executeTursoQuery(
-      'SELECT * FROM observacoes_pedagogicas WHERE id = ? AND (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL LIMIT 1',
+      `SELECT * FROM observacoes_pedagogicas 
+       WHERE id = ? 
+         AND (deleted_at IS NULL OR deleted_at = '' OR deleted_at = 0)
+         AND (ativo = 1 OR ativo IS NULL OR ativo = '1')
+         AND (is_deleted = 0 OR is_deleted IS NULL OR is_deleted = '0')
+       LIMIT 1`,
       [observacaoId]
     );
     if (res.rows && res.rows.length > 0) {
@@ -233,7 +241,12 @@ export async function removerObservacaoComAuditoria(
   if (!registro) {
     try {
       const resLeg = await executeTursoQuery(
-        'SELECT * FROM observacoes_aluno WHERE id = ? AND (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL LIMIT 1',
+        `SELECT * FROM observacoes_aluno 
+         WHERE id = ? 
+           AND (deleted_at IS NULL OR deleted_at = '' OR deleted_at = 0)
+           AND (ativo = 1 OR ativo IS NULL OR ativo = '1')
+           AND (is_deleted = 0 OR is_deleted IS NULL OR is_deleted = '0')
+         LIMIT 1`,
         [observacaoId]
       );
       if (resLeg.rows && resLeg.rows.length > 0) {
@@ -274,8 +287,15 @@ export async function removerObservacaoComAuditoria(
     registro = payloadFallback.registro_completo;
   }
 
+  // Se o registro não existe de forma alguma no banco nem no payload, trata como já excluído com sucesso (idempotente)
   if (!registro && !payloadFallback?.estudante_id && !payloadFallback?.aluno_id) {
-    throw new Error('Observação não encontrada ou já excluída.');
+    return {
+      success: true,
+      observacaoId,
+      estudanteId: '',
+      auditRecord: null,
+      message: 'Observação já se encontrava excluída.',
+    };
   }
 
   // Extração precisa dos metadados da anotação
@@ -402,28 +422,7 @@ export async function removerObservacaoComAuditoria(
       ],
     },
 
-    // 2. Gravação de Log de Atividade do Sistema (activity_logs)
-    {
-      sql: `INSERT INTO activity_logs (
-        id,
-        action_type,
-        user_id,
-        user_name,
-        target_class_id,
-        target_class_name,
-        details,
-        created_at
-      ) VALUES (?, 'OBSERVACAO_DELETE', ?, ?, null, null, ?, ?)`,
-      args: [
-        activityLogId,
-        usuarioExecutorId,
-        usuarioExecutorNome,
-        JSON.stringify(detailsActivityLog),
-        agoraIso,
-      ],
-    },
-
-    // 3. Remoção da Timeline Ativa via Soft Delete (Exclusão Lógica)
+    // 2. Remoção da Timeline Ativa via Soft Delete (Exclusão Lógica)
     // Preserva o registro histórico no banco, mas oculta da timeline ativa
     {
       sql: `UPDATE observacoes_pedagogicas 
@@ -445,12 +444,23 @@ export async function removerObservacaoComAuditoria(
     },
   ];
 
-  // Executa toda a transação atômica
+  // Executa toda a transação atômica (Auditoria Obrigatória + Soft Delete)
   try {
     await executeTursoTransaction(statements);
   } catch (error: any) {
     console.error("Erro na exclusão/auditoria:", error);
     throw new Error(`Falha atômica ao excluir observação e gravar auditoria: ${error?.message || String(error)}`);
+  }
+
+  // Gravação secundária em activity_logs (fora da transação principal, sem quebrar exclusão caso haja restrição de CHECK)
+  try {
+    await executeTursoQuery(
+      `INSERT INTO activity_logs (id, action_type, user_id, user_name, target_class_id, target_class_name, details, created_at)
+       VALUES (?, 'OBSERVACAO_DELETE', ?, ?, null, null, ?, ?)`,
+      [activityLogId, usuarioExecutorId, usuarioExecutorNome, JSON.stringify(detailsActivityLog), agoraIso]
+    );
+  } catch (logErr) {
+    // Ignora restrições de CHECK legadas em activity_logs sem impactar a exclusão
   }
 
   return {

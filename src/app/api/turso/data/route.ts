@@ -200,9 +200,26 @@ export async function GET() {
       // 1. Tentar ler da tabela observacoes_pedagogicas (apenas ativas e não excluídas)
       let carregou = false;
       try {
-        const pedRes = await executeTursoQuery(
-          'SELECT * FROM observacoes_pedagogicas WHERE (deleted_at IS NULL OR deleted_at = \'\') AND (ativo = 1 OR ativo IS NULL) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at DESC'
-        );
+        const pedRes = await executeTursoQuery(`
+          SELECT 
+            o.id,
+            o.estudante_id,
+            o.usuario_id,
+            COALESCE(u.name, o.autor_nome, 'Equipe Escolar') AS autor_nome,
+            o.categoria,
+            o.texto,
+            o.created_at,
+            o.ativo,
+            o.deleted_at,
+            o.is_deleted,
+            o.excluido_por_usuario_id
+          FROM observacoes_pedagogicas o
+          LEFT JOIN users u ON u.id = o.usuario_id
+          WHERE (o.deleted_at IS NULL OR o.deleted_at = '' OR o.deleted_at = 0)
+            AND (o.ativo = 1 OR o.ativo IS NULL OR o.ativo = '1')
+            AND (o.is_deleted = 0 OR o.is_deleted IS NULL OR o.is_deleted = '0')
+          ORDER BY o.created_at DESC
+        `);
         if (pedRes.rows) {
           observacoesAluno = pedRes.rows.map((row: any) => ({
             id: row.id,
@@ -219,9 +236,9 @@ export async function GET() {
             created_at: row.created_at || new Date().toISOString(),
             data_registro: row.created_at || new Date().toISOString(),
             deleted_at: row.deleted_at || null,
-            is_deleted: row.is_deleted || 0,
+            is_deleted: row.is_deleted === 1 || row.is_deleted === '1' ? 1 : 0,
             excluido_por_usuario_id: row.excluido_por_usuario_id || null,
-            ativo: row.ativo,
+            ativo: row.ativo === 0 || row.ativo === '0' ? 0 : 1,
           }));
           carregou = true;
         }
@@ -231,9 +248,13 @@ export async function GET() {
 
       // 2. Se a tabela observacoes_pedagogicas não pôde ser consultada (ex: ausente), busca na observacoes_aluno
       if (!carregou) {
-        const obsRes = await executeTursoQuery(
-          'SELECT * FROM observacoes_aluno WHERE (deleted_at IS NULL OR deleted_at = \'\') AND (ativo = 1 OR ativo IS NULL) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at DESC, data_registro DESC'
-        );
+        const obsRes = await executeTursoQuery(`
+          SELECT * FROM observacoes_aluno 
+          WHERE (deleted_at IS NULL OR deleted_at = '' OR deleted_at = 0) 
+            AND (ativo = 1 OR ativo IS NULL OR ativo = '1') 
+            AND (is_deleted = 0 OR is_deleted IS NULL OR is_deleted = '0') 
+          ORDER BY created_at DESC, data_registro DESC
+        `);
         observacoesAluno = (obsRes.rows || []).map((row: any) => ({
           id: row.id,
           estudante_id: row.estudante_id || row.aluno_id,
@@ -249,9 +270,9 @@ export async function GET() {
           created_at: row.created_at || row.data_registro || new Date().toISOString(),
           data_registro: row.data_registro || row.created_at || new Date().toISOString(),
           deleted_at: row.deleted_at || null,
-          is_deleted: row.is_deleted || 0,
+          is_deleted: row.is_deleted === 1 || row.is_deleted === '1' ? 1 : 0,
           excluido_por_usuario_id: row.excluido_por_usuario_id || null,
-          ativo: row.ativo,
+          ativo: row.ativo === 0 || row.ativo === '0' ? 0 : 1,
         }));
       }
     } catch (e) {

@@ -58,6 +58,23 @@ const CATEGORIAS_CONFIG: Record<TipoObservacaoAluno, { label: string; cor: strin
   },
 };
 
+function isObservacaoAtiva(o: any): boolean {
+  if (!o) return false;
+  // Se possui carimbo de exclusão válido
+  if (o.deleted_at && o.deleted_at !== '' && o.deleted_at !== '0' && o.deleted_at !== 0 && o.deleted_at !== 'null') {
+    return false;
+  }
+  // Se foi explicitamente marcado como deletado
+  if (o.is_deleted === 1 || o.is_deleted === '1' || o.is_deleted === true) {
+    return false;
+  }
+  // Se foi explicitamente inativado (ativo = 0)
+  if (o.ativo === 0 || o.ativo === '0' || o.ativo === false) {
+    return false;
+  }
+  return true;
+}
+
 export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAlunoProps) {
   const { 
     currentUser, 
@@ -85,22 +102,27 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
   const [modalAuditoriaAberto, setModalAuditoriaAberto] = useState(false);
   const [filtroAuditoriaEvento, setFiltroAuditoriaEvento] = useState<'todos' | 'DELETE' | 'UPDATE'>('todos');
 
-  // Observações deste estudante ordenadas SEMPRE da mais recente para a mais antiga (created_at DESC)
-  // Filtra expressamente apenas registros ativos e não excluídos (deleted_at IS NULL)
+  // Observações ativas (não excluídas) deste estudante
+  const observacoesAtivasDesteEstudante = useMemo(() => {
+    return observacoesAluno.filter(
+      o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id) && isObservacaoAtiva(o)
+    );
+  }, [observacoesAluno, estudante.id]);
+
+  // Observações filtradas por categoria ordenadas SEMPRE da mais recente para a mais antiga (created_at DESC)
   const observacoes = useMemo(() => {
-    return observacoesAluno
-      .filter(o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id))
-      .filter(o => !o.deleted_at && (o.ativo === undefined || o.ativo === 1 || o.ativo === '1' || o.ativo === true) && !o.is_deleted)
+    return observacoesAtivasDesteEstudante
       .filter(o => {
-        const cat = o.categoria || o.tipo;
-        return filtroCategoria === 'todos' || cat === filtroCategoria;
+        if (!filtroCategoria || filtroCategoria === 'todos') return true;
+        const cat = (o.categoria || o.tipo || '').toLowerCase();
+        return cat === filtroCategoria.toLowerCase();
       })
       .sort((a, b) => {
         const timeB = new Date(b.created_at || b.data_registro || 0).getTime();
         const timeA = new Date(a.created_at || a.data_registro || 0).getTime();
         return timeB - timeA;
       });
-  }, [observacoesAluno, estudante.id, filtroCategoria]);
+  }, [observacoesAtivasDesteEstudante, filtroCategoria]);
 
   // Trilha de auditoria das observações deste estudante (exclusões e alterações)
   const auditoriasDesteEstudante = useMemo(() => {
@@ -233,18 +255,14 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
           >
             <Tag className="h-3.5 w-3.5" />
             <span>
-              Todas ({observacoesAluno.filter(o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id) && !o.deleted_at && (o.ativo === undefined || o.ativo === 1 || o.ativo === '1' || o.ativo === true) && !o.is_deleted).length})
+              Todas ({observacoesAtivasDesteEstudante.length})
             </span>
           </button>
           {(Object.keys(CATEGORIAS_CONFIG) as TipoObservacaoAluno[]).map((cat) => {
             const conf = CATEGORIAS_CONFIG[cat];
             const Icon = conf.icon;
-            const qtd = observacoesAluno.filter(
-              o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id) &&
-                   !o.deleted_at &&
-                   (o.ativo === undefined || o.ativo === 1 || o.ativo === '1' || o.ativo === true) &&
-                   !o.is_deleted &&
-                   (o.categoria === cat || o.tipo === cat)
+            const qtd = observacoesAtivasDesteEstudante.filter(
+              o => (o.categoria || o.tipo || '').toLowerCase() === cat.toLowerCase()
             ).length;
             const ativo = filtroCategoria === cat;
             return (

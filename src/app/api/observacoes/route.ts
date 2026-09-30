@@ -29,30 +29,31 @@ export async function GET(req: NextRequest) {
 
     let query = `
       SELECT 
-        id, 
-        estudante_id, 
-        usuario_id, 
-        autor_nome, 
-        categoria, 
-        texto, 
-        created_at, 
-        ativo,
-        deleted_at,
-        is_deleted,
-        excluido_por_usuario_id
-      FROM observacoes_pedagogicas 
-      WHERE (deleted_at IS NULL OR deleted_at = '')
-        AND (ativo = 1 OR ativo IS NULL)
-        AND (is_deleted = 0 OR is_deleted IS NULL)
+        o.id, 
+        o.estudante_id, 
+        o.usuario_id, 
+        COALESCE(u.name, o.autor_nome, 'Equipe Escolar') AS autor_nome, 
+        o.categoria, 
+        o.texto, 
+        o.created_at, 
+        o.ativo,
+        o.deleted_at,
+        o.is_deleted,
+        o.excluido_por_usuario_id
+      FROM observacoes_pedagogicas o
+      LEFT JOIN users u ON u.id = o.usuario_id
+      WHERE (o.deleted_at IS NULL OR o.deleted_at = '' OR o.deleted_at = 0)
+        AND (o.ativo = 1 OR o.ativo IS NULL OR o.ativo = '1')
+        AND (o.is_deleted = 0 OR o.is_deleted IS NULL OR o.is_deleted = '0')
     `;
     const args: any[] = [];
 
     if (estudanteId) {
-      query += ` AND estudante_id = ?`;
+      query += ` AND o.estudante_id = ?`;
       args.push(estudanteId);
     }
 
-    query += ` ORDER BY created_at DESC`;
+    query += ` ORDER BY o.created_at DESC`;
 
     const res = await executeTursoQuery(query, args);
 
@@ -72,9 +73,9 @@ export async function GET(req: NextRequest) {
       created_at: row.created_at,
       data_registro: row.created_at,
       deleted_at: row.deleted_at || null,
-      is_deleted: row.is_deleted || 0,
+      is_deleted: row.is_deleted === 1 || row.is_deleted === '1' ? 1 : 0,
       excluido_por_usuario_id: row.excluido_por_usuario_id || null,
-      ativo: row.ativo,
+      ativo: row.ativo === 0 || row.ativo === '0' ? 0 : 1,
     }));
 
     return NextResponse.json({
@@ -152,12 +153,16 @@ export async function POST(req: NextRequest) {
           categoria,
           texto,
           created_at,
-          ativo
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+          ativo,
+          is_deleted,
+          deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, NULL)
         ON CONFLICT(id) DO UPDATE SET
           categoria = excluded.categoria,
           texto = excluded.texto,
-          ativo = 1`,
+          ativo = 1,
+          is_deleted = 0,
+          deleted_at = NULL`,
         [
           id,
           estudanteId,
@@ -196,14 +201,18 @@ export async function POST(req: NextRequest) {
           texto_completo,
           data_registro,
           created_at,
-          ativo
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          ativo,
+          is_deleted,
+          deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NULL)
         ON CONFLICT(id) DO UPDATE SET
           texto = excluded.texto,
           texto_completo = excluded.texto_completo,
           tipo = excluded.tipo,
           categoria = excluded.categoria,
-          ativo = 1`,
+          ativo = 1,
+          is_deleted = 0,
+          deleted_at = NULL`,
         [
           id,
           estudanteId,
@@ -268,6 +277,9 @@ export async function POST(req: NextRequest) {
       texto,
       created_at: createdAt,
       data_registro: createdAt,
+      deleted_at: null,
+      is_deleted: 0,
+      ativo: 1,
     };
 
     return NextResponse.json(

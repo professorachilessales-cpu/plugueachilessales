@@ -547,9 +547,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('school_os_notificacoes_admin', JSON.stringify(json.data.notificacoesAdmin));
           }
           if (Array.isArray(json.data.observacoesAluno)) {
-            const ativas = json.data.observacoesAluno.filter(
-              (o: ObservacaoAluno) => !o.deleted_at && (o.ativo === undefined || o.ativo === 1 || o.ativo === '1' || o.ativo === true) && !o.is_deleted
-            );
+            const ativas = json.data.observacoesAluno.filter((o: ObservacaoAluno) => {
+              if (o.deleted_at && o.deleted_at !== '' && o.deleted_at !== '0' && o.deleted_at !== 0 && o.deleted_at !== 'null') return false;
+              if (o.is_deleted === 1 || o.is_deleted === '1' || o.is_deleted === true) return false;
+              if (o.ativo === 0 || o.ativo === '0' || o.ativo === false) return false;
+              return true;
+            });
             setObservacoesAluno(ativas);
             localStorage.setItem('school_os_observacoes_aluno', JSON.stringify(ativas));
           }
@@ -1663,6 +1666,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       texto: textoCompleto,
       created_at: agora,
       data_registro: dataReg,
+      deleted_at: null,
+      is_deleted: 0,
+      ativo: 1,
     };
 
     try {

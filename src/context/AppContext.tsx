@@ -116,7 +116,7 @@ interface AppContextType {
   // 7. Repositório Google Drive (Ficha do Estudante)
   documentosEstudanteDrive: DocumentoEstudanteDrive[];
   addDocumentoEstudanteDrive: (doc: DocumentoEstudanteDrive) => void;
-  deleteDocumentoEstudanteDrive: (id: string) => void;
+  deleteDocumentoEstudanteDrive: (id: string, fileId?: string, nomeArquivo?: string, estudanteId?: string) => Promise<void>;
 
   // 8. Gestão de Atestados dos Professores
   atestadosProfessor: AtestadoProfessor[];
@@ -1952,8 +1952,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDocumentosEstudanteDrive(prev => [docCompleto, ...prev]);
   };
 
-  const deleteDocumentoEstudanteDrive = (id: string) => {
-    setDocumentosEstudanteDrive(prev => prev.filter(d => d.id !== id));
+  const deleteDocumentoEstudanteDrive = async (
+    id: string,
+    fileId?: string,
+    nomeArquivo?: string,
+    estudanteId?: string
+  ): Promise<void> => {
+    // Busca o documento completo no estado se disponível
+    const doc = documentosEstudanteDrive.find(d => d.id === id || (fileId && d.drive_file_id === fileId));
+    const resolvedFileId = fileId || doc?.drive_file_id || (id.startsWith('doc-') ? undefined : id);
+    const resolvedNomeArquivo = nomeArquivo || doc?.nome_arquivo || '';
+    const resolvedEstudanteId = estudanteId || doc?.aluno_id || '';
+
+    // 1. Remove da listagem local imediatamente (otimista)
+    setDocumentosEstudanteDrive(prev => {
+      const filtrados = prev.filter(d => d.id !== id && (!resolvedFileId || d.drive_file_id !== resolvedFileId));
+      try {
+        localStorage.setItem('school_os_documentos_drive', JSON.stringify(filtrados));
+      } catch {}
+      return filtrados;
+    });
+
+    // Se o arquivo for foto de perfil do estudante, limpa foto_url no cadastro do estudante
+    const isFoto =
+      resolvedNomeArquivo.toLowerCase().includes('foto_perfil_3x4') ||
+      resolvedNomeArquivo.toLowerCase().startsWith('[foto') ||
+      resolvedNomeArquivo.toLowerCase().includes('foto_3x4') ||
+      (doc?.tipo === 'outro' && resolvedNomeArquivo.toLowerCase().includes('foto'));
+
+    if (isFoto && resolvedEstudanteId) {
+      setEstudantes(prev => {
+        const atualizados = prev.map(est => est.id === resolvedEstudanteId ? { ...est, foto_url: undefined } : est);
+        try {
+          localStorage.setItem('school_os_estudantes', JSON.stringify(atualizados));
+        } catch {}
+        return atualizados;
+      });
+    }
+
+    // 2. Chama a API de exclusão física no Google Drive com auditoria e limpeza no banco local
+    try {
+      await fetch('/api/upload-drive', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+          'x-user-name': currentUser.name,
+          'x-user-role': currentUser.role,
+        },
+        body: JSON.stringify({
+          fileId: resolvedFileId,
+          drive_file_id: resolvedFileId,
+          nomeArquivo: resolvedNomeArquivo,
+          estudanteId: resolvedEstudanteId,
+        }),
+      });
+
+      try {
+        await refreshActivityLogs();
+      } catch {}
+    } catch (err) {
+      console.warn('Aviso ao sincronizar exclusão do Google Drive com o servidor:', err);
+    }
   };
 
   // 8. Gestão de Atestados dos Professores

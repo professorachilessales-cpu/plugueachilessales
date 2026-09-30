@@ -15,7 +15,8 @@ import {
   Download, 
   Search, 
   Filter,
-  Plus
+  Plus,
+  X
 } from 'lucide-react';
 
 interface RepositorioDriveAlunoProps {
@@ -68,6 +69,80 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
       }).format(d);
     } catch {
       return '—';
+    }
+  };
+
+  // Estados do Modal de Exclusão do Google Drive
+  const [arquivoParaExcluir, setArquivoParaExcluir] = useState<DocumentoEstudanteDrive | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
+
+  // Resolução inteligente da URL de abertura do arquivo (Web View ou Mídia Direta)
+  const obterLinkVisualizacao = (doc: DocumentoEstudanteDrive): string => {
+    // 1. Extração do File ID real do Google Drive
+    let fileId = doc.drive_file_id;
+    if (!fileId && doc.id && !doc.id.startsWith('doc-')) {
+      fileId = doc.id;
+    }
+    if (!fileId && (doc.drive_view_url || doc.url_visualizacao)) {
+      const urlStr = doc.drive_view_url || doc.url_visualizacao || '';
+      const match = urlStr.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        fileId = match[1];
+      }
+    }
+
+    const nome = (doc.nome_arquivo || '').toLowerCase();
+    const isImagemOuMidia =
+      nome.endsWith('.png') ||
+      nome.endsWith('.jpg') ||
+      nome.endsWith('.jpeg') ||
+      (doc.mime_type && doc.mime_type.startsWith('image/'));
+
+    // Link direto de imagem/mídia formatado (lh3)
+    if (fileId && isImagemOuMidia && !fileId.startsWith('drive_sim_') && !fileId.startsWith('mock_')) {
+      return `https://lh3.googleusercontent.com/d/${fileId}`;
+    }
+
+    // Link padrão de visualização web do Google Drive
+    if (fileId && !fileId.startsWith('drive_sim_') && !fileId.startsWith('mock_')) {
+      return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+    }
+
+    // Fallbacks para URLs salvas válidas
+    if (doc.drive_view_url && doc.drive_view_url !== 'https://drive.google.com' && doc.drive_view_url !== '#') {
+      return doc.drive_view_url;
+    }
+    if (doc.url_visualizacao && doc.url_visualizacao !== 'https://drive.google.com' && doc.url_visualizacao !== '#') {
+      return doc.url_visualizacao;
+    }
+
+    if (fileId) {
+      return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+    }
+
+    return 'https://drive.google.com';
+  };
+
+  // Confirmação de exclusão física no Google Drive com auditoria
+  const confirmarExclusao = async () => {
+    if (!arquivoParaExcluir) return;
+    const doc = arquivoParaExcluir;
+    setExcluindo(true);
+    setErroUpload(null);
+    try {
+      await deleteDocumentoEstudanteDrive(
+        doc.id || '',
+        doc.drive_file_id,
+        doc.nome_arquivo,
+        estudante.id
+      );
+      setSucessoUpload(`Arquivo "${doc.nome_arquivo}" excluído do Google Drive com sucesso e registrado na auditoria.`);
+      setTimeout(() => setSucessoUpload(null), 4000);
+      setArquivoParaExcluir(null);
+    } catch (err: any) {
+      setErroUpload(err.message || 'Erro ao excluir arquivo do Google Drive.');
+    } finally {
+      setExcluindo(false);
     }
   };
 
@@ -323,7 +398,7 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <a
-                          href={doc.drive_view_url || doc.url_visualizacao || '#'}
+                          href={obterLinkVisualizacao(doc)}
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Visualizar no Google Drive"
@@ -334,13 +409,10 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
                         </a>
 
                         <button
-                          onClick={() => {
-                            if (doc.id && confirm(`Deseja remover o registro do arquivo "${doc.nome_arquivo}"?`)) {
-                              deleteDocumentoEstudanteDrive(doc.id);
-                            }
-                          }}
-                          title="Excluir Arquivo"
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                          type="button"
+                          onClick={() => setArquivoParaExcluir(doc)}
+                          title="Excluir Arquivo do Google Drive"
+                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -353,6 +425,67 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
           </table>
         </div>
       </div>
+
+      {/* Modal de Confirmação Visual de Exclusão no Google Drive */}
+      {arquivoParaExcluir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    Excluir Arquivo do Drive
+                  </h3>
+                  <span className="text-[10px] text-slate-400">Sincronização imediata e auditoria</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setArquivoParaExcluir(null)}
+                disabled={excluindo}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              Tem certeza que deseja excluir permanentemente o arquivo{' '}
+              <strong className="text-rose-600 dark:text-rose-400 font-mono break-all">
+                &ldquo;{arquivoParaExcluir.nome_arquivo}&rdquo;
+              </strong>{' '}
+              do Google Drive?
+            </p>
+
+            <div className="rounded-xl bg-amber-50 p-3 text-[11px] text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-300">
+              Esta ação removerá o arquivo físico da pasta institucional do Google Drive, desvinculará registros locais e salvará um registro de auditoria imutável.
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={excluindo}
+                onClick={() => setArquivoParaExcluir(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={excluindo}
+                onClick={confirmarExclusao}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>{excluindo ? 'Excluindo...' : 'Excluir Permanentemente'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

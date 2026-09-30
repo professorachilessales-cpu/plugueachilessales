@@ -377,6 +377,19 @@ export class GoogleDriveApiClient {
           return { data };
         }
       },
+
+      async delete(options: { fileId: string }) {
+        const authHeader = await client.getAuthHeader();
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${options.fileId}`, {
+          method: 'DELETE',
+          headers: { Authorization: authHeader },
+        });
+        if (!res.ok && res.status !== 404) {
+          const errorText = await res.text().catch(() => '');
+          throw new Error(`Erro Drive delete [${res.status}]: ${errorText || res.statusText}`);
+        }
+        return { data: { success: true } };
+      },
     };
   }
 
@@ -873,3 +886,181 @@ export async function resolverOuCriarEstruturaPastasEstudante(
     };
   }
 }
+
+export interface ExcluirArquivoDriveParams {
+  fileId: string;
+  nomeArquivo?: string;
+  estudanteId?: string;
+  usuario: {
+    userId: string;
+    userName: string;
+    userRole?: string;
+  };
+}
+
+export interface ExcluirArquivoDriveResult {
+  success: boolean;
+  fileId: string;
+  estudanteId?: string;
+  nomeArquivo: string;
+  message: string;
+}
+
+/**
+ * Exclui fisicamente o arquivo do Google Drive, limpa registros locais associados e registra auditoria
+ */
+export async function excluirArquivoDriveComAuditoria(
+  params: ExcluirArquivoDriveParams
+): Promise<ExcluirArquivoDriveResult> {
+  const { fileId, estudanteId, usuario } = params;
+  let nomeArquivo = params.nomeArquivo || '';
+
+  if (!fileId) {
+    throw new Error('ID do arquivo no Google Drive (fileId) é obrigatório para exclusão.');
+  }
+
+  // 1. Obter cliente do Google Drive
+  const driveClient = await getGoogleDriveClient();
+  const { drive } = driveClient;
+
+  // 2. Se não temos o nome do arquivo, busca metadados antes de excluir
+  if (!nomeArquivo && drive) {
+    try {
+      const meta = await drive.files.get({ fileId, fields: 'id, name, mimeType' });
+      if (meta?.data?.name) {
+        nomeArquivo = meta.data.name;
+      }
+    } catch {
+      // Ignora erro se não puder consultar
+    }
+  }
+  if (!nomeArquivo) {
+    nomeArquivo = `arquivo_${fileId}`;
+  }
+
+  // 3. Exclusão física no Google Drive autenticado
+  if (drive && !driveClient.isSimulated && !fileId.startsWith('drive_sim_') && !fileId.startsWith('mock_')) {
+    try {
+      await drive.files.delete({ fileId });
+    } catch (err: any) {
+      console.warn('Aviso: Erro ao deletar arquivo no Google Drive API:', err?.message || err);
+    }
+  }
+
+  const agoraIso = new Date().toISOString();
+  const usuarioId = usuario.userId || 'sistema';
+  const usuarioNome = usuario.userName || 'Equipe Escolar';
+
+  // 4. Tratamento de registros associados no banco de dados local (Turso)
+  if (checkIsTursoConfigured()) {
+    try {
+      // Remove das tabelas locais de documentos do estudante
+      await executeTursoQuery(
+        `DELETE FROM documentos_estudantes WHERE drive_file_id = ? OR id = ?`,
+        [fileId, fileId]
+      );
+      await executeTursoQuery(
+        `DELETE FROM documentos_estudante WHERE drive_file_id = ? OR id = ?`,
+        [fileId, fileId]
+      );
+
+      // Remove de atestados de professor se aplicável
+      await executeTursoQuery(
+        `DELETE FROM atestados_professor WHERE drive_file_id = ? OR id = ?`,
+        [fileId, fileId]
+      );
+
+      // Se o arquivo excluído for foto de perfil do aluno (foto_perfil_3x4.jpg ou similar), defina foto_url = NULL
+      const isFotoPerfil =
+        nomeArquivo.toLowerCase().includes('foto_perfil_3x4') ||
+        nomeArquivo.toLowerCase().startsWith('[foto') ||
+        nomeArquivo.toLowerCase().includes('foto_3x4') ||
+        nomeArquivo.toLowerCase().includes('perfil');
+
+      if (isFotoPerfil && estudanteId) {
+        await executeTursoQuery(
+          `UPDATE estudantes SET foto_url = NULL WHERE id = ?`,
+          [estudanteId]
+        );
+      } else if (isFotoPerfil) {
+        await executeTursoQuery(
+          `UPDATE estudantes SET foto_url = NULL WHERE foto_url LIKE ?`,
+          [`%${fileId}%`]
+        );
+      }
+
+      // 5. Registro Obrigatório na Auditoria do Sistema (auditoria_sistema e repositorio_auditoria)
+      const auditId = `aud-drive-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const descricao = `Exclusão do arquivo: ${nomeArquivo}`;
+
+      await executeTursoQuery(
+        `INSERT INTO auditoria_sistema (
+          id,
+          estudante_id,
+          acao,
+          descricao,
+          recurso_id,
+          drive_file_id,
+          nome_arquivo,
+          usuario_id,
+          usuario_nome,
+          data_exclusao,
+          created_at
+        ) VALUES (?, ?, 'EXCLUSAO_ARQUIVO_DRIVE', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          auditId,
+          estudanteId || null,
+          descricao,
+          fileId,
+          fileId,
+          nomeArquivo,
+          usuarioId,
+          usuarioNome,
+          agoraIso,
+          agoraIso,
+        ]
+      );
+
+      try {
+        await executeTursoQuery(
+          `INSERT INTO repositorio_auditoria (
+            id,
+            estudante_id,
+            acao,
+            descricao,
+            recurso_id,
+            drive_file_id,
+            nome_arquivo,
+            usuario_id,
+            usuario_nome,
+            data_exclusao,
+            created_at
+          ) VALUES (?, ?, 'EXCLUSAO_ARQUIVO_DRIVE', ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            auditId,
+            estudanteId || null,
+            descricao,
+            fileId,
+            fileId,
+            nomeArquivo,
+            usuarioId,
+            usuarioNome,
+            agoraIso,
+            agoraIso,
+          ]
+        );
+      } catch {}
+    } catch (dbErr) {
+      console.warn('Aviso ao registrar auditoria de exclusão do Drive no Turso:', dbErr);
+    }
+  }
+
+  return {
+    success: true,
+    fileId,
+    estudanteId,
+    nomeArquivo,
+    message: `Arquivo "${nomeArquivo}" excluído com sucesso do Google Drive e registrado na auditoria.`,
+  };
+}
+

@@ -5,8 +5,10 @@ import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { 
   getGoogleDriveClient, 
   resolverOuCriarEstruturaPastasEstudante, 
-  obterOuCriarPastaDrive 
+  obterOuCriarPastaDrive,
+  excluirArquivoDriveComAuditoria
 } from '@/lib/google-drive';
+import { extrairUsuarioAutenticado } from '@/lib/observacoes-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -190,3 +192,57 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+/**
+ * DELETE /api/upload-drive
+ * Exclui fisicamente o arquivo do Google Drive autenticado, remove metadados locais e registra auditoria
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    let fileId = searchParams.get('fileId') || searchParams.get('file_id') || searchParams.get('id');
+    let estudanteId = searchParams.get('estudanteId') || searchParams.get('estudante_id') || searchParams.get('aluno_id');
+    let nomeArquivo = searchParams.get('nomeArquivo') || searchParams.get('nome_arquivo');
+
+    let body: any = {};
+    try {
+      body = await req.json();
+      if (!fileId) {
+        fileId = body.fileId || body.file_id || body.drive_file_id || body.id;
+      }
+      if (!estudanteId) {
+        estudanteId = body.estudanteId || body.estudante_id || body.aluno_id;
+      }
+      if (!nomeArquivo) {
+        nomeArquivo = body.nomeArquivo || body.nome_arquivo;
+      }
+    } catch {
+      // Body JSON opcional caso venha por query param
+    }
+
+    if (!fileId) {
+      return NextResponse.json(
+        { error: 'ID do arquivo no Google Drive (fileId) é obrigatório para exclusão.' },
+        { status: 400 }
+      );
+    }
+
+    const usuario = extrairUsuarioAutenticado(req, body);
+
+    const result = await excluirArquivoDriveComAuditoria({
+      fileId,
+      estudanteId: estudanteId || undefined,
+      nomeArquivo: nomeArquivo || undefined,
+      usuario,
+    });
+
+    return NextResponse.json(result);
+  } catch (error: any) {
+    console.error('Erro na exclusão do arquivo do Google Drive:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Falha ao excluir arquivo do Google Drive.' },
+      { status: 500 }
+    );
+  }
+}
+

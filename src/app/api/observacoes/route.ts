@@ -1,86 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
 import { verifyJwt } from '@/lib/security';
+import { 
+  garantirTabelasObservacoes, 
+  extrairUsuarioAutenticado, 
+  removerObservacaoComAuditoria 
+} from '@/lib/observacoes-service';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Extrai o usuário autenticado do token Bearer, cookie seguro ou fallback do payload
- */
-function extrairUsuarioAutenticado(req: NextRequest, body: any): { userId: string; userName: string; userRole?: string } {
-  // 1. Tentar via cabeçalho Authorization Bearer
-  const authHeader = req.headers.get('authorization');
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7).trim();
-    const payload = verifyJwt(token);
-    if (payload && payload.userId) {
-      return {
-        userId: payload.userId,
-        userName: payload.name || 'Usuário Autenticado',
-        userRole: payload.role,
-      };
-    }
-  }
 
-  // 2. Tentar via cookie HttpOnly de refresh token
-  const cookieToken = req.cookies.get('plugue_refresh_token')?.value;
-  if (cookieToken) {
-    const payload = verifyJwt(cookieToken);
-    if (payload && payload.userId) {
-      return {
-        userId: payload.userId,
-        userName: payload.name || 'Usuário Autenticado',
-        userRole: payload.role,
-      };
-    }
-  }
-
-  // 3. Fallback defensivo para dados passados no corpo da requisição
-  const userId = body.usuario_id || body.autor_id || 'user-admin';
-  const userName = body.usuario_nome || body.autor_nome || 'Equipe Escolar';
-  const userRole = body.usuario_role || body.autor_cargo || 'Administração Escolar';
-
-  return { userId, userName, userRole };
-}
-
-/**
- * Garante que as tabelas necessárias existem no Turso
- */
-async function garantirTabelasObservacoes(): Promise<void> {
-  if (!isTursoConfigured) return;
-  try {
-    await executeTursoQuery(`
-      CREATE TABLE IF NOT EXISTS observacoes_pedagogicas (
-        id TEXT PRIMARY KEY,
-        estudante_id TEXT NOT NULL,
-        usuario_id TEXT NOT NULL,
-        autor_nome TEXT,
-        categoria TEXT,
-        texto TEXT NOT NULL,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        ativo INTEGER DEFAULT 1
-      )
-    `);
-
-    await executeTursoQuery(`
-      CREATE TABLE IF NOT EXISTS observacoes_auditoria (
-        id TEXT PRIMARY KEY,
-        observacao_id TEXT NOT NULL,
-        estudante_id TEXT NOT NULL,
-        evento TEXT NOT NULL,
-        texto_anterior TEXT,
-        texto_novo TEXT,
-        categoria TEXT,
-        registro_anterior TEXT,
-        usuario_id TEXT NOT NULL,
-        usuario_nome TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-  } catch (e) {
-    console.warn('Aviso: Verificação de tabelas de observações:', e);
-  }
-}
 
 /**
  * GET /api/observacoes
@@ -473,90 +402,44 @@ export async function PUT(req: NextRequest) {
 
 /**
  * DELETE /api/observacoes
- * Soft delete de observação com gravação completa na auditoria
+ * Remove a observação por ID (via query param ?id=... ou JSON body) com transação atômica e auditoria
  */
 export async function DELETE(req: NextRequest) {
   try {
     if (!isTursoConfigured) {
-      return NextResponse.json({ error: 'Banco de dados não configurado.' }, { status: 400 });
+      return NextResponse.json({ error: 'Banco de dados Turso não configurado.' }, { status: 400 });
     }
 
     const { searchParams } = new URL(req.url);
     let id = searchParams.get('id');
 
     let body: any = {};
-    if (!id) {
-      try {
-        body = await req.json();
+    try {
+      body = await req.json();
+      if (!id) {
         id = body.id || body.observacao_id;
-      } catch (e) {
-        // Sem body
       }
+    } catch (e) {
+      // Sem body JSON
     }
 
     if (!id) {
       return NextResponse.json({ error: 'ID da observação é obrigatório.' }, { status: 400 });
     }
 
-    const { userId, userName } = extrairUsuarioAutenticado(req, body);
+    const usuario = extrairUsuarioAutenticado(req, body);
 
-    // Busca o registro antes de excluir para salvar na auditoria
-    let registroCompleto: any = null;
-    try {
-      const res = await executeTursoQuery('SELECT * FROM observacoes_pedagogicas WHERE id = ? LIMIT 1', [id]);
-      if (res.rows.length > 0) registroCompleto = res.rows[0];
-    } catch (e) {
-      const resLeg = await executeTursoQuery('SELECT * FROM observacoes_aluno WHERE id = ? LIMIT 1', [id]);
-      if (resLeg.rows.length > 0) registroCompleto = resLeg.rows[0];
-    }
-
-    const agora = new Date().toISOString();
-
-    // Soft delete nas tabelas
-    await executeTursoQuery('UPDATE observacoes_pedagogicas SET ativo = 0 WHERE id = ?', [id]);
-    try {
-      await executeTursoQuery('UPDATE observacoes_aluno SET ativo = 0 WHERE id = ?', [id]);
-    } catch (e) {
-      await executeTursoQuery('DELETE FROM observacoes_aluno WHERE id = ?', [id]);
-    }
-
-    // Grava na auditoria o evento DELETE
-    try {
-      const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      const estudanteId = registroCompleto?.estudante_id || registroCompleto?.aluno_id || '';
-      const textoAnterior = registroCompleto?.texto || registroCompleto?.texto_completo || '';
-      const categoria = registroCompleto?.categoria || registroCompleto?.tipo || 'pedagogico';
-
-      await executeTursoQuery(
-        `INSERT INTO observacoes_auditoria (
-          id, observacao_id, estudante_id, evento,
-          texto_anterior, categoria, registro_anterior,
-          usuario_id, usuario_nome, created_at
-        ) VALUES (?, ?, ?, 'DELETE', ?, ?, ?, ?, ?, ?)`,
-        [
-          auditId,
-          id,
-          estudanteId,
-          textoAnterior,
-          categoria,
-          JSON.stringify(registroCompleto || {}),
-          userId,
-          userName,
-          agora,
-        ]
-      );
-    } catch (audErr) {
-      console.warn('Aviso ao registrar auditoria de DELETE:', audErr);
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Observação pedagógica excluída com sucesso.',
+    const result = await removerObservacaoComAuditoria({
+      observacaoId: id,
+      usuario,
+      payloadFallback: body,
     });
+
+    return NextResponse.json(result);
   } catch (err: any) {
     console.error('Erro ao excluir observação pedagógica:', err);
     return NextResponse.json(
-      { error: err?.message || 'Falha ao excluir observação.' },
+      { error: err?.message || 'Falha ao excluir observação pedagógica.' },
       { status: 500 }
     );
   }

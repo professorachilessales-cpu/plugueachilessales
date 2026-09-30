@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { garantirTabelasObservacoes } from '@/lib/observacoes-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,8 @@ export async function GET() {
         { status: 400 }
       );
     }
+
+    await garantirTabelasObservacoes();
 
     // 1. Config Escola
     let escolaConfig = null;
@@ -249,7 +252,7 @@ export async function GET() {
 
     let observacoesAuditoria: any[] = [];
     try {
-      const audRes = await executeTursoQuery('SELECT * FROM observacoes_auditoria ORDER BY created_at DESC');
+      const audRes = await executeTursoQuery('SELECT * FROM observacoes_auditoria ORDER BY COALESCE(data_exclusao, created_at) DESC');
       observacoesAuditoria = audRes.rows.map((row: any) => ({
         ...row,
         registro_anterior: row.registro_anterior ? (typeof row.registro_anterior === 'string' ? JSON.parse(row.registro_anterior) : row.registro_anterior) : null,

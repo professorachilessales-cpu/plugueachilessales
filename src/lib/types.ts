@@ -314,7 +314,12 @@ export interface EventoEscolar {
 // -------------------------------------------------------------
 // SISTEMA DE AUDITORIA IMUTÁVEL (ACTIVITY LOGS)
 // -------------------------------------------------------------
-export type ActivityLogActionType = 'CLASS_STATUS_CHANGE' | 'STUDENT_MIGRATION';
+export type ActivityLogActionType = 
+  | 'CLASS_STATUS_CHANGE' 
+  | 'STUDENT_MIGRATION'
+  | 'OBSERVACAO_DELETE'
+  | 'OBSERVACAO_CREATE'
+  | 'OBSERVACAO_UPDATE';
 
 export interface EstudanteAfetadoLog {
   id: string;
@@ -331,8 +336,19 @@ export interface ActivityLogDetails {
   turma_origem_nome?: string;
   turma_destino_id?: string;
   turma_destino_nome?: string;
-  total_afetados: number;
-  estudantes_afetados: EstudanteAfetadoLog[];
+  total_afetados?: number;
+  estudantes_afetados?: EstudanteAfetadoLog[];
+  observacao_id?: string;
+  estudante_id?: string;
+  estudante_nome?: string;
+  categoria?: string;
+  conteudo_observacao?: string;
+  autor_original_id?: string;
+  autor_original_nome?: string;
+  data_criacao_original?: string;
+  excluido_por_id?: string;
+  excluido_por_nome?: string;
+  data_exclusao?: string;
 }
 
 export interface ActivityLog {
@@ -418,13 +434,18 @@ export interface ObservacaoAuditoria {
   id: string;
   observacao_id: string;
   estudante_id: string;
-  evento: 'CREATE' | 'UPDATE' | 'DELETE';
+  evento: 'CREATE' | 'UPDATE' | 'DELETE' | string;
+  acao?: 'CRIACAO' | 'ALTERACAO' | 'EXCLUSAO' | string;
+  conteudo_observacao?: string;
   texto_anterior?: string;
   texto_novo?: string;
   categoria?: string;
   registro_anterior?: any;
   usuario_id: string;
   usuario_nome: string;
+  excluido_por_usuario_id?: string;
+  excluido_por_usuario_nome?: string;
+  data_exclusao?: string;
   created_at: string;
 }
 

@@ -1806,21 +1806,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!registroCompleto) return;
 
     const agora = new Date().toISOString();
+    const estudanteId = registroCompleto.estudante_id || registroCompleto.aluno_id;
+    const conteudoTexto = registroCompleto.texto_completo || registroCompleto.texto || '';
+    const categoria = registroCompleto.categoria || registroCompleto.tipo || 'geral';
 
-    // 1. Remove da listagem ativa
+    // 1. Remove da listagem ativa com estado otimista
     setObservacoesAluno(prev => prev.filter(o => o.id !== obsId));
 
-    // 2. Preserva na auditoria
+    // 2. Preserva na auditoria local imediatamente com todos os campos necessários
+    const tempAuditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const auditDelete: ObservacaoAuditoria = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: tempAuditId,
       observacao_id: obsId,
-      estudante_id: registroCompleto.estudante_id || registroCompleto.aluno_id,
+      estudante_id: estudanteId,
       evento: 'DELETE',
-      texto_anterior: registroCompleto.texto_completo || registroCompleto.texto,
-      categoria: registroCompleto.categoria || registroCompleto.tipo,
+      acao: 'EXCLUSAO',
+      conteudo_observacao: conteudoTexto,
+      texto_anterior: conteudoTexto,
+      categoria: categoria,
       registro_anterior: registroCompleto,
       usuario_id: currentUser.id,
       usuario_nome: currentUser.name,
+      excluido_por_usuario_id: currentUser.id,
+      excluido_por_usuario_nome: currentUser.name,
+      data_exclusao: agora,
       created_at: agora,
     };
     setObservacoesAuditoria(prev => [auditDelete, ...prev]);
@@ -1828,35 +1837,71 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch(`/api/observacoes?id=${encodeURIComponent(obsId)}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser.id,
+          'x-user-name': currentUser.name,
+          'x-user-role': currentUser.role,
+        },
         body: JSON.stringify({
           id: obsId,
           observacao_id: obsId,
+          estudante_id: estudanteId,
+          registro_completo: registroCompleto,
           usuario_id: currentUser.id,
           usuario_nome: currentUser.name,
+          excluido_por_usuario_id: currentUser.id,
+          excluido_por_usuario_nome: currentUser.name,
         }),
       });
 
       if (!res.ok) {
         const data = await res.json();
-        console.error("Erro ao excluir observação:", data.error);
+        // Rollback da exclusão se a transação do servidor falhou
+        setObservacoesAluno(prev => [registroCompleto, ...prev]);
+        setObservacoesAuditoria(prev => prev.filter(a => a.id !== tempAuditId));
+        throw new Error(data.error || 'Falha ao excluir observação no servidor.');
       }
-    } catch (apiErr) {
-      console.warn('Tentando fallback via /api/turso/sync para delete:', apiErr);
-      fetch('/api/turso/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete_observacao',
-          payload: {
-            observacao_id: obsId,
-            estudante_id: registroCompleto.estudante_id || registroCompleto.aluno_id,
-            usuario_id: currentUser.id,
-            usuario_nome: currentUser.name,
-            registro_completo: registroCompleto,
-          },
-        }),
-      }).catch(err => console.warn('Erro ao sincronizar exclusão da observação no Turso:', err));
+
+      const data = await res.json();
+      if (data.auditRecord) {
+        // Atualiza a auditoria com o registro real persistido no Turso
+        setObservacoesAuditoria(prev => [
+          data.auditRecord,
+          ...prev.filter(a => a.id !== tempAuditId && a.observacao_id !== obsId),
+        ]);
+      }
+
+      // Atualiza também os logs globais de atividade
+      try {
+        await refreshActivityLogs();
+      } catch {}
+    } catch (apiErr: any) {
+      console.warn('Erro ao processar exclusão atômica:', apiErr);
+      // Se não for erro com rollback já feito, tenta fallback de sincronização
+      if (!apiErr.message?.includes('Falha ao excluir')) {
+        try {
+          await fetch('/api/turso/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'delete_observacao',
+              payload: {
+                observacao_id: obsId,
+                estudante_id: estudanteId,
+                usuario_id: currentUser.id,
+                usuario_nome: currentUser.name,
+                registro_completo: registroCompleto,
+              },
+            }),
+          });
+          await refreshActivityLogs();
+        } catch (syncErr) {
+          console.error('Erro no fallback de sincronização da exclusão:', syncErr);
+        }
+      } else {
+        throw apiErr;
+      }
     }
   };
 

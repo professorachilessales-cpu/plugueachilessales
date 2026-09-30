@@ -137,16 +137,8 @@ export interface TursoQueryResult<T = any> {
   lastInsertRowid?: number | string | null;
 }
 
-/**
- * Executa uma ou mais queries SQL no banco de dados Turso via protocolo HTTP v2
- */
-export async function executeTursoQuery<T = any>(
-  sql: string,
-  args: (string | number | boolean | null)[] = []
-): Promise<TursoQueryResult<T>> {
-  const httpUrl = `${getTursoHttpUrl()}/v2/pipeline`;
-
-  const formattedArgs = args.map((arg) => {
+function formatTursoArgs(args: (string | number | boolean | null)[] = []) {
+  return args.map((arg) => {
     if (arg === null || arg === undefined) return { type: 'null' };
     if (typeof arg === 'number') {
       return Number.isInteger(arg)
@@ -158,6 +150,17 @@ export async function executeTursoQuery<T = any>(
     }
     return { type: 'text', value: String(arg) };
   });
+}
+
+/**
+ * Executa uma ou mais queries SQL no banco de dados Turso via protocolo HTTP v2
+ */
+export async function executeTursoQuery<T = any>(
+  sql: string,
+  args: (string | number | boolean | null)[] = []
+): Promise<TursoQueryResult<T>> {
+  const httpUrl = `${getTursoHttpUrl()}/v2/pipeline`;
+  const formattedArgs = formatTursoArgs(args);
 
   const payload = {
     requests: [
@@ -221,6 +224,76 @@ export async function executeTursoQuery<T = any>(
     rowsAffected: result.affected_row_count || 0,
     lastInsertRowid: result.last_insert_rowid,
   };
+}
+
+export interface TursoStatement {
+  sql: string;
+  args?: (string | number | boolean | null)[];
+}
+
+/**
+ * Executa uma transação atômica completa (BEGIN TRANSACTION ... COMMIT) no Turso.
+ * Se qualquer comando falhar, a transação inteira sofre rollback e lança exceção.
+ */
+export async function executeTursoTransaction(statements: TursoStatement[]): Promise<void> {
+  if (!statements || statements.length === 0) return;
+
+  const httpUrl = `${getTursoHttpUrl()}/v2/pipeline`;
+
+  const requests: any[] = [
+    {
+      type: 'execute',
+      stmt: { sql: 'BEGIN TRANSACTION', args: [] },
+    },
+    ...statements.map((stmt) => ({
+      type: 'execute',
+      stmt: {
+        sql: stmt.sql,
+        args: formatTursoArgs(stmt.args || []),
+      },
+    })),
+    {
+      type: 'execute',
+      stmt: { sql: 'COMMIT', args: [] },
+    },
+    { type: 'close' },
+  ];
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  const authToken = getTursoAuthToken();
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken.trim()}`;
+  }
+
+  const response = await fetch(httpUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ requests }),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Erro HTTP Turso em Transação [${response.status}]: ${errorText || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const results = data.results || [];
+
+  // Verifica se alguma instrução da transação retornou erro
+  for (let i = 0; i < results.length; i++) {
+    const res = results[i];
+    if (res?.type === 'error') {
+      // Tenta rollback explícito por segurança
+      try {
+        await executeTursoQuery('ROLLBACK;');
+      } catch {}
+      throw new Error(`Erro na transação Turso (instrução ${i}): ${res.error?.message || 'Falha na execução'}`);
+    }
+  }
 }
 
 /**

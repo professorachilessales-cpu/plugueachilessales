@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { removerObservacaoComAuditoria } from '@/lib/observacoes-service';
 
 export async function POST(req: NextRequest) {
   try {
@@ -636,51 +637,18 @@ export async function POST(req: NextRequest) {
 
       case 'delete_observacao': {
         const { observacao_id, estudante_id, usuario_id, usuario_nome, registro_completo } = payload;
-        const agora = new Date().toISOString();
-
-        // 1. Soft delete em observacoes_pedagogicas
-        try {
-          await executeTursoQuery('UPDATE observacoes_pedagogicas SET ativo = 0 WHERE id = ?', [observacao_id]);
-        } catch (e) {
-          console.warn('Erro ao soft delete observacoes_pedagogicas:', e);
-        }
-
-        // 2. Soft delete em observacoes_aluno
-        try {
-          await executeTursoQuery('UPDATE observacoes_aluno SET ativo = 0 WHERE id = ?', [observacao_id]);
-        } catch (e) {
-          await executeTursoQuery('DELETE FROM observacoes_aluno WHERE id = ?', [observacao_id]);
-        }
-
-        // 3. Preserva na tabela de auditoria o registro completo com evento DELETE
-        const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        const textoAnterior = registro_completo?.texto_completo || registro_completo?.texto || '';
-        const categoria = registro_completo?.categoria || registro_completo?.tipo || 'pedagogico';
-
-        try {
-          await executeTursoQuery(
-            `INSERT INTO observacoes_auditoria (
-              id, observacao_id, estudante_id, evento,
-              texto_anterior, categoria, registro_anterior,
-              usuario_id, usuario_nome, created_at
-            ) VALUES (?, ?, ?, 'DELETE', ?, ?, ?, ?, ?, ?)`,
-            [
-              auditId,
-              observacao_id,
-              estudante_id || registro_completo?.estudante_id || registro_completo?.aluno_id || '',
-              textoAnterior,
-              categoria,
-              JSON.stringify(registro_completo || {}),
-              usuario_id,
-              usuario_nome || 'Usuário',
-              agora,
-            ]
-          );
-        } catch (audErr) {
-          console.warn('Aviso: Erro ao gravar DELETE em observacoes_auditoria no Turso:', audErr);
-        }
-
-        return NextResponse.json({ success: true });
+        const result = await removerObservacaoComAuditoria({
+          observacaoId: observacao_id,
+          usuario: {
+            userId: usuario_id || 'user-admin',
+            userName: usuario_nome || 'Administrador',
+          },
+          payloadFallback: {
+            estudante_id,
+            registro_completo,
+          },
+        });
+        return NextResponse.json(result);
       }
         return NextResponse.json({ error: `Ação '${action}' desconhecida` }, { status: 400 });
     }

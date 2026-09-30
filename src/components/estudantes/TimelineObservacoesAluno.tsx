@@ -59,7 +59,14 @@ const CATEGORIAS_CONFIG: Record<TipoObservacaoAluno, { label: string; cor: strin
 };
 
 export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAlunoProps) {
-  const { currentUser, observacoesAluno, addObservacaoAluno, updateObservacaoAluno, deleteObservacaoAluno } = useApp();
+  const { 
+    currentUser, 
+    observacoesAluno, 
+    observacoesAuditoria, 
+    addObservacaoAluno, 
+    updateObservacaoAluno, 
+    deleteObservacaoAluno 
+  } = useApp();
 
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todos');
   const [novaCategoria, setNovaCategoria] = useState<TipoObservacaoAluno>('pedagogico');
@@ -73,6 +80,10 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
   const [observacaoEditando, setObservacaoEditando] = useState<ObservacaoAluno | null>(null);
   const [textoEditado, setTextoEditado] = useState('');
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+
+  // Modal de Auditoria e Histórico de Alterações do Estudante
+  const [modalAuditoriaAberto, setModalAuditoriaAberto] = useState(false);
+  const [filtroAuditoriaEvento, setFiltroAuditoriaEvento] = useState<'todos' | 'DELETE' | 'UPDATE'>('todos');
 
   // Observações deste estudante ordenadas SEMPRE da mais recente para a mais antiga (created_at DESC)
   const observacoes = useMemo(() => {
@@ -88,6 +99,26 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
         return timeB - timeA;
       });
   }, [observacoesAluno, estudante.id, filtroCategoria]);
+
+  // Trilha de auditoria das observações deste estudante (exclusões e alterações)
+  const auditoriasDesteEstudante = useMemo(() => {
+    return observacoesAuditoria
+      .filter(a => a.estudante_id === estudante.id)
+      .sort((a, b) => {
+        const timeB = new Date(b.data_exclusao || b.created_at).getTime();
+        const timeA = new Date(a.data_exclusao || a.created_at).getTime();
+        return timeB - timeA;
+      });
+  }, [observacoesAuditoria, estudante.id]);
+
+  const auditoriasFiltradas = useMemo(() => {
+    return auditoriasDesteEstudante.filter(a => {
+      if (filtroAuditoriaEvento === 'todos') return true;
+      if (filtroAuditoriaEvento === 'DELETE') return a.evento === 'DELETE' || a.acao === 'EXCLUSAO';
+      if (filtroAuditoriaEvento === 'UPDATE') return a.evento === 'UPDATE' || a.acao === 'ALTERACAO';
+      return true;
+    });
+  }, [auditoriasDesteEstudante, filtroAuditoriaEvento]);
 
   const handleAdicionarObservacao = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,6 +249,17 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               </button>
             );
           })}
+
+          {/* Botão de Auditoria e Histórico de Alterações */}
+          <button
+            type="button"
+            onClick={() => setModalAuditoriaAberto(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all shadow-xs shrink-0 ml-1"
+            title="Abrir Trilha de Auditoria & Histórico de Alterações deste Estudante"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+            <span>Auditoria ({auditoriasDesteEstudante.length})</span>
+          </button>
         </div>
       </div>
 
@@ -511,6 +553,214 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Trilha de Auditoria & Histórico de Alterações do Estudante */}
+      {modalAuditoriaAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+            {/* Header do Modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-school-blue-50 text-school-blue-700 dark:bg-school-blue-950/60 dark:text-school-blue-300">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    Trilha de Auditoria & Histórico de Alterações
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Estudante: <strong className="text-slate-800 dark:text-slate-200">{estudante.nome_completo}</strong> • Registro imutável de exclusões e edições
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalAuditoriaAberto(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Filtros rápidos do modal */}
+            <div className="flex items-center justify-between gap-2 py-3 border-b border-slate-100 dark:border-slate-800 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFiltroAuditoriaEvento('todos')}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                    filtroAuditoriaEvento === 'todos'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  Todos ({auditoriasDesteEstudante.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroAuditoriaEvento('DELETE')}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                    filtroAuditoriaEvento === 'DELETE'
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/50 dark:text-rose-300'
+                  }`}
+                >
+                  Exclusões ({auditoriasDesteEstudante.filter(a => a.evento === 'DELETE' || a.acao === 'EXCLUSAO').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroAuditoriaEvento('UPDATE')}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                    filtroAuditoriaEvento === 'UPDATE'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300'
+                  }`}
+                >
+                  Edições ({auditoriasDesteEstudante.filter(a => a.evento === 'UPDATE' || a.acao === 'ALTERACAO').length})
+                </button>
+              </div>
+
+              <span className="text-[10px] text-slate-400">
+                Ordenado cronologicamente (mais recente primeiro)
+              </span>
+            </div>
+
+            {/* Lista dos registros de auditoria */}
+            <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1 text-xs">
+              {auditoriasFiltradas.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 dark:border-slate-800">
+                  <ShieldCheck className="h-8 w-8 mx-auto mb-2 opacity-30 text-slate-400" />
+                  <p className="font-bold">Nenhum evento registrado nesta categoria de auditoria.</p>
+                  <p className="text-[11px] mt-0.5">As exclusões e modificações são registradas de forma atômica no banco de dados.</p>
+                </div>
+              ) : (
+                auditoriasFiltradas.map((audit) => {
+                  const isDelete = audit.evento === 'DELETE' || audit.acao === 'EXCLUSAO';
+                  const isUpdate = audit.evento === 'UPDATE' || audit.acao === 'ALTERACAO';
+                  const dataEventoIso = audit.data_exclusao || audit.created_at;
+                  
+                  // 📅 Data e Hora da Exclusão formatada em horário local (DD/MM/AAAA às HH:mm:ss)
+                  const dataFormatada = dataEventoIso
+                    ? new Date(dataEventoIso).toLocaleString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })
+                    : 'Data não informada';
+
+                  // 👤 Responsável pela Exclusão
+                  const responsavelNome = audit.excluido_por_usuario_nome || audit.usuario_nome || 'Equipe Escolar';
+
+                  // Categoria
+                  const catKey = (audit.categoria || 'geral').toLowerCase() as TipoObservacaoAluno;
+                  const conf = CATEGORIAS_CONFIG[catKey] || CATEGORIAS_CONFIG.geral;
+
+                  // 📜 Conteúdo Original
+                  const textoOriginal = audit.conteudo_observacao || audit.texto_anterior || '';
+
+                  return (
+                    <div
+                      key={audit.id}
+                      className={`rounded-xl border p-4 transition-all shadow-xs space-y-2.5 ${
+                        isDelete
+                          ? 'border-rose-200 bg-rose-50/40 dark:border-rose-900/50 dark:bg-rose-950/20'
+                          : 'border-blue-200 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20'
+                      }`}
+                    >
+                      {/* Topo do Card de Auditoria */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          {/* 🏷️ Tipo de Ação: Badge em destaque */}
+                          {isDelete ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-black uppercase text-rose-800 border border-rose-300 dark:bg-rose-900 dark:text-rose-200 dark:border-rose-800">
+                              <Trash2 className="h-3 w-3" />
+                              Exclusão / Removido
+                            </span>
+                          ) : isUpdate ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-black uppercase text-blue-800 border border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-800">
+                              <Edit3 className="h-3 w-3" />
+                              Edição / Alterado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800 border border-emerald-300 dark:bg-emerald-900 dark:text-emerald-200 dark:border-emerald-800">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Criação / Registro
+                            </span>
+                          )}
+
+                          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${conf.bg} ${conf.cor} border ${conf.border}`}>
+                            {conf.label}
+                          </span>
+                        </div>
+
+                        {/* 📅 Data e Hora da Exclusão */}
+                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                          <Clock className="h-3 w-3 text-slate-400" />
+                          <span>{dataFormatada}</span>
+                        </div>
+                      </div>
+
+                      {/* 👤 Responsável pela Exclusão */}
+                      <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                        <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <span>
+                          {isDelete ? 'Excluído por: ' : 'Alterado por: '}
+                          <strong className="text-slate-900 dark:text-white">{responsavelNome}</strong>
+                          {audit.excluido_por_usuario_id && (
+                            <span className="text-slate-400 text-[10px] ml-1">({audit.excluido_por_usuario_id})</span>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* 📜 Conteúdo Original */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          {isDelete ? 'Conteúdo da Anotação Apagada:' : 'Texto Anterior à Edição:'}
+                        </span>
+                        <div className="rounded-lg bg-white p-3 border border-slate-200 dark:bg-slate-950 dark:border-slate-800">
+                          <p className="text-xs text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
+                            {textoOriginal || <span className="italic text-slate-400">Texto não disponível</span>}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Se for alteração, exibe também o novo texto */}
+                      {isUpdate && audit.texto_novo && (
+                        <div className="space-y-1 pt-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                            Novo Texto Atualizado:
+                          </span>
+                          <div className="rounded-lg bg-blue-50/60 p-3 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900">
+                            <p className="text-xs text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
+                              {audit.texto_novo}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Rodapé do Modal */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] text-slate-400">
+                Total de {auditoriasFiltradas.length} evento(s) no histórico
+              </span>
+              <button
+                type="button"
+                onClick={() => setModalAuditoriaAberto(false)}
+                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}

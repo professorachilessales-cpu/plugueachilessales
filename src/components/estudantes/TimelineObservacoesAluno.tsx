@@ -86,9 +86,11 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
   const [filtroAuditoriaEvento, setFiltroAuditoriaEvento] = useState<'todos' | 'DELETE' | 'UPDATE'>('todos');
 
   // Observações deste estudante ordenadas SEMPRE da mais recente para a mais antiga (created_at DESC)
+  // Filtra expressamente apenas registros ativos e não excluídos (deleted_at IS NULL)
   const observacoes = useMemo(() => {
     return observacoesAluno
       .filter(o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id))
+      .filter(o => !o.deleted_at && (o.ativo === undefined || o.ativo === 1 || o.ativo === '1' || o.ativo === true) && !o.is_deleted)
       .filter(o => {
         const cat = o.categoria || o.tipo;
         return filtroCategoria === 'todos' || cat === filtroCategoria;
@@ -208,7 +210,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
   return (
     <div className="space-y-6">
       {/* Topo: Título e Filtro de Tags */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
         <div>
           <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
@@ -219,33 +221,44 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
           </p>
         </div>
 
-        {/* Filtro por Categorias */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        {/* Filtro por Categorias em 2 Linhas Balanceadas */}
+        <div className="grid grid-rows-2 grid-flow-col auto-cols-max gap-2 overflow-x-auto py-1 max-w-full">
           <button
             onClick={() => setFiltroCategoria('todos')}
-            className={`rounded-xl px-2.5 py-1 text-[11px] font-bold transition-colors ${
+            className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-xs whitespace-nowrap cursor-pointer ${
               filtroCategoria === 'todos'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 ring-2 ring-slate-900 dark:ring-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
             }`}
           >
-            Todas ({observacoesAluno.filter(o => o.estudante_id === estudante.id || o.aluno_id === estudante.id).length})
+            <Tag className="h-3.5 w-3.5" />
+            <span>
+              Todas ({observacoesAluno.filter(o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id) && !o.deleted_at && (o.ativo === undefined || o.ativo === 1 || o.ativo === '1' || o.ativo === true) && !o.is_deleted).length})
+            </span>
           </button>
           {(Object.keys(CATEGORIAS_CONFIG) as TipoObservacaoAluno[]).map((cat) => {
             const conf = CATEGORIAS_CONFIG[cat];
-            const qtd = observacoesAluno.filter(o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id) && (o.categoria === cat || o.tipo === cat)).length;
+            const Icon = conf.icon;
+            const qtd = observacoesAluno.filter(
+              o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id) &&
+                   !o.deleted_at &&
+                   (o.ativo === undefined || o.ativo === 1 || o.ativo === '1' || o.ativo === true) &&
+                   !o.is_deleted &&
+                   (o.categoria === cat || o.tipo === cat)
+            ).length;
             const ativo = filtroCategoria === cat;
             return (
               <button
                 key={cat}
                 onClick={() => setFiltroCategoria(cat)}
-                className={`rounded-xl px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-xs whitespace-nowrap cursor-pointer ${
                   ativo
-                    ? `${conf.bg} ${conf.cor} ring-2 ring-current`
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                    ? `${conf.bg} ${conf.cor} ring-2 ring-current border ${conf.border}`
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-slate-700/60'
                 }`}
               >
-                {conf.label} ({qtd})
+                <Icon className="h-3.5 w-3.5" />
+                <span>{conf.label} ({qtd})</span>
               </button>
             );
           })}
@@ -254,10 +267,10 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
           <button
             type="button"
             onClick={() => setModalAuditoriaAberto(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all shadow-xs shrink-0 ml-1"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 transition-all shadow-xs whitespace-nowrap cursor-pointer"
             title="Abrir Trilha de Auditoria & Histórico de Alterações deste Estudante"
           >
-            <ShieldCheck className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+            <ShieldCheck className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
             <span>Auditoria ({auditoriasDesteEstudante.length})</span>
           </button>
         </div>
@@ -679,7 +692,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
                           {isDelete ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-black uppercase text-rose-800 border border-rose-300 dark:bg-rose-900 dark:text-rose-200 dark:border-rose-800">
                               <Trash2 className="h-3 w-3" />
-                              Exclusão / Removido
+                              Excluído
                             </span>
                           ) : isUpdate ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-black uppercase text-blue-800 border border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-800">

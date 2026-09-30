@@ -428,6 +428,10 @@ export interface ObservacaoAluno {
   texto: string; // Compatibilidade legada
   created_at: string;
   data_registro: string; // Compatibilidade legada
+  deleted_at?: string | null;
+  is_deleted?: boolean | number | string;
+  excluido_por_usuario_id?: string;
+  ativo?: boolean | number | string;
 }
 
 export interface ObservacaoAuditoria {

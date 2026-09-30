@@ -580,7 +580,7 @@ export default function AuditoriaPage() {
                           {isDelete ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800">
                               <Trash2 className="h-3.5 w-3.5" />
-                              <span>Exclusão / Removido</span>
+                              <span>Excluído</span>
                             </span>
                           ) : isUpdate ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">

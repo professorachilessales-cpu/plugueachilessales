@@ -201,7 +201,7 @@ export async function GET() {
       let carregou = false;
       try {
         const pedRes = await executeTursoQuery(
-          'SELECT * FROM observacoes_pedagogicas WHERE (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL ORDER BY created_at DESC'
+          'SELECT * FROM observacoes_pedagogicas WHERE (deleted_at IS NULL OR deleted_at = \'\') AND (ativo = 1 OR ativo IS NULL) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at DESC'
         );
         if (pedRes.rows) {
           observacoesAluno = pedRes.rows.map((row: any) => ({
@@ -218,6 +218,10 @@ export async function GET() {
             texto: row.texto,
             created_at: row.created_at || new Date().toISOString(),
             data_registro: row.created_at || new Date().toISOString(),
+            deleted_at: row.deleted_at || null,
+            is_deleted: row.is_deleted || 0,
+            excluido_por_usuario_id: row.excluido_por_usuario_id || null,
+            ativo: row.ativo,
           }));
           carregou = true;
         }
@@ -228,7 +232,7 @@ export async function GET() {
       // 2. Se a tabela observacoes_pedagogicas não pôde ser consultada (ex: ausente), busca na observacoes_aluno
       if (!carregou) {
         const obsRes = await executeTursoQuery(
-          'SELECT * FROM observacoes_aluno WHERE (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL ORDER BY created_at DESC, data_registro DESC'
+          'SELECT * FROM observacoes_aluno WHERE (deleted_at IS NULL OR deleted_at = \'\') AND (ativo = 1 OR ativo IS NULL) AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY created_at DESC, data_registro DESC'
         );
         observacoesAluno = (obsRes.rows || []).map((row: any) => ({
           id: row.id,
@@ -244,6 +248,10 @@ export async function GET() {
           texto: row.texto || row.texto_completo || '',
           created_at: row.created_at || row.data_registro || new Date().toISOString(),
           data_registro: row.data_registro || row.created_at || new Date().toISOString(),
+          deleted_at: row.deleted_at || null,
+          is_deleted: row.is_deleted || 0,
+          excluido_por_usuario_id: row.excluido_por_usuario_id || null,
+          ativo: row.ativo,
         }));
       }
     } catch (e) {

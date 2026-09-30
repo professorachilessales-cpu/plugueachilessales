@@ -36,9 +36,14 @@ export async function GET(req: NextRequest) {
         categoria, 
         texto, 
         created_at, 
-        ativo
+        ativo,
+        deleted_at,
+        is_deleted,
+        excluido_por_usuario_id
       FROM observacoes_pedagogicas 
-      WHERE (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL
+      WHERE (deleted_at IS NULL OR deleted_at = '')
+        AND (ativo = 1 OR ativo IS NULL)
+        AND (is_deleted = 0 OR is_deleted IS NULL)
     `;
     const args: any[] = [];
 
@@ -66,6 +71,10 @@ export async function GET(req: NextRequest) {
       texto: row.texto,
       created_at: row.created_at,
       data_registro: row.created_at,
+      deleted_at: row.deleted_at || null,
+      is_deleted: row.is_deleted || 0,
+      excluido_por_usuario_id: row.excluido_por_usuario_id || null,
+      ativo: row.ativo,
     }));
 
     return NextResponse.json({

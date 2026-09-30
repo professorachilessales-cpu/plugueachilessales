@@ -547,8 +547,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('school_os_notificacoes_admin', JSON.stringify(json.data.notificacoesAdmin));
           }
           if (Array.isArray(json.data.observacoesAluno)) {
-            setObservacoesAluno(json.data.observacoesAluno);
-            localStorage.setItem('school_os_observacoes_aluno', JSON.stringify(json.data.observacoesAluno));
+            const ativas = json.data.observacoesAluno.filter(
+              (o: ObservacaoAluno) => !o.deleted_at && (o.ativo === undefined || o.ativo === 1 || o.ativo === '1' || o.ativo === true) && !o.is_deleted
+            );
+            setObservacoesAluno(ativas);
+            localStorage.setItem('school_os_observacoes_aluno', JSON.stringify(ativas));
           }
           if (Array.isArray(json.data.observacoesAuditoria)) {
             setObservacoesAuditoria(json.data.observacoesAuditoria);

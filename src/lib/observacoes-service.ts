@@ -88,7 +88,11 @@ export async function garantirTabelasObservacoes(): Promise<void> {
       'ALTER TABLE observacoes_auditoria ADD COLUMN excluido_por_usuario_nome TEXT;',
       'ALTER TABLE observacoes_auditoria ADD COLUMN data_exclusao TEXT;',
       'ALTER TABLE observacoes_pedagogicas ADD COLUMN deleted_at TEXT;',
+      'ALTER TABLE observacoes_pedagogicas ADD COLUMN excluido_por_usuario_id TEXT;',
+      'ALTER TABLE observacoes_pedagogicas ADD COLUMN is_deleted INTEGER DEFAULT 0;',
       'ALTER TABLE observacoes_aluno ADD COLUMN deleted_at TEXT;',
+      'ALTER TABLE observacoes_aluno ADD COLUMN excluido_por_usuario_id TEXT;',
+      'ALTER TABLE observacoes_aluno ADD COLUMN is_deleted INTEGER DEFAULT 0;',
     ];
 
     for (const sql of alterStatements) {
@@ -419,15 +423,25 @@ export async function removerObservacaoComAuditoria(
       ],
     },
 
-    // 3. Remoção da Timeline Ativa (Hard Delete em ambas as tabelas)
-    // Garante que o registro nunca mais reapareça na listagem ativa
+    // 3. Remoção da Timeline Ativa via Soft Delete (Exclusão Lógica)
+    // Preserva o registro histórico no banco, mas oculta da timeline ativa
     {
-      sql: `DELETE FROM observacoes_pedagogicas WHERE id = ?`,
-      args: [idOriginal],
+      sql: `UPDATE observacoes_pedagogicas 
+            SET deleted_at = ?,
+                ativo = 0,
+                is_deleted = 1,
+                excluido_por_usuario_id = ?
+            WHERE id = ?`,
+      args: [agoraIso, usuarioExecutorId, idOriginal],
     },
     {
-      sql: `DELETE FROM observacoes_aluno WHERE id = ?`,
-      args: [idOriginal],
+      sql: `UPDATE observacoes_aluno 
+            SET deleted_at = ?,
+                ativo = 0,
+                is_deleted = 1,
+                excluido_por_usuario_id = ?
+            WHERE id = ?`,
+      args: [agoraIso, usuarioExecutorId, idOriginal],
     },
   ];
 

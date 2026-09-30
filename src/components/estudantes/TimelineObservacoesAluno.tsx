@@ -236,7 +236,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
         <div>
           <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
-            Observações Contínuas & Histórico Pedagógico
+            Observações & Históricos
           </h4>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Feed cronológico decrescente com histórico completo, controle de edição e auditoria

@@ -855,7 +855,7 @@ export default function EstudantesPage() {
                               setAbaFicha('observacoes');
                               setModalFichaAberto(true);
                             }}
-                            title="Observações Contínuas (Timeline)"
+                            title="Observações & Históricos"
                             className="rounded-lg p-1.5 text-school-blue-600 hover:bg-school-blue-50 dark:text-school-gold-400 dark:hover:bg-slate-800 transition-colors"
                           >
                             <MessageSquare className="h-4 w-4" />
@@ -1755,7 +1755,7 @@ export default function EstudantesPage() {
                   }`}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Observações (Timeline)</span>
+                  <span>Observações & Históricos</span>
                 </button>
 
                 <button
@@ -1992,7 +1992,7 @@ export default function EstudantesPage() {
               </div>
             )}
 
-            {/* Conteúdo da Aba 3: Observações Contínuas (Timeline) */}
+            {/* Conteúdo da Aba 3: Observações & Históricos */}
             {abaFicha === 'observacoes' && (
               <div className="mt-6">
                 <TimelineObservacoesAluno estudante={estudanteSelecionado} />

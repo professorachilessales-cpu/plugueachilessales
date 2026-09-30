@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         created_at, 
         ativo
       FROM observacoes_pedagogicas 
-      WHERE ativo = 1
+      WHERE (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL
     `;
     const args: any[] = [];
 
@@ -437,7 +437,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (err: any) {
-    console.error('Erro ao excluir observação pedagógica:', err);
+    console.error("Erro na exclusão/auditoria:", err);
     return NextResponse.json(
       { error: err?.message || 'Falha ao excluir observação pedagógica.' },
       { status: 500 }

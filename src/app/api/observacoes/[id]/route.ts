@@ -39,7 +39,7 @@ export async function DELETE(
 
     return NextResponse.json(result);
   } catch (err: any) {
-    console.error('Erro ao excluir observação via /api/observacoes/:id:', err);
+    console.error("Erro na exclusão/auditoria:", err);
     return NextResponse.json(
       { error: err?.message || 'Falha ao processar exclusão da observação.' },
       { status: 500 }

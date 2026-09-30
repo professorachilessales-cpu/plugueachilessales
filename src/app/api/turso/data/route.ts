@@ -197,13 +197,13 @@ export async function GET() {
     // 11. Observações Contínuas do Estudante & Auditoria
     let observacoesAluno: any[] = [];
     try {
-      // 1. Tentar ler da tabela observacoes_pedagogicas
+      // 1. Tentar ler da tabela observacoes_pedagogicas (apenas ativas e não excluídas)
       let carregou = false;
       try {
         const pedRes = await executeTursoQuery(
-          'SELECT * FROM observacoes_pedagogicas WHERE (ativo = 1 OR ativo IS NULL) ORDER BY created_at DESC'
+          'SELECT * FROM observacoes_pedagogicas WHERE (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL ORDER BY created_at DESC'
         );
-        if (pedRes.rows && pedRes.rows.length > 0) {
+        if (pedRes.rows) {
           observacoesAluno = pedRes.rows.map((row: any) => ({
             id: row.id,
             estudante_id: row.estudante_id,
@@ -225,12 +225,12 @@ export async function GET() {
         // Tabela pode ainda estar sendo inicializada
       }
 
-      // 2. Se não carregou da nova tabela, busca na observacoes_aluno
+      // 2. Se a tabela observacoes_pedagogicas não pôde ser consultada (ex: ausente), busca na observacoes_aluno
       if (!carregou) {
         const obsRes = await executeTursoQuery(
-          'SELECT * FROM observacoes_aluno WHERE (ativo = 1 OR ativo IS NULL) ORDER BY created_at DESC, data_registro DESC'
+          'SELECT * FROM observacoes_aluno WHERE (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL ORDER BY created_at DESC, data_registro DESC'
         );
-        observacoesAluno = obsRes.rows.map((row: any) => ({
+        observacoesAluno = (obsRes.rows || []).map((row: any) => ({
           id: row.id,
           estudante_id: row.estudante_id || row.aluno_id,
           aluno_id: row.aluno_id || row.estudante_id,

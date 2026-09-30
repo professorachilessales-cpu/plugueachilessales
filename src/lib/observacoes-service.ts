@@ -212,37 +212,66 @@ export async function removerObservacaoComAuditoria(
   // -------------------------------------------------------------
   let registro: any = null;
 
-  // 1.1 Consulta na tabela principal (observacoes_pedagogicas)
+  // 1.1 Consulta na tabela principal (observacoes_pedagogicas) ativa
   try {
     const res = await executeTursoQuery(
-      'SELECT * FROM observacoes_pedagogicas WHERE id = ? LIMIT 1',
+      'SELECT * FROM observacoes_pedagogicas WHERE id = ? AND (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL LIMIT 1',
       [observacaoId]
     );
     if (res.rows && res.rows.length > 0) {
       registro = res.rows[0];
     }
   } catch (err) {
-    console.warn('Aviso ao consultar observacoes_pedagogicas antes de deletar:', err);
+    console.warn('Aviso ao consultar observacoes_pedagogicas ativas:', err);
   }
 
-  // 1.2 Consulta na tabela legada/espelho (observacoes_aluno)
+  // 1.2 Consulta na tabela legada/espelho (observacoes_aluno) ativa
   if (!registro) {
     try {
       const resLeg = await executeTursoQuery(
-        'SELECT * FROM observacoes_aluno WHERE id = ? LIMIT 1',
+        'SELECT * FROM observacoes_aluno WHERE id = ? AND (ativo = 1 OR ativo IS NULL) AND deleted_at IS NULL LIMIT 1',
         [observacaoId]
       );
       if (resLeg.rows && resLeg.rows.length > 0) {
         registro = resLeg.rows[0];
       }
     } catch (err) {
-      console.warn('Aviso ao consultar observacoes_aluno antes de deletar:', err);
+      console.warn('Aviso ao consultar observacoes_aluno ativas:', err);
     }
   }
 
-  // 1.3 Fallback defensivo com payload enviado pelo cliente caso não encontrado no banco
+  // 1.3 Se ainda não encontrou, busca sem o filtro de ativo (em caso de soft-delete anterior pendente de expurgo)
+  if (!registro) {
+    try {
+      const resPedAll = await executeTursoQuery(
+        'SELECT * FROM observacoes_pedagogicas WHERE id = ? LIMIT 1',
+        [observacaoId]
+      );
+      if (resPedAll.rows && resPedAll.rows.length > 0) {
+        registro = resPedAll.rows[0];
+      }
+    } catch (err) {}
+  }
+
+  if (!registro) {
+    try {
+      const resAluAll = await executeTursoQuery(
+        'SELECT * FROM observacoes_aluno WHERE id = ? LIMIT 1',
+        [observacaoId]
+      );
+      if (resAluAll.rows && resAluAll.rows.length > 0) {
+        registro = resAluAll.rows[0];
+      }
+    } catch (err) {}
+  }
+
+  // 1.4 Fallback defensivo com payload enviado pelo cliente caso não encontrado no banco
   if (!registro && payloadFallback?.registro_completo) {
     registro = payloadFallback.registro_completo;
+  }
+
+  if (!registro && !payloadFallback?.estudante_id && !payloadFallback?.aluno_id) {
+    throw new Error('Observação não encontrada ou já excluída.');
   }
 
   // Extração precisa dos metadados da anotação
@@ -252,7 +281,7 @@ export async function removerObservacaoComAuditoria(
     registro?.aluno_id ||
     payloadFallback?.estudante_id ||
     payloadFallback?.aluno_id ||
-    '';
+    'estudante-desconhecido';
   const categoria = (
     registro?.categoria ||
     registro?.tipo ||
@@ -272,14 +301,17 @@ export async function removerObservacaoComAuditoria(
   const usuarioCriadorId =
     registro?.usuario_id ||
     registro?.autor_id ||
-    '';
+    'sistema';
   const usuarioCriadorNome =
     registro?.autor_nome ||
-    '';
+    'Equipe Escolar';
 
   const agoraIso = new Date().toISOString();
   const auditId = `aud-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const activityLogId = `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+  const usuarioExecutorId = usuario.userId || 'sistema';
+  const usuarioExecutorNome = usuario.userName || 'Usuário Não Identificado';
 
   // Serializa o snapshot anterior completo para o histórico
   const snapshotAnterior = JSON.stringify(
@@ -304,10 +336,10 @@ export async function removerObservacaoComAuditoria(
     texto_anterior: conteudoOriginal,
     categoria: categoria,
     registro_anterior: snapshotAnterior,
-    usuario_id: usuario.userId,
-    usuario_nome: usuario.userName,
-    excluido_por_usuario_id: usuario.userId,
-    excluido_por_usuario_nome: usuario.userName,
+    usuario_id: usuarioExecutorId,
+    usuario_nome: usuarioExecutorNome,
+    excluido_por_usuario_id: usuarioExecutorId,
+    excluido_por_usuario_nome: usuarioExecutorNome,
     data_exclusao: agoraIso,
     created_at: agoraIso,
   };
@@ -321,8 +353,8 @@ export async function removerObservacaoComAuditoria(
     autor_original_id: usuarioCriadorId,
     autor_original_nome: usuarioCriadorNome,
     data_criacao_original: dataCriacaoOriginal,
-    excluido_por_id: usuario.userId,
-    excluido_por_nome: usuario.userName,
+    excluido_por_id: usuarioExecutorId,
+    excluido_por_nome: usuarioExecutorNome,
     data_exclusao: agoraIso,
   };
 
@@ -357,10 +389,10 @@ export async function removerObservacaoComAuditoria(
         conteudoOriginal,
         categoria,
         snapshotAnterior,
-        usuario.userId,
-        usuario.userName,
-        usuario.userId,
-        usuario.userName,
+        usuarioExecutorId,
+        usuarioExecutorNome,
+        usuarioExecutorId,
+        usuarioExecutorNome,
         agoraIso,
         agoraIso,
       ],
@@ -380,26 +412,32 @@ export async function removerObservacaoComAuditoria(
       ) VALUES (?, 'OBSERVACAO_DELETE', ?, ?, null, null, ?, ?)`,
       args: [
         activityLogId,
-        usuario.userId,
-        usuario.userName,
+        usuarioExecutorId,
+        usuarioExecutorNome,
         JSON.stringify(detailsActivityLog),
         agoraIso,
       ],
     },
 
-    // 3. Remoção da Timeline Ativa (Soft Delete com data de exclusão)
+    // 3. Remoção da Timeline Ativa (Hard Delete em ambas as tabelas)
+    // Garante que o registro nunca mais reapareça na listagem ativa
     {
-      sql: `UPDATE observacoes_pedagogicas SET ativo = 0, deleted_at = ? WHERE id = ?`,
-      args: [agoraIso, idOriginal],
+      sql: `DELETE FROM observacoes_pedagogicas WHERE id = ?`,
+      args: [idOriginal],
     },
     {
-      sql: `UPDATE observacoes_aluno SET ativo = 0, deleted_at = ? WHERE id = ?`,
-      args: [agoraIso, idOriginal],
+      sql: `DELETE FROM observacoes_aluno WHERE id = ?`,
+      args: [idOriginal],
     },
   ];
 
   // Executa toda a transação atômica
-  await executeTursoTransaction(statements);
+  try {
+    await executeTursoTransaction(statements);
+  } catch (error: any) {
+    console.error("Erro na exclusão/auditoria:", error);
+    throw new Error(`Falha atômica ao excluir observação e gravar auditoria: ${error?.message || String(error)}`);
+  }
 
   return {
     success: true,

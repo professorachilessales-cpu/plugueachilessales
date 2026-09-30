@@ -637,19 +637,29 @@ export async function POST(req: NextRequest) {
 
       case 'delete_observacao': {
         const { observacao_id, estudante_id, usuario_id, usuario_nome, registro_completo } = payload;
-        const result = await removerObservacaoComAuditoria({
-          observacaoId: observacao_id,
-          usuario: {
-            userId: usuario_id || 'user-admin',
-            userName: usuario_nome || 'Administrador',
-          },
-          payloadFallback: {
-            estudante_id,
-            registro_completo,
-          },
-        });
-        return NextResponse.json(result);
+        try {
+          const result = await removerObservacaoComAuditoria({
+            observacaoId: observacao_id,
+            usuario: {
+              userId: usuario_id || 'user-admin',
+              userName: usuario_nome || 'Administrador',
+            },
+            payloadFallback: {
+              estudante_id,
+              registro_completo,
+            },
+          });
+          return NextResponse.json(result);
+        } catch (error: any) {
+          console.error("Erro na exclusão/auditoria:", error);
+          return NextResponse.json(
+            { error: error?.message || 'Falha ao processar exclusão de observação no sync.' },
+            { status: 500 }
+          );
+        }
       }
+
+      default:
         return NextResponse.json({ error: `Ação '${action}' desconhecida` }, { status: 400 });
     }
   } catch (error: any) {

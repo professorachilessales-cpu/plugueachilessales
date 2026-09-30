@@ -546,11 +546,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setNotificacoesAdmin(json.data.notificacoesAdmin);
             localStorage.setItem('school_os_notificacoes_admin', JSON.stringify(json.data.notificacoesAdmin));
           }
-          if (json.data.observacoesAluno && json.data.observacoesAluno.length > 0) {
+          if (Array.isArray(json.data.observacoesAluno)) {
             setObservacoesAluno(json.data.observacoesAluno);
             localStorage.setItem('school_os_observacoes_aluno', JSON.stringify(json.data.observacoesAluno));
           }
-          if (json.data.observacoesAuditoria && json.data.observacoesAuditoria.length > 0) {
+          if (Array.isArray(json.data.observacoesAuditoria)) {
             setObservacoesAuditoria(json.data.observacoesAuditoria);
             localStorage.setItem('school_os_observacoes_auditoria', JSON.stringify(json.data.observacoesAuditoria));
           }
@@ -1857,6 +1857,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (!res.ok) {
         const data = await res.json();
+        console.error("Erro na exclusão/auditoria:", data.error || 'Falha na resposta da exclusão');
         // Rollback da exclusão se a transação do servidor falhou
         setObservacoesAluno(prev => [registroCompleto, ...prev]);
         setObservacoesAuditoria(prev => prev.filter(a => a.id !== tempAuditId));

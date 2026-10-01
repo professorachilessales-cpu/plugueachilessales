@@ -33,7 +33,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
-import { calcularIdadeEmAnos } from '@/lib/docx-generator';
+import { calcularIdadeEmAnos } from '@/lib/faixa-etaria';
 
 export function formatarDataSolicitacao(dataStr?: string | null, incluirHora: boolean = false): string {
   if (!dataStr) return 'Data não informada';

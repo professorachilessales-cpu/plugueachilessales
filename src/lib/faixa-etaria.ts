@@ -486,3 +486,37 @@ export function analisarFaixaEtariaTurma(
     estudantes: estudantesAnalisados,
   };
 }
+
+/**
+ * Calcula a idade em anos completos com base na data de nascimento e data de emissão
+ */
+export function calcularIdadeEmAnos(dataNascimento?: string | Date | null, dataEmissao: Date = new Date()): string {
+  if (!dataNascimento) return "Não informada";
+  
+  let nasc: Date;
+  if (typeof dataNascimento === 'string') {
+    if (dataNascimento.includes('T')) {
+      nasc = new Date(dataNascimento);
+    } else if (dataNascimento.includes('-')) {
+      const [ano, mes, dia] = dataNascimento.split('-').map(Number);
+      nasc = new Date(ano, (mes || 1) - 1, dia || 1);
+    } else if (dataNascimento.includes('/')) {
+      const [dia, mes, ano] = dataNascimento.split('/').map(Number);
+      nasc = new Date(ano, (mes || 1) - 1, dia || 1);
+    } else {
+      nasc = new Date(dataNascimento);
+    }
+  } else {
+    nasc = new Date(dataNascimento);
+  }
+
+  if (isNaN(nasc.getTime())) return "Não informada";
+
+  let anos = dataEmissao.getFullYear() - nasc.getFullYear();
+  const m = dataEmissao.getMonth() - nasc.getMonth();
+  if (m < 0 || (m === 0 && dataEmissao.getDate() < nasc.getDate())) {
+    anos--;
+  }
+  return `${anos} anos`;
+}
+

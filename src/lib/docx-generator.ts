@@ -1,4 +1,7 @@
-import zlib from 'node:zlib';
+import zlib from 'zlib';
+import { calcularIdadeEmAnos } from './faixa-etaria';
+
+export { calcularIdadeEmAnos };
 
 export interface DocxReportData {
   escola?: {
@@ -23,34 +26,25 @@ export interface DocxReportData {
   conteudoFinal: string;
 }
 
-export function calcularIdadeEmAnos(dataNascimento?: string | Date | null, dataEmissao: Date = new Date()): string {
-  if (!dataNascimento) return "Não informada";
-  
-  let nasc: Date;
-  if (typeof dataNascimento === 'string') {
-    if (dataNascimento.includes('T')) {
-      nasc = new Date(dataNascimento);
-    } else if (dataNascimento.includes('-')) {
-      const [ano, mes, dia] = dataNascimento.split('-').map(Number);
-      nasc = new Date(ano, (mes || 1) - 1, dia || 1);
-    } else if (dataNascimento.includes('/')) {
-      const [dia, mes, ano] = dataNascimento.split('/').map(Number);
-      nasc = new Date(ano, (mes || 1) - 1, dia || 1);
-    } else {
-      nasc = new Date(dataNascimento);
-    }
-  } else {
-    nasc = new Date(dataNascimento);
+// Tabela pré-computada para CRC32 compatível com qualquer versão do Node.js
+const CRC_TABLE = new Uint32Array(256);
+for (let i = 0; i < 256; i++) {
+  let c = i;
+  for (let k = 0; k < 8; k++) {
+    c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
   }
+  CRC_TABLE[i] = c >>> 0;
+}
 
-  if (isNaN(nasc.getTime())) return "Não informada";
-
-  let anos = dataEmissao.getFullYear() - nasc.getFullYear();
-  const m = dataEmissao.getMonth() - nasc.getMonth();
-  if (m < 0 || (m === 0 && dataEmissao.getDate() < nasc.getDate())) {
-    anos--;
+function computeCrc32(buf: Buffer): number {
+  if (typeof (zlib as any).crc32 === 'function') {
+    return (zlib as any).crc32(buf);
   }
-  return `${anos} anos`;
+  let crc = 0 ^ (-1);
+  for (let i = 0; i < buf.length; i++) {
+    crc = (crc >>> 8) ^ CRC_TABLE[(crc ^ buf[i]) & 0xFF];
+  }
+  return (crc ^ (-1)) >>> 0;
 }
 
 function escapeXml(unsafe: string): string {
@@ -72,7 +66,7 @@ function buildZipArchive(files: { name: string; data: Buffer | string }[]): Buff
     const nameBuf = Buffer.from(file.name, 'utf8');
     const dataBuf = Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data, 'utf8');
     const uncompressedSize = dataBuf.length;
-    const crc = zlib.crc32(dataBuf);
+    const crc = computeCrc32(dataBuf);
     const compressedData = zlib.deflateRawSync(dataBuf);
     const compressedSize = compressedData.length;
 

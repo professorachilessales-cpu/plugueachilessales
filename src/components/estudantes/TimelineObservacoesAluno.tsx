@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Estudante, ObservacaoAluno, TipoObservacaoAluno } from '@/lib/types';
 import { 
@@ -20,7 +20,10 @@ import {
   Eye,
   X,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  ArrowDown,
+  ArrowUp,
+  Search
 } from 'lucide-react';
 
 interface TimelineObservacoesAlunoProps {
@@ -92,6 +95,13 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
   const [feedback, setFeedback] = useState<string | null>(null);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
+  // Estados e Refs para Navegação e Scroll Container
+  const historicoSectionRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [mostrarBotaoTopo, setMostrarBotaoTopo] = useState(false);
+  const [buscaHistorico, setBuscaHistorico] = useState('');
+  const [ordemAsc, setOrdemAsc] = useState(false);
+
   // Modais de Visualização e Edição
   const [observacaoLeitura, setObservacaoLeitura] = useState<ObservacaoAluno | null>(null);
   const [observacaoEditando, setObservacaoEditando] = useState<ObservacaoAluno | null>(null);
@@ -109,7 +119,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
     );
   }, [observacoesAluno, estudante.id]);
 
-  // Observações filtradas por categoria ordenadas SEMPRE da mais recente para a mais antiga (created_at DESC)
+  // Observações filtradas por categoria e termo de busca, com ordenação configurável (padrão DESC)
   const observacoes = useMemo(() => {
     return observacoesAtivasDesteEstudante
       .filter(o => {
@@ -117,12 +127,42 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
         const cat = (o.categoria || o.tipo || '').toLowerCase();
         return cat === filtroCategoria.toLowerCase();
       })
+      .filter(o => {
+        if (!buscaHistorico.trim()) return true;
+        const termo = buscaHistorico.toLowerCase().trim();
+        const texto = (o.texto_completo || o.texto || '').toLowerCase();
+        const autor = (o.autor_nome || o.usuario_nome || '').toLowerCase();
+        const cargo = (o.autor_cargo || '').toLowerCase();
+        return texto.includes(termo) || autor.includes(termo) || cargo.includes(termo);
+      })
       .sort((a, b) => {
         const timeB = new Date(b.created_at || b.data_registro || 0).getTime();
         const timeA = new Date(a.created_at || a.data_registro || 0).getTime();
-        return timeB - timeA;
+        return ordemAsc ? timeA - timeB : timeB - timeA;
       });
-  }, [observacoesAtivasDesteEstudante, filtroCategoria]);
+  }, [observacoesAtivasDesteEstudante, filtroCategoria, buscaHistorico, ordemAsc]);
+
+  // Controle de Rolagem e Navegação Rápida
+  const handleScrollHistorico = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    if (scrollTop > 150) {
+      if (!mostrarBotaoTopo) setMostrarBotaoTopo(true);
+    } else {
+      if (mostrarBotaoTopo) setMostrarBotaoTopo(false);
+    }
+  };
+
+  const handleRolarParaTopo = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleIrParaHistorico = () => {
+    if (historicoSectionRef.current) {
+      historicoSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   // Trilha de auditoria das observações deste estudante (exclusões e alterações)
   const auditoriasDesteEstudante = useMemo(() => {
@@ -291,6 +331,19 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
             <ShieldCheck className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
             <span>Auditoria ({auditoriasDesteEstudante.length})</span>
           </button>
+
+          {/* Botão de Atalho "Ir para Histórico" */}
+          {observacoesAtivasDesteEstudante.length > 0 && (
+            <button
+              type="button"
+              onClick={handleIrParaHistorico}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-school-blue-300 bg-school-blue-50/80 px-3 py-1.5 text-xs font-bold text-school-blue-800 hover:bg-school-blue-100 dark:border-school-blue-800/80 dark:bg-school-blue-950/40 dark:text-school-blue-200 dark:hover:bg-school-blue-900/60 transition-all shadow-xs whitespace-nowrap cursor-pointer"
+              title="Rolar direto para a lista de registros de observações"
+            >
+              <ArrowDown className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-blue-400" />
+              <span>Ver Histórico ({observacoes.length})</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -311,9 +364,22 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
       {/* Formulário de Registro Rápido */}
       <form onSubmit={handleAdicionarObservacao} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-            Nova Anotação no Histórico do Estudante:
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Nova Anotação no Histórico do Estudante:
+            </span>
+            {observacoesAtivasDesteEstudante.length > 0 && (
+              <button
+                type="button"
+                onClick={handleIrParaHistorico}
+                className="inline-flex items-center gap-1 rounded-lg bg-school-blue-100/70 hover:bg-school-blue-100 text-school-blue-800 dark:bg-school-blue-950/60 dark:hover:bg-school-blue-900/60 dark:text-school-blue-300 px-2 py-0.5 text-[10px] font-bold transition-colors cursor-pointer"
+                title="Rolar para a lista de histórico de observações"
+              >
+                <ArrowDown className="h-3 w-3" />
+                <span>Ver Histórico ({observacoes.length})</span>
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
             {(Object.keys(CATEGORIAS_CONFIG) as TipoObservacaoAluno[]).map((cat) => {
@@ -363,98 +429,183 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
         </div>
       </form>
 
-      {/* Feed da Linha do Tempo */}
-      <div className="space-y-4">
-        {observacoes.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center text-xs text-slate-400 dark:border-slate-800">
-            Nenhuma observação registrada nesta categoria.
+      {/* Bloco de Listagem Final: Histórico de Registros com Scroll Container e Sticky Header */}
+      <div 
+        ref={historicoSectionRef}
+        id="historico-registros" 
+        className="relative rounded-2xl border border-slate-200 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/30 shadow-xs overflow-hidden"
+      >
+        {/* Sticky Header com Título, Contador e Controles de Busca e Ordenação */}
+        <div className="sticky top-0 z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/90 bg-white/95 px-4 py-3.5 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-xl bg-school-blue-50 p-2 text-school-blue-700 dark:bg-school-blue-950/60 dark:text-school-blue-300">
+              <MessageSquare className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                  Histórico de Registros
+                </h4>
+                <span className="inline-flex items-center rounded-full bg-school-blue-100 px-2 py-0.5 text-[10px] font-bold text-school-blue-800 dark:bg-school-blue-950 dark:text-school-blue-300">
+                  {observacoes.length} {observacoes.length === 1 ? 'registro' : 'registros'}
+                  {buscaHistorico.trim() && ' (filtrado)'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                Rolagem independente com registros cronológicos
+              </p>
+            </div>
           </div>
-        ) : (
-          <div className="relative pl-6 space-y-4 before:absolute before:bottom-2 before:top-2 before:left-2.5 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
-            {observacoes.map((obs) => {
-              const catKey = (obs.categoria || obs.tipo || 'geral') as TipoObservacaoAluno;
-              const conf = CATEGORIAS_CONFIG[catKey] || CATEGORIAS_CONFIG.geral;
-              const Icon = conf.icon;
-              const dataIso = obs.created_at || obs.data_registro;
-              const dataFormatada = dataIso ? new Date(dataIso).toLocaleString('pt-BR', {
-                dateStyle: 'short',
-                timeStyle: 'short',
-              }) : 'Data recente';
 
-              const autorId = obs.usuario_id || obs.autor_id;
-              const isAutor = currentUser.id === autorId;
-              const canDelete = isAutor || currentUser.role === 'admin' || currentUser.role === 'direcao';
+          {/* Filtros rápidos no Header Fixo: Busca e Ordenação */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={buscaHistorico}
+                onChange={(e) => setBuscaHistorico(e.target.value)}
+                placeholder="Buscar no histórico..."
+                className="w-36 sm:w-48 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-7 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+              {buscaHistorico && (
+                <button
+                  type="button"
+                  onClick={() => setBuscaHistorico('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title="Limpar busca"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
 
-              return (
-                <div key={obs.id} className="relative group">
-                  {/* Ponto na timeline */}
-                  <div className={`absolute -left-6 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-white ring-4 ring-white dark:bg-slate-900 dark:ring-slate-900 border ${conf.border}`}>
-                    <div className={`h-2 w-2 rounded-full ${conf.bg}`} />
-                  </div>
+            <button
+              type="button"
+              onClick={() => setOrdemAsc(!ordemAsc)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors shadow-2xs cursor-pointer"
+              title={ordemAsc ? "Exibindo da mais antiga para a mais recente. Clique para inverter." : "Exibindo da mais recente para a mais antiga. Clique para inverter."}
+            >
+              <Clock className="h-3 w-3 text-slate-500" />
+              <span>{ordemAsc ? 'Mais Antigas' : 'Mais Recentes'}</span>
+            </button>
+          </div>
+        </div>
 
-                  {/* Card da Observação com clique para leitura completa */}
-                  <div 
-                    onClick={() => setObservacaoLeitura(obs)}
-                    className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md hover:border-school-blue-300 dark:border-slate-800 dark:bg-school-dark-surface dark:hover:border-school-blue-700 space-y-2"
-                  >
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${conf.bg} ${conf.cor} border ${conf.border}`}>
-                          <Icon className="h-3 w-3" />
-                          {conf.label}
-                        </span>
-                        <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
-                          {obs.autor_nome || 'Usuário'}
-                        </span>
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-500 dark:bg-slate-800">
-                          {obs.autor_cargo || 'Autor'}
-                        </span>
-                      </div>
+        {/* Área de Rolagem Fixa (Scroll Container) */}
+        <div 
+          ref={scrollContainerRef}
+          onScroll={handleScrollHistorico}
+          className="relative max-h-[500px] lg:max-h-[60vh] overflow-y-auto scrollbar-thin scroll-smooth p-4 pr-3.5 space-y-4"
+        >
+          {observacoes.length === 0 ? (
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center text-xs text-slate-400 dark:border-slate-800 bg-white/50 dark:bg-slate-900/30">
+              {buscaHistorico.trim()
+                ? 'Nenhuma observação encontrada para o termo pesquisado.'
+                : 'Nenhuma observação registrada nesta categoria.'}
+            </div>
+          ) : (
+            <div className="relative pl-6 space-y-4 before:absolute before:bottom-2 before:top-2 before:left-2.5 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+              {observacoes.map((obs) => {
+                const catKey = (obs.categoria || obs.tipo || 'geral') as TipoObservacaoAluno;
+                const conf = CATEGORIAS_CONFIG[catKey] || CATEGORIAS_CONFIG.geral;
+                const Icon = conf.icon;
+                const dataIso = obs.created_at || obs.data_registro;
+                const dataFormatada = dataIso ? new Date(dataIso).toLocaleString('pt-BR', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                }) : 'Data recente';
 
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                        <Calendar className="h-3 w-3" />
-                        <span>{dataFormatada}</span>
+                const autorId = obs.usuario_id || obs.autor_id;
+                const isAutor = currentUser.id === autorId;
+                const canDelete = isAutor || currentUser.role === 'admin' || currentUser.role === 'direcao';
 
-                        {/* Botão de Edição: Apenas o usuário autor da observação */}
-                        {isAutor && (
-                          <button
-                            type="button"
-                            onClick={(e) => abrirEdicao(obs, e)}
-                            className="p-1 text-slate-400 hover:text-school-blue-600 transition-colors ml-1"
-                            title="Editar Observação (Apenas o autor)"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-
-                        {/* Botão de Exclusão com Auditoria */}
-                        {canDelete && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleExcluir(obs, e)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                            title="Excluir (Gera log de auditoria)"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-
-                        <span className="text-slate-300 dark:text-slate-600 text-xs ml-1">|</span>
-                        <span className="text-[10px] font-semibold text-school-blue-600 dark:text-school-blue-400 flex items-center gap-0.5">
-                          <Eye className="h-3 w-3" /> Ler
-                        </span>
-                      </div>
+                return (
+                  <div key={obs.id} className="relative group">
+                    {/* Ponto na timeline */}
+                    <div className={`absolute -left-6 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-white ring-4 ring-white dark:bg-slate-900 dark:ring-slate-900 border ${conf.border}`}>
+                      <div className={`h-2 w-2 rounded-full ${conf.bg}`} />
                     </div>
 
-                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line line-clamp-3">
-                      {obs.texto_completo || obs.texto}
-                    </p>
+                    {/* Card da Observação com clique para leitura completa */}
+                    <div 
+                      onClick={() => setObservacaoLeitura(obs)}
+                      className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-xs transition-all hover:shadow-md hover:border-school-blue-300 dark:border-slate-800 dark:bg-school-dark-surface dark:hover:border-school-blue-700 space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${conf.bg} ${conf.cor} border ${conf.border}`}>
+                            <Icon className="h-3 w-3" />
+                            {conf.label}
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                            {obs.autor_nome || 'Usuário'}
+                          </span>
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-500 dark:bg-slate-800">
+                            {obs.autor_cargo || 'Autor'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <Calendar className="h-3 w-3" />
+                          <span>{dataFormatada}</span>
+
+                          {/* Botão de Edição: Apenas o usuário autor da observação */}
+                          {isAutor && (
+                            <button
+                              type="button"
+                              onClick={(e) => abrirEdicao(obs, e)}
+                              className="p-1 text-slate-400 hover:text-school-blue-600 transition-colors ml-1 cursor-pointer"
+                              title="Editar Observação (Apenas o autor)"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+
+                          {/* Botão de Exclusão com Auditoria */}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleExcluir(obs, e)}
+                              className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                              title="Excluir (Gera log de auditoria)"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+
+                          <span className="text-slate-300 dark:text-slate-600 text-xs ml-1">|</span>
+                          <span className="text-[10px] font-semibold text-school-blue-600 dark:text-school-blue-400 flex items-center gap-0.5">
+                            <Eye className="h-3 w-3" /> Ler
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line line-clamp-3">
+                        {obs.texto_completo || obs.texto}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+
+          {/* Botão "Voltar ao Início" (Dentro do Container) Flutuante Discreto */}
+          {mostrarBotaoTopo && (
+            <div className="sticky bottom-2 flex justify-end pointer-events-none z-20">
+              <button
+                type="button"
+                onClick={handleRolarParaTopo}
+                className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-slate-900/90 text-white dark:bg-white/95 dark:text-slate-900 px-3.5 py-1.5 text-xs font-bold shadow-lg shadow-slate-900/25 hover:bg-slate-900 dark:hover:bg-white active:scale-95 transition-all animate-in fade-in slide-in-from-bottom-2 cursor-pointer border border-slate-700/30 dark:border-slate-300/30 backdrop-blur-xs"
+                title="Voltar ao início do histórico de registros"
+              >
+                <ArrowUp className="h-3.5 w-3.5" />
+                <span>Topo do Histórico</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal 1: Leitura Integral da Observação */}

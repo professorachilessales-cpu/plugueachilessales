@@ -200,7 +200,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    let fileId = searchParams.get('fileId') || searchParams.get('file_id') || searchParams.get('id');
+    let fileId = searchParams.get('fileId') || searchParams.get('file_id');
+    let docId = searchParams.get('docId') || searchParams.get('doc_id') || searchParams.get('id');
     let estudanteId = searchParams.get('estudanteId') || searchParams.get('estudante_id') || searchParams.get('aluno_id');
     let nomeArquivo = searchParams.get('nomeArquivo') || searchParams.get('nome_arquivo');
 
@@ -208,7 +209,13 @@ export async function DELETE(req: NextRequest) {
     try {
       body = await req.json();
       if (!fileId) {
-        fileId = body.fileId || body.file_id || body.drive_file_id || body.id;
+        fileId = body.fileId || body.file_id || body.drive_file_id;
+      }
+      if (!docId) {
+        docId = body.docId || body.doc_id || body.id;
+      }
+      if (!fileId && docId && !docId.startsWith('doc-')) {
+        fileId = docId;
       }
       if (!estudanteId) {
         estudanteId = body.estudanteId || body.estudante_id || body.aluno_id;
@@ -220,9 +227,9 @@ export async function DELETE(req: NextRequest) {
       // Body JSON opcional caso venha por query param
     }
 
-    if (!fileId) {
+    if (!fileId && !docId && !nomeArquivo) {
       return NextResponse.json(
-        { error: 'ID do arquivo no Google Drive (fileId) é obrigatório para exclusão.' },
+        { error: 'Identificador do arquivo (fileId, docId ou nomeArquivo) é obrigatório para exclusão.' },
         { status: 400 }
       );
     }
@@ -230,7 +237,8 @@ export async function DELETE(req: NextRequest) {
     const usuario = extrairUsuarioAutenticado(req, body);
 
     const result = await excluirArquivoDriveComAuditoria({
-      fileId,
+      fileId: fileId || '',
+      docId: docId || undefined,
       estudanteId: estudanteId || undefined,
       nomeArquivo: nomeArquivo || undefined,
       usuario,

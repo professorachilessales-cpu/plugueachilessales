@@ -887,8 +887,26 @@ export async function resolverOuCriarEstruturaPastasEstudante(
   }
 }
 
+export function isRealDriveId(id?: string | null): boolean {
+  if (!id || typeof id !== 'string') return false;
+  const limpo = id.trim();
+  if (
+    limpo.startsWith('drive_') ||
+    limpo.startsWith('mock_') ||
+    limpo.endsWith('_mock') ||
+    limpo.includes('mock') ||
+    limpo.startsWith('doc-') ||
+    limpo === 'default' ||
+    limpo.length < 25
+  ) {
+    return false;
+  }
+  return /^[a-zA-Z0-9_-]{25,50}$/.test(limpo);
+}
+
 export interface ExcluirArquivoDriveParams {
-  fileId: string;
+  fileId?: string;
+  docId?: string;
   nomeArquivo?: string;
   estudanteId?: string;
   usuario: {
@@ -912,19 +930,41 @@ export interface ExcluirArquivoDriveResult {
 export async function excluirArquivoDriveComAuditoria(
   params: ExcluirArquivoDriveParams
 ): Promise<ExcluirArquivoDriveResult> {
-  const { fileId, estudanteId, usuario } = params;
+  const { docId, estudanteId, usuario } = params;
+  let fileId = params.fileId || '';
   let nomeArquivo = params.nomeArquivo || '';
-
-  if (!fileId) {
-    throw new Error('ID do arquivo no Google Drive (fileId) é obrigatório para exclusão.');
-  }
 
   // 1. Obter cliente do Google Drive
   const driveClient = await getGoogleDriveClient();
   const { drive } = driveClient;
 
+  // 1.1 Se fileId não for um ID real do Drive, tenta resolver consultando o Turso
+  if (checkIsTursoConfigured() && (!fileId || !isRealDriveId(fileId))) {
+    try {
+      const lookup = await executeTursoQuery<{ id: string; drive_file_id: string; nome_arquivo: string }>(
+        `SELECT id, drive_file_id, nome_arquivo FROM documentos_estudantes 
+         WHERE (id = ? AND id != '')
+            OR (drive_file_id = ? AND drive_file_id != '')
+            OR (? != '' AND ? != '' AND estudante_id = ? AND nome_arquivo = ?)
+         LIMIT 1`,
+        [docId || fileId, fileId || docId, estudanteId || '', nomeArquivo || '', estudanteId || '', nomeArquivo || '']
+      );
+      if (lookup.rows && lookup.rows.length > 0) {
+        const found = lookup.rows[0];
+        if (found.drive_file_id && isRealDriveId(found.drive_file_id)) {
+          fileId = found.drive_file_id;
+        }
+        if (!nomeArquivo && found.nome_arquivo) {
+          nomeArquivo = found.nome_arquivo;
+        }
+      }
+    } catch {
+      // Ignora erro de lookup preliminar
+    }
+  }
+
   // 2. Se não temos o nome do arquivo, busca metadados antes de excluir
-  if (!nomeArquivo && drive) {
+  if (!nomeArquivo && drive && fileId && isRealDriveId(fileId)) {
     try {
       const meta = await drive.files.get({ fileId, fields: 'id, name, mimeType' });
       if (meta?.data?.name) {
@@ -935,15 +975,53 @@ export async function excluirArquivoDriveComAuditoria(
     }
   }
   if (!nomeArquivo) {
-    nomeArquivo = `arquivo_${fileId}`;
+    nomeArquivo = fileId ? `arquivo_${fileId}` : (docId || 'documento');
   }
 
   // 3. Exclusão física no Google Drive autenticado
-  if (drive && !driveClient.isSimulated && !fileId.startsWith('drive_sim_') && !fileId.startsWith('mock_')) {
+  if (drive && !driveClient.isSimulated && fileId && isRealDriveId(fileId)) {
     try {
       await drive.files.delete({ fileId });
     } catch (err: any) {
       console.warn('Aviso: Erro ao deletar arquivo no Google Drive API:', err?.message || err);
+    }
+  }
+
+  // Se tivermos estudanteId e nomeArquivo, busca e deleta na pasta do estudante eventuais réplicas
+  if (drive && !driveClient.isSimulated && estudanteId && nomeArquivo) {
+    try {
+      const config = await carregarConfiguracaoDrive();
+      const rootFolderId = config?.root_folder_id || driveClient.rootFolderId;
+      let nomeEstudante = '';
+      if (checkIsTursoConfigured()) {
+        const estRes = await executeTursoQuery<{ nome_completo: string }>(
+          `SELECT nome_completo FROM estudantes WHERE id = ? LIMIT 1`,
+          [estudanteId]
+        );
+        if (estRes.rows && estRes.rows[0]?.nome_completo) {
+          nomeEstudante = estRes.rows[0].nome_completo;
+        }
+      }
+      if (nomeEstudante) {
+        const estrutura = await resolverOuCriarEstruturaPastasEstudante(drive, nomeEstudante, rootFolderId);
+        if (estrutura.estudanteFolderId) {
+          const dupFiles = await drive.files.list({
+            q: `'${estrutura.estudanteFolderId}' in parents and name = '${nomeArquivo.replace(/'/g, "\\'")}' and trashed = false`,
+            fields: 'files(id, name)',
+          });
+          if (dupFiles.data?.files && dupFiles.data.files.length > 0) {
+            for (const dup of dupFiles.data.files) {
+              if (dup.id && dup.id !== fileId) {
+                try {
+                  await drive.files.delete({ fileId: dup.id });
+                } catch {}
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignora erro secundário
     }
   }
 
@@ -954,21 +1032,42 @@ export async function excluirArquivoDriveComAuditoria(
   // 4. Tratamento de registros associados no banco de dados local (Turso)
   if (checkIsTursoConfigured()) {
     try {
-      // Remove das tabelas locais de documentos do estudante
+      // Remove das tabelas de documentos do estudante de forma abrangente
       await executeTursoQuery(
-        `DELETE FROM documentos_estudantes WHERE drive_file_id = ? OR id = ?`,
-        [fileId, fileId]
+        `DELETE FROM documentos_estudantes 
+         WHERE (drive_file_id = ? AND ? != '')
+            OR (id = ? AND ? != '')
+            OR (id = ? AND ? != '')
+            OR (? != '' AND ? != '' AND estudante_id = ? AND (nome_arquivo = ? OR LOWER(nome_arquivo) = LOWER(?)))`,
+        [
+          fileId, fileId,
+          docId || '', docId || '',
+          fileId, fileId,
+          estudanteId || '', nomeArquivo || '', estudanteId || '', nomeArquivo || '', nomeArquivo || ''
+        ]
       );
+
       await executeTursoQuery(
-        `DELETE FROM documentos_estudante WHERE drive_file_id = ? OR id = ?`,
-        [fileId, fileId]
+        `DELETE FROM documentos_estudante 
+         WHERE (drive_file_id = ? AND ? != '')
+            OR (id = ? AND ? != '')
+            OR (id = ? AND ? != '')
+            OR (? != '' AND ? != '' AND aluno_id = ? AND (nome_arquivo = ? OR LOWER(nome_arquivo) = LOWER(?)))`,
+        [
+          fileId, fileId,
+          docId || '', docId || '',
+          fileId, fileId,
+          estudanteId || '', nomeArquivo || '', estudanteId || '', nomeArquivo || '', nomeArquivo || ''
+        ]
       );
 
       // Remove de atestados de professor se aplicável
-      await executeTursoQuery(
-        `DELETE FROM atestados_professor WHERE drive_file_id = ? OR id = ?`,
-        [fileId, fileId]
-      );
+      if (fileId || docId) {
+        await executeTursoQuery(
+          `DELETE FROM atestados_professor WHERE drive_file_id = ? OR id = ?`,
+          [fileId || docId, docId || fileId]
+        );
+      }
 
       // Se o arquivo excluído for foto de perfil do aluno (foto_perfil_3x4.jpg ou similar), defina foto_url = NULL
       const isFotoPerfil =
@@ -982,7 +1081,7 @@ export async function excluirArquivoDriveComAuditoria(
           `UPDATE estudantes SET foto_url = NULL WHERE id = ?`,
           [estudanteId]
         );
-      } else if (isFotoPerfil) {
+      } else if (isFotoPerfil && fileId) {
         await executeTursoQuery(
           `UPDATE estudantes SET foto_url = NULL WHERE foto_url LIKE ?`,
           [`%${fileId}%`]
@@ -1011,8 +1110,8 @@ export async function excluirArquivoDriveComAuditoria(
           auditId,
           estudanteId || null,
           descricao,
-          fileId,
-          fileId,
+          fileId || docId || 'sem_id',
+          fileId || docId || 'sem_id',
           nomeArquivo,
           usuarioId,
           usuarioNome,
@@ -1040,8 +1139,8 @@ export async function excluirArquivoDriveComAuditoria(
             auditId,
             estudanteId || null,
             descricao,
-            fileId,
-            fileId,
+            fileId || docId || 'sem_id',
+            fileId || docId || 'sem_id',
             nomeArquivo,
             usuarioId,
             usuarioNome,

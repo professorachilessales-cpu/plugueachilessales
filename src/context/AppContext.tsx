@@ -2031,7 +2031,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // 1. Remove da listagem local imediatamente (otimista)
     setDocumentosEstudanteDrive(prev => {
-      const filtrados = prev.filter(d => d.id !== id && (!resolvedFileId || d.drive_file_id !== resolvedFileId));
+      const filtrados = prev.filter(d =>
+        d.id !== id &&
+        (!resolvedFileId || d.drive_file_id !== resolvedFileId) &&
+        (!resolvedNomeArquivo || d.nome_arquivo?.toLowerCase().trim() !== resolvedNomeArquivo.toLowerCase().trim())
+      );
       try {
         localStorage.setItem('school_os_documentos_drive', JSON.stringify(filtrados));
       } catch {}
@@ -2045,9 +2049,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       resolvedNomeArquivo.toLowerCase().includes('foto_3x4') ||
       (doc?.tipo === 'outro' && resolvedNomeArquivo.toLowerCase().includes('foto'));
 
-    if (isFoto && resolvedEstudanteId) {
+    // Atualiza o estudante na memória e localStorage para remover também de estudante.documentos
+    if (resolvedEstudanteId) {
       setEstudantes(prev => {
-        const atualizados = prev.map(est => est.id === resolvedEstudanteId ? { ...est, foto_url: undefined } : est);
+        const atualizados = prev.map(est => {
+          if (est.id === resolvedEstudanteId) {
+            const docsFiltrados = (est.documentos || []).filter(
+              d =>
+                d.id !== id &&
+                (!resolvedFileId || d.drive_file_id !== resolvedFileId) &&
+                (!resolvedNomeArquivo || d.nome_arquivo?.toLowerCase().trim() !== resolvedNomeArquivo.toLowerCase().trim())
+            );
+            const atualizado: any = { ...est, documentos: docsFiltrados };
+            if (isFoto) {
+              atualizado.foto_url = undefined;
+            }
+            return atualizado;
+          }
+          return est;
+        });
         try {
           localStorage.setItem('school_os_estudantes', JSON.stringify(atualizados));
         } catch {}
@@ -2057,7 +2077,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // 2. Chama a API de exclusão física no Google Drive com auditoria e limpeza no banco local
     try {
-      await fetch('/api/upload-drive', {
+      const res = await fetch('/api/upload-drive', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -2066,6 +2086,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           'x-user-role': currentUser.role,
         },
         body: JSON.stringify({
+          id,
+          docId: id,
           fileId: resolvedFileId,
           drive_file_id: resolvedFileId,
           nomeArquivo: resolvedNomeArquivo,
@@ -2073,11 +2095,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }),
       });
 
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Erro ao excluir arquivo no servidor (${res.status})`);
+      }
+
       try {
         await refreshActivityLogs();
       } catch {}
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Aviso ao sincronizar exclusão do Google Drive com o servidor:', err);
+      throw err;
     }
   };
 

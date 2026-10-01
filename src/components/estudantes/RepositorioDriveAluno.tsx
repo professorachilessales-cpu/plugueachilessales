@@ -110,6 +110,7 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
   // Estados do Modal de Exclusão do Google Drive
   const [arquivoParaExcluir, setArquivoParaExcluir] = useState<DocumentoEstudanteDrive | null>(null);
   const [excluindo, setExcluindo] = useState(false);
+  const [arquivosExcluidos, setArquivosExcluidos] = useState<string[]>([]);
 
   // Validador estrito de IDs emitidos pelo Google Drive API
   const isRealDriveId = (id?: string | null): boolean => {
@@ -193,17 +194,48 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
     const doc = arquivoParaExcluir;
     setExcluindo(true);
     setErroUpload(null);
+
+    const docId = doc.id || '';
+    const fileId = doc.drive_file_id || '';
+    const nomeArquivo = doc.nome_arquivo || '';
+
+    // 1. Oculta imediatamente da visualização da tela
+    setArquivosExcluidos(prev => {
+      const novos = [...prev];
+      if (docId && !novos.includes(docId)) novos.push(docId);
+      if (fileId && !novos.includes(fileId)) novos.push(fileId);
+      if (nomeArquivo) {
+        const norm = nomeArquivo.toLowerCase().trim();
+        if (!novos.includes(norm)) novos.push(norm);
+      }
+      return novos;
+    });
+
+    // 2. Remove imediatamente do estado de arquivos físicos carregados
+    setArquivosDriveFisicos(prev =>
+      prev.filter(af => {
+        if (docId && af.id === docId) return false;
+        if (fileId && (af.drive_file_id === fileId || af.id === fileId)) return false;
+        if (nomeArquivo && af.nome_arquivo?.toLowerCase().trim() === nomeArquivo.toLowerCase().trim()) return false;
+        return true;
+      })
+    );
+
     try {
       await deleteDocumentoEstudanteDrive(
-        doc.id || '',
-        doc.drive_file_id,
-        doc.nome_arquivo,
+        docId,
+        fileId,
+        nomeArquivo,
         estudante.id
       );
-      setSucessoUpload(`Arquivo "${doc.nome_arquivo}" excluído do Google Drive com sucesso e registrado na auditoria.`);
+      setSucessoUpload(`Arquivo "${nomeArquivo}" excluído com sucesso e registrado na auditoria.`);
       setTimeout(() => setSucessoUpload(null), 4000);
       setArquivoParaExcluir(null);
     } catch (err: any) {
+      // Reverte a ocultação se a exclusão falhar
+      setArquivosExcluidos(prev =>
+        prev.filter(k => k !== docId && k !== fileId && k !== nomeArquivo.toLowerCase().trim())
+      );
       setErroUpload(err.message || 'Erro ao excluir arquivo do Google Drive.');
     } finally {
       setExcluindo(false);
@@ -212,39 +244,50 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
 
   // Documentos cadastrados para este estudante com ordenação segura e mesclagem de fontes
   const documentos = useMemo(() => {
-    const lista1 = documentosEstudanteDrive.filter(
-      d => d.aluno_id === estudante.id || (d as any).estudante_id === estudante.id
-    );
+    const isExcluido = (d: any) => {
+      if (!d) return true;
+      if (d.id && arquivosExcluidos.includes(d.id)) return true;
+      if (d.drive_file_id && arquivosExcluidos.includes(d.drive_file_id)) return true;
+      if (d.nome_arquivo && arquivosExcluidos.includes(d.nome_arquivo.toLowerCase().trim())) return true;
+      return false;
+    };
+
+    const lista1 = documentosEstudanteDrive
+      .filter(d => d.aluno_id === estudante.id || (d as any).estudante_id === estudante.id)
+      .filter(d => !isExcluido(d));
 
     // Complementa com documentos anexados diretamente na ficha do estudante (se houver)
-    const lista2 = ((estudante as any).documentos || []).map((doc: any) => ({
-      id: doc.id || `doc-${doc.drive_file_id}`,
-      aluno_id: estudante.id,
-      estudante_id: estudante.id,
-      drive_file_id: doc.drive_file_id,
-      nome_arquivo: doc.nome_arquivo,
-      url_visualizacao: doc.drive_view_link,
-      drive_view_url: doc.drive_view_link,
-      tipo_documento: doc.tipo_documento,
-      tipo: doc.tipo_documento,
-      tamanho_bytes: doc.tamanho_bytes,
-      mime_type: doc.mime_type,
-      data_upload: doc.created_at,
-    }));
+    const lista2 = ((estudante as any).documentos || [])
+      .filter((d: any) => !isExcluido(d))
+      .map((doc: any) => ({
+        id: doc.id || `doc-${doc.drive_file_id}`,
+        aluno_id: estudante.id,
+        estudante_id: estudante.id,
+        drive_file_id: doc.drive_file_id,
+        nome_arquivo: doc.nome_arquivo,
+        url_visualizacao: doc.drive_view_link,
+        drive_view_url: doc.drive_view_link,
+        tipo_documento: doc.tipo_documento,
+        tipo: doc.tipo_documento,
+        tamanho_bytes: doc.tamanho_bytes,
+        mime_type: doc.mime_type,
+        data_upload: doc.created_at,
+      }));
 
     // Complementa com arquivos físicos reais detectados na pasta do Google Drive
-    const lista3 = arquivosDriveFisicos.map((af: any) => ({
-      ...af,
-      aluno_id: estudante.id,
-      estudante_id: estudante.id,
-    }));
+    const lista3 = arquivosDriveFisicos
+      .filter(af => !isExcluido(af))
+      .map((af: any) => ({
+        ...af,
+        aluno_id: estudante.id,
+        estudante_id: estudante.id,
+      }));
 
     // Mescla sem duplicatas priorizando arquivos com IDs reais do Google Drive
     const mapa = new Map<string, DocumentoEstudanteDrive>();
     [...lista1, ...lista2, ...lista3].forEach(doc => {
-      // Normalização de nome para cruzar arquivos físicos reais com metadados do banco
-      const nomeBase = (doc.nome_arquivo || '').toLowerCase().replace(/\[[^\]]+\]_/g, '').trim();
-      const chave = nomeBase || doc.drive_file_id || doc.id || '';
+      if (isExcluido(doc)) return;
+      const chave = doc.drive_file_id || doc.id || (doc.nome_arquivo || '').toLowerCase().trim();
 
       if (chave) {
         const existente = mapa.get(chave);
@@ -272,7 +315,7 @@ export function RepositorioDriveAluno({ estudante }: RepositorioDriveAlunoProps)
         const timeB = new Date(b.data_upload || (b as any).createdTime || 0).getTime() || 0;
         return timeB - timeA;
       });
-  }, [documentosEstudanteDrive, estudante.id, (estudante as any).documentos, arquivosDriveFisicos, filtroTipo]);
+  }, [documentosEstudanteDrive, estudante.id, (estudante as any).documentos, arquivosDriveFisicos, arquivosExcluidos, filtroTipo]);
 
   const handleSelecionarArquivo = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErroUpload(null);

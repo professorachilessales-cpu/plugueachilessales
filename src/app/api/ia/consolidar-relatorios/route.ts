@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeTextarea } from '@/lib/security';
+import { 
+  determinarGeneroEstudante, 
+  montarSystemPromptConsolidacao, 
+  montarUserPromptConsolidacao, 
+  limparMetatextoEEncerramentos, 
+  gerarConsolidadoHeuristico 
+} from '@/lib/pareceres-ia';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,137 +14,213 @@ interface ParecerDocenteEntrada {
   professorNome: string;
   disciplinas?: string[];
   textoFinal: string;
+  ehApoio?: boolean;
+}
+
+interface AnotacaoPedagogicaEntrada {
+  autorNome?: string;
+  categoria?: string;
+  texto: string;
+  dataRegistro?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { 
-      alunoNome, 
+      alunoNome,
+      nome_estudante,
+      genero_estudante,
+      genero,
+      sexo,
       turmaNome, 
       turno, 
-      pareceres,
+      pareceres = [],
+      anotacoesPedagogicas = [],
       observacoesSecretaria 
     } = body as {
-      alunoNome: string;
-      turmaNome: string;
+      alunoNome?: string;
+      nome_estudante?: string;
+      genero_estudante?: string;
+      genero?: string;
+      sexo?: string;
+      turmaNome?: string;
       turno?: string;
       pareceres: ParecerDocenteEntrada[];
+      anotacoesPedagogicas?: AnotacaoPedagogicaEntrada[];
       observacoesSecretaria?: string;
     };
 
-    if (!pareceres || pareceres.length === 0) {
+    const nomeFinal = (nome_estudante || alunoNome || 'Estudante').trim();
+    const turmaFinal = (turmaNome || 'Regular').trim();
+
+    // Determina os parâmetros de gênero e concordância nominal
+    const dadosGenero = determinarGeneroEstudante({
+      nome_completo: nomeFinal,
+      genero: genero_estudante || genero || sexo,
+      sexo: sexo || genero || genero_estudante,
+    });
+
+    const instrucaoGenero = genero_estudante && genero_estudante.includes('(')
+      ? genero_estudante
+      : dadosGenero.instrucaoGramatical;
+
+    // Se não há pareceres e nem anotações pedagógicas válidas
+    if ((!pareceres || pareceres.length === 0) && (!anotacoesPedagogicas || anotacoesPedagogicas.length === 0)) {
       return NextResponse.json(
-        { error: 'Não há pareceres docentes enviados para consolidação desta solicitação.' },
+        { error: 'Não há pareceres docentes ou anotações pedagógicas enviadas para consolidação desta solicitação.' },
         { status: 400 }
       );
     }
 
-    const pareceresFormatados = pareceres
-      .map((p, idx) => {
-        const disc = p.disciplinas && p.disciplinas.length > 0 ? ` (${p.disciplinas.join(', ')})` : '';
-        return `[Docente ${idx + 1}: ${p.professorNome}${disc}]\n${p.textoFinal.trim()}`;
-      })
-      .join('\n\n');
+    // Formatação da lista de pareceres e anotações para o prompt
+    const blocosTextos: string[] = [];
 
-    const systemInstruction = `Você é o Coordenador Pedagógico e Diretor de Ensino do Colégio Integrado PLUGUE.
-Sua tarefa é compilar e sintetizar os pareceres pedagógicos de múltiplos professores sobre o(a) estudante ${alunoNome} (Turma: ${turmaNome}), produzindo um "PARECER PEDAGÓGICO INTEGRADO" oficial, coeso, abrangente, sem repetições e sem redundâncias.
+    // 1. Pareceres descritivos de professores e equipe de apoio
+    if (pareceres && pareceres.length > 0) {
+      pareceres.forEach((p, idx) => {
+        const disc = p.disciplinas && p.disciplinas.length > 0 ? ` - ${p.disciplinas.join(', ')}` : '';
+        const papel = p.ehApoio ? 'Equipe de Apoio & Inclusão' : 'Docente Regente';
+        blocosTextos.push(`[${papel} ${idx + 1}: ${p.professorNome}${disc}]\n${p.textoFinal.trim()}`);
+      });
+    }
 
-ESTRUTURA DESEJADA DO DOCUMENTO CONSOLIDADO:
-1. INTRODUÇÃO INSTITUCIONAL: Síntese da adaptação geral do estudante no período, frequência e postura diante da rotina escolar.
-2. DESEMPENHO COGNITIVO & HABILIDADES CURRICULARES: Integração dos pontos fortes observados pelos professores nas áreas do conhecimento (Exatas, Linguagens, Humanas e Ciências), evidenciando progressos concretos e competências em desenvolvimento.
-3. ASPECTOS SOCIOEMOCIONAIS & CONVIVÊNCIA: Descrição do relacionamento interpessoal com colegas e educadores, participação em projetos colaborativos, respeito às normas e postura de escuta.
-4. DIRETRIZES & ENCAMINHAMENTOS PEDAGÓGICOS: Orientações claras e estimulantes para continuidade do processo educativo no próximo ciclo, reforçando a parceria entre a instituição escolar e a família.
+    // 2. Anotações pedagógicas válidas do estudante
+    if (anotacoesPedagogicas && anotacoesPedagogicas.length > 0) {
+      anotacoesPedagogicas.forEach((a, idx) => {
+        const cat = a.categoria ? ` (${a.categoria.toUpperCase()})` : '';
+        const autor = a.autorNome ? ` por ${a.autorNome}` : '';
+        const data = a.dataRegistro ? ` em ${a.dataRegistro}` : '';
+        blocosTextos.push(`[Registro Pedagógico ${idx + 1}${cat}${autor}${data}]\n${a.texto.trim()}`);
+      });
+    }
 
-REQUISITOS ESSENCIAIS:
-- Elimine redundâncias: se mais de um professor mencionou o mesmo aspecto, unifique a informação em um único período harmonioso.
-- Mantenha tom formal, pedagógico, ético, humanizado e propositivo.
-- Não cite nomes de professores como "o professor Marcos disse", mas sim integre as observações harmonicamente ("No âmbito das ciências exatas e raciocínio lógico...", "Na expressão verbal e produções textuais...").
-- Retorne apenas o texto final consolidado em parágrafos justificados e bem pontuados.`;
+    // 3. Observações da Secretaria Escolar
+    if (observacoesSecretaria && observacoesSecretaria.trim()) {
+      blocosTextos.push(`[Observações da Secretaria / Gestão Escolar]\n${sanitizeTextarea(observacoesSecretaria.trim())}`);
+    }
 
-    const userPrompt = `Pareceres individuais enviados pelo corpo docente:
-"""
-${pareceresFormatados}
-"""
-${observacoesSecretaria ? `\nObservações complementares da Secretaria/Coordenação:\n"""\n${sanitizeTextarea(observacoesSecretaria)}\n"""` : ''}
+    const listaPareceresFormatada = blocosTextos.join('\n\n');
 
-Gere o Parecer Pedagógico Integrado definitivo:`;
+    // Monta os prompts estritos de sistema e usuário
+    const systemPrompt = montarSystemPromptConsolidacao();
+    const userPrompt = montarUserPromptConsolidacao({
+      nomeEstudante: nomeFinal,
+      generoEstudante: instrucaoGenero,
+      listaPareceres: listaPareceresFormatada,
+    });
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
+    // 1. Tentativa via Google Gemini API
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
     if (geminiApiKey && geminiApiKey.trim() !== '' && !geminiApiKey.includes('your-key')) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiApiKey.trim()}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: 'user',
-                  parts: [{ text: `${systemInstruction}\n\n${userPrompt}` }],
-                },
-              ],
-              generationConfig: {
-                temperature: 0.25,
-                maxOutputTokens: 2048,
-              },
-            }),
-          }
-        );
+      const modelosGemini = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
 
-        if (response.ok) {
-          const json = await response.json();
-          const candidateText = json.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (candidateText && candidateText.trim().length > 0) {
-            return NextResponse.json({
-              success: true,
-              conteudo_consolidado: candidateText.trim(),
-              provider: 'gemini-3.8-flash',
-            });
+      for (const modelo of modelosGemini) {
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey.trim()}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                systemInstruction: {
+                  parts: [{ text: systemPrompt }],
+                },
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [{ text: userPrompt }],
+                  },
+                ],
+                generationConfig: {
+                  temperature: 0.2,
+                  maxOutputTokens: 2500,
+                },
+              }),
+            }
+          );
+
+          if (response.ok) {
+            const json = await response.json();
+            const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (rawText && rawText.trim().length > 0) {
+              const textoFinalLimpo = limparMetatextoEEncerramentos(rawText);
+              return NextResponse.json({
+                success: true,
+                conteudo_consolidado: textoFinalLimpo,
+                textoConsolidado: textoFinalLimpo,
+                provider: modelo,
+              });
+            }
           }
-        } else {
-          console.warn('Falha na API Gemini [Status ' + response.status + '], acionando consolidador heurístico pedagógico de contingência.');
+        } catch (geminiError) {
+          console.warn(`Tentativa com ${modelo} falhou:`, geminiError);
         }
-      } catch (geminiError) {
-        console.error('Erro na consolidação com Gemini:', geminiError);
       }
     }
 
-    // Heurística de Consolidação de Contingência Pedagógica
-    const consolidadoHeuristico = gerarConsolidadoHeuristico(alunoNome, turmaNome, pareceres, observacoesSecretaria);
+    // 2. Tentativa via OpenAI API (se configurado)
+    const openAiApiKey = process.env.OPENAI_API_KEY;
+    if (openAiApiKey && openAiApiKey.trim() !== '') {
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openAiApiKey.trim()}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.2,
+          }),
+        });
+
+        if (response.ok) {
+          const json = await response.json();
+          const rawText = json.choices?.[0]?.message?.content;
+          if (rawText && rawText.trim().length > 0) {
+            const textoFinalLimpo = limparMetatextoEEncerramentos(rawText);
+            return NextResponse.json({
+              success: true,
+              conteudo_consolidado: textoFinalLimpo,
+              textoConsolidado: textoFinalLimpo,
+              provider: 'gpt-4o-mini',
+            });
+          }
+        }
+      } catch (openAiError) {
+        console.warn('Tentativa com OpenAI falhou:', openAiError);
+      }
+    }
+
+    // 3. Fallback Heurístico Pedagógico de Alta Precisão (Sem metatexto, concordância de gênero estrita)
+    const consolidadoHeuristico = gerarConsolidadoHeuristico({
+      nomeEstudante: nomeFinal,
+      generoGramatical: dadosGenero.generoGramatical,
+      turmaNome: turmaFinal,
+      pareceres,
+      anotacoesPedagogicas,
+      observacoesSecretaria,
+    });
+
+    const textoFinalHeuristico = limparMetatextoEEncerramentos(consolidadoHeuristico);
 
     return NextResponse.json({
       success: true,
-      conteudo_consolidado: consolidadoHeuristico,
+      conteudo_consolidado: textoFinalHeuristico,
+      textoConsolidado: textoFinalHeuristico,
       provider: 'consolidador-pedagogico-plugue',
     });
   } catch (error: any) {
-    console.error('Erro na rota de consolidação:', error);
+    console.error('Erro na rota de consolidação de pareceres:', error);
     return NextResponse.json(
       { error: error?.message || 'Erro ao consolidar pareceres pedagógicos.' },
       { status: 500 }
     );
   }
-}
-
-function gerarConsolidadoHeuristico(
-  alunoNome: string,
-  turmaNome: string,
-  pareceres: ParecerDocenteEntrada[],
-  observacoesSecretaria?: string
-): string {
-  const nome = alunoNome || 'O(A) estudante';
-  const trechosTextos = pareceres.map(p => p.textoFinal.trim()).join(' ');
-
-  return `Ao longo do período letivo avaliado, ${nome} (Turma ${turmaNome}) apresentou desempenho pedagógico positivo e consistente com as diretrizes educacionais da instituição.
-
-No tocante ao rendimento acadêmico e apropriação dos conteúdos curriculares, as avaliações dos docentes evidenciam que ${trechosTextos}
-
-No âmbito do desenvolvimento socioemocional e da convivência comunitária, ${nome} destaca-se pela receptividade às intervenções formativas, demonstrando espírito de cooperação, empatia nas atividades em grupo e progressiva autonomia na gestão de seus compromissos escolares.
-
-${observacoesSecretaria ? `Registros institucionais complementares: ${observacoesSecretaria.trim()}` : ''}
-
-Para o próximo ciclo formativo, a equipe pedagógica recomenda a continuidade do estímulo à leitura crítica, consolidação do hábito de estudos extraclasse e a permanente integração colaborativa entre a escola e a família no acompanhamento do percurso acadêmico.`;
 }

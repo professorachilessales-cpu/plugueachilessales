@@ -28,6 +28,7 @@ import {
   RefreshCw,
   ExternalLink
 } from 'lucide-react';
+import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
 
 interface PainelRelatoriosEstudanteProps {
   estudante: Estudante;
@@ -44,6 +45,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     relatoriosProfessores, 
     relatoriosConsolidados, 
     notificacoesAdmin,
+    observacoesAluno,
     addSolicitacaoRelatorio, 
     updateSolicitacaoRelatorio, 
     updateRelatorioProfessor, 
@@ -152,12 +154,24 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
 
   // Disparar consolidação de pareceres com IA
   const handleIniciarConsolidacaoIA = async () => {
+    // 1. Coleta todos os pareceres descritivos válidos enviados pelos professores e equipe de apoio
     const pareceresEnviados = pareceresAtivos.filter(
       p => p.status === 'enviado' && (p.texto_final || p.texto_ia || p.rascunho_original)
     );
 
-    if (pareceresEnviados.length === 0) {
-      alert('É necessário ter ao menos um parecer docente enviado para consolidar o relatório com IA.');
+    // 1.1 Coleta anotações pedagógicas válidas do estudante registradas por professores e apoio
+    const anotacoesEstudante = (observacoesAluno || [])
+      .filter(o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id) && !o.deleted_at && o.is_deleted !== 1 && o.ativo !== 0)
+      .map(o => ({
+        autorNome: o.autor_nome || (o as any).usuario_nome || 'Equipe Escolar',
+        categoria: o.categoria || o.tipo || 'pedagogico',
+        texto: o.texto_completo || o.texto || '',
+        dataRegistro: o.created_at || o.data_registro ? new Date(o.created_at || o.data_registro!).toLocaleDateString('pt-BR') : undefined,
+      }))
+      .filter(a => a.texto.trim().length > 0);
+
+    if (pareceresEnviados.length === 0 && anotacoesEstudante.length === 0) {
+      alert('É necessário ter ao menos um parecer docente enviado ou anotação pedagógica registrada para consolidar o relatório com IA.');
       return;
     }
 
@@ -168,20 +182,35 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     try {
       const payloadPareceres = pareceresEnviados.map(p => {
         const prof = professores.find(pr => pr.id === p.professor_id);
+        const ehApoio = (prof as any)?.eh_apoio === true ||
+          (prof as any)?.is_apoio === true ||
+          prof?.disciplinas?.some(d => d.toLowerCase().includes('apoio')) ||
+          prof?.formacao?.toLowerCase().includes('apoio');
+
         return {
           professorNome: prof?.nome_completo || 'Docente',
           disciplinas: prof?.disciplinas || [],
-          textoFinal: p.texto_final || p.texto_ia || p.rascunho_original,
+          textoFinal: (p.texto_final || p.texto_ia || p.rascunho_original).trim(),
+          ehApoio: !!ehApoio,
         };
       });
+
+      // 2. Coletar os metadados do estudante: Nome Completo e Gênero / Sexo cadastrado no banco
+      const dadosGenero = determinarGeneroEstudante(estudante);
+      const turmaAluno = turmas.find(t => t.id === estudante.turma_id);
 
       const res = await fetch('/api/ia/consolidar-relatorios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          nome_estudante: estudante.nome_completo,
           alunoNome: estudante.nome_completo,
-          turmaNome: estudante.turma_nome || 'Turma Regular',
+          genero_estudante: dadosGenero.instrucaoGramatical,
+          genero: estudante.genero || estudante.sexo,
+          sexo: estudante.sexo || estudante.genero,
+          turmaNome: turmaAluno?.nome || estudante.turma_nome || 'Turma Regular',
           pareceres: payloadPareceres,
+          anotacoesPedagogicas: anotacoesEstudante,
           observacoesSecretaria: observacoesSecretaria,
         }),
       });
@@ -191,7 +220,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
         throw new Error(data.error || 'Falha ao consolidar pareceres com IA');
       }
 
-      setTextoConsolidadoEditavel(data.textoConsolidado);
+      setTextoConsolidadoEditavel(data.conteudo_consolidado || data.textoConsolidado);
     } catch (err: any) {
       setErroConsolidacao(err.message || 'Erro inesperado na consolidação com IA');
     } finally {
@@ -639,14 +668,17 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
             </div>
 
             {consolidandoComIA ? (
-              <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-8 text-center dark:border-purple-900/40 dark:bg-purple-950/20 space-y-3">
+              <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-8 text-center dark:border-purple-900/40 dark:bg-purple-950/20 space-y-3 animate-in fade-in">
                 <RefreshCw className="mx-auto h-8 w-8 text-purple-600 animate-spin" />
                 <h5 className="text-sm font-bold text-purple-950 dark:text-purple-200">
-                  Processando Pareceres Docentes com Gemini IA...
+                  Sintetizando pareceres docentes com IA...
                 </h5>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Eliminando redundâncias, articulando aspectos cognitivos e socioemocionais e aplicando padrão formal institucional.
+                  Processando pareceres descritivos e anotações pedagógicas com rigor formal, concordância de gênero estrita e ausência de metatexto.
                 </p>
+                <div className="w-full max-w-xs mx-auto bg-purple-200/60 dark:bg-purple-900/40 h-1.5 rounded-full overflow-hidden mt-3">
+                  <div className="h-full bg-gradient-to-r from-purple-600 to-indigo-600 animate-pulse rounded-full w-4/5 mx-auto" />
+                </div>
               </div>
             ) : erroConsolidacao ? (
               <div className="rounded-xl bg-rose-50 p-4 text-xs font-semibold text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-200">

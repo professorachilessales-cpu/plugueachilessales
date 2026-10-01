@@ -139,6 +139,8 @@ export interface Estudante {
   turma_nome?: string;
   nome_completo: string;
   data_nascimento: string;
+  genero?: string; // 'MASCULINO' | 'FEMININO' | 'OUTRO' | 'NÃO INFORMADO'
+  sexo?: string;
   cpf: string;
   rg_numero?: string;
   rg_data_expedicao?: string;

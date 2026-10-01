@@ -368,7 +368,7 @@ export interface ActivityLog {
 // 1. MÓDULO: RELATÓRIOS PEDAGÓGICOS COLABORATIVOS COM IA
 // -------------------------------------------------------------
 export type StatusSolicitacaoRelatorio = 'pendente' | 'concluido';
-export type StatusRelatorioProfessor = 'pendente' | 'enviado';
+export type StatusRelatorioProfessor = 'pendente' | 'enviado' | 'nao_entregue';
 
 export interface SolicitacaoRelatorio {
   id: string;
@@ -388,6 +388,36 @@ export interface RelatorioProfessor {
   texto_final: string;
   status: StatusRelatorioProfessor;
   data_envio?: string;
+  created_at?: string;
+}
+
+export interface SnapshotParecerEnviado {
+  professor_id: string;
+  professor_nome: string;
+  disciplinas: string[];
+  texto_original?: string;
+  texto_final: string;
+  data_envio?: string;
+}
+
+export interface ProfessorNaoEntregou {
+  professor_id: string;
+  professor_nome: string;
+  disciplinas: string[];
+}
+
+export interface ConsolidacaoPareceres {
+  id: string;
+  solicitacao_id: string;
+  estudante_id: string;
+  turma_id?: string;
+  texto_consolidado_final: string;
+  status: 'CONCLUIDO';
+  homologado_por_usuario_id: string;
+  homologado_por_usuario_nome: string;
+  data_homologacao: string;
+  snapshot_pareceres_enviados: SnapshotParecerEnviado[] | string;
+  professores_nao_entregaram: ProfessorNaoEntregou[] | string;
   created_at?: string;
 }
 

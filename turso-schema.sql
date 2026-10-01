@@ -259,7 +259,7 @@ CREATE TABLE IF NOT EXISTS relatorios_professores (
     rascunho_original TEXT,
     texto_ia TEXT,
     texto_final TEXT,
-    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'enviado')),
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'enviado', 'nao_entregue')),
     data_envio TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -272,6 +272,24 @@ CREATE TABLE IF NOT EXISTS relatorios_consolidados (
     arquivo_docx_url TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS consolidacoes_pareceres (
+    id TEXT PRIMARY KEY,
+    solicitacao_id TEXT NOT NULL REFERENCES solicitacoes_relatorio(id) ON DELETE CASCADE,
+    estudante_id TEXT NOT NULL REFERENCES estudantes(id) ON DELETE CASCADE,
+    turma_id TEXT,
+    texto_consolidado_final TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'CONCLUIDO',
+    homologado_por_usuario_id TEXT,
+    homologado_por_usuario_nome TEXT,
+    data_homologacao TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    snapshot_pareceres_enviados TEXT NOT NULL DEFAULT '[]', -- JSON Array string
+    professores_nao_entregaram TEXT NOT NULL DEFAULT '[]', -- JSON Array string
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_consolidacoes_solicitacao ON consolidacoes_pareceres(solicitacao_id);
+CREATE INDEX IF NOT EXISTS idx_consolidacoes_estudante ON consolidacoes_pareceres(estudante_id);
 
 CREATE TABLE IF NOT EXISTS notificacoes_admin (
     id TEXT PRIMARY KEY,

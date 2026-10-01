@@ -21,7 +21,6 @@ import {
   X,
   Clock,
   ShieldCheck,
-  ArrowDown,
   ArrowUp,
   Search
 } from 'lucide-react';
@@ -158,12 +157,6 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
     }
   };
 
-  const handleIrParaHistorico = () => {
-    if (historicoSectionRef.current) {
-      historicoSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
-
   // Trilha de auditoria das observações deste estudante (exclusões e alterações)
   const auditoriasDesteEstudante = useMemo(() => {
     return observacoesAuditoria
@@ -278,9 +271,6 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
             <MessageSquare className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
             Observações & Históricos
           </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Histórico cronológico decrescente do estudante
-          </p>
         </div>
 
         {/* Filtro por Categorias em 2 Linhas Balanceadas */}
@@ -331,19 +321,6 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
             <ShieldCheck className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
             <span>Auditoria ({auditoriasDesteEstudante.length})</span>
           </button>
-
-          {/* Botão de Atalho "Ir para Histórico" */}
-          {observacoesAtivasDesteEstudante.length > 0 && (
-            <button
-              type="button"
-              onClick={handleIrParaHistorico}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-school-blue-300 bg-school-blue-50/80 px-3 py-1.5 text-xs font-bold text-school-blue-800 hover:bg-school-blue-100 dark:border-school-blue-800/80 dark:bg-school-blue-950/40 dark:text-school-blue-200 dark:hover:bg-school-blue-900/60 transition-all shadow-xs whitespace-nowrap cursor-pointer"
-              title="Rolar direto para a lista de registros de observações"
-            >
-              <ArrowDown className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-blue-400" />
-              <span>Ver Histórico ({observacoes.length})</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -368,17 +345,6 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               Nova Anotação no Histórico do Estudante:
             </span>
-            {observacoesAtivasDesteEstudante.length > 0 && (
-              <button
-                type="button"
-                onClick={handleIrParaHistorico}
-                className="inline-flex items-center gap-1 rounded-lg bg-school-blue-100/70 hover:bg-school-blue-100 text-school-blue-800 dark:bg-school-blue-950/60 dark:hover:bg-school-blue-900/60 dark:text-school-blue-300 px-2 py-0.5 text-[10px] font-bold transition-colors cursor-pointer"
-                title="Rolar para a lista de histórico de observações"
-              >
-                <ArrowDown className="h-3 w-3" />
-                <span>Ver Histórico ({observacoes.length})</span>
-              </button>
-            )}
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -451,9 +417,6 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
                   {buscaHistorico.trim() && ' (filtrado)'}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                Rolagem independente com registros cronológicos
-              </p>
             </div>
           </div>
 

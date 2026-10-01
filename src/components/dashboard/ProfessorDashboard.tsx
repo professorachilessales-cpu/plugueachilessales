@@ -82,7 +82,7 @@ export function ProfessorDashboard() {
         const sol = solicitacoesRelatorio.find(s => s.id === r.solicitacao_id);
         const aluno = estudantes.find(e => e.id === sol?.aluno_id);
         const turma = turmas.find(t => t.id === aluno?.turma_id);
-        if (sol && aluno) {
+        if (sol && aluno && sol.status !== 'concluido' && r.status !== 'nao_entregue') {
           itens.push({
             relatorio: r,
             solicitacao: sol,
@@ -314,7 +314,7 @@ export function ProfessorDashboard() {
                       </h3>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                         <Calendar className="h-3 w-3" />
-                        <span>Solicitado em: {solicitacao?.data_solicitacao ? new Date(solicitacao.data_solicitacao).toLocaleDateString('pt-BR') : '—'}</span>
+                        <span>Solicitado em: {formatarDataEvento(solicitacao?.created_at || solicitacao?.data_solicitacao)}</span>
                       </p>
                     </div>
                   </div>

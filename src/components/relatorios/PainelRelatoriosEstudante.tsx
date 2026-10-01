@@ -26,9 +26,57 @@ import {
   Save, 
   X, 
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Printer,
+  Copy,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
+import { calcularIdadeEmAnos } from '@/lib/docx-generator';
+
+export function formatarDataSolicitacao(dataStr?: string | null, incluirHora: boolean = false): string {
+  if (!dataStr) return 'Data não informada';
+  try {
+    let d: Date;
+    if (dataStr.includes('T')) {
+      d = new Date(dataStr);
+    } else if (dataStr.includes('-')) {
+      const partes = dataStr.split('-');
+      if (partes.length === 3) {
+        d = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
+      } else {
+        d = new Date(dataStr);
+      }
+    } else if (dataStr.includes('/')) {
+      const partes = dataStr.split('/');
+      if (partes.length === 3) {
+        d = new Date(Number(partes[2]), Number(partes[1]) - 1, Number(partes[0]));
+      } else {
+        d = new Date(dataStr);
+      }
+    } else {
+      d = new Date(dataStr);
+    }
+
+    if (isNaN(d.getTime())) return 'Data não informada';
+
+    const dia = String(d.getDate()).padStart(2, '0');
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const ano = d.getFullYear();
+    const dataFormatada = `${dia}/${mes}/${ano}`;
+
+    if (incluirHora && (dataStr.includes('T') || dataStr.includes(':'))) {
+      const horas = String(d.getHours()).padStart(2, '0');
+      const minutos = String(d.getMinutes()).padStart(2, '0');
+      return `${dataFormatada} às ${horas}:${minutos}`;
+    }
+
+    return dataFormatada;
+  } catch {
+    return 'Data não informada';
+  }
+}
 
 interface PainelRelatoriosEstudanteProps {
   estudante: Estudante;
@@ -51,14 +99,19 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     updateRelatorioProfessor, 
     deleteRelatorioProfessor, 
     marcarNotificacaoComoLida, 
-    salvarRelatorioConsolidado 
+    salvarRelatorioConsolidado,
+    homologarConsolidacaoNoHistorico
   } = useApp();
 
-  // Solicitações pertencentes a este estudante
+  // Solicitações pertencentes a este estudante (ordenação segura por created_at ou data_solicitacao)
   const solicitacoesAluno = useMemo(() => {
     return solicitacoesRelatorio
       .filter(s => s.aluno_id === estudante.id)
-      .sort((a, b) => new Date(b.data_solicitacao).getTime() - new Date(a.data_solicitacao).getTime());
+      .sort((a, b) => {
+        const timeB = new Date(b.created_at || b.data_solicitacao).getTime() || 0;
+        const timeA = new Date(a.created_at || a.data_solicitacao).getTime() || 0;
+        return timeB - timeA;
+      });
   }, [solicitacoesRelatorio, estudante.id]);
 
   // Solicitação selecionada para visualização/gestão
@@ -70,6 +123,8 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     if (!solicitacaoAtivaId) return solicitacoesAluno[0] || null;
     return solicitacoesAluno.find(s => s.id === solicitacaoAtivaId) || null;
   }, [solicitacoesAluno, solicitacaoAtivaId]);
+
+  const isConcluida = solicitacaoAtiva?.status === 'concluido';
 
   // Pareceres docentes vinculados à solicitação ativa
   const pareceresAtivos = useMemo(() => {
@@ -228,21 +283,132 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     }
   };
 
-  // Salvar relatório consolidado
+  // Salvar & Homologar relatório consolidado no histórico (com transação atômica e bloqueio definitivo)
   const handleSalvarConsolidado = async () => {
     if (!solicitacaoAtiva) return;
     try {
-      await salvarRelatorioConsolidado(
-        solicitacaoAtiva.id,
-        textoConsolidadoEditavel,
-        `/api/relatorios/docx?solicitacao_id=${solicitacaoAtiva.id}`
-      );
-      setAlertaSucesso('Relatório Integrado consolidado e homologado no histórico do aluno!');
+      const snapshotPareceres = pareceresAtivos
+        .filter(p => p.status === 'enviado')
+        .map(p => {
+          const prof = professores.find(pr => pr.id === p.professor_id);
+          return {
+            professor_id: p.professor_id,
+            professor_nome: prof?.nome_completo || 'Docente',
+            disciplinas: prof?.disciplinas || [],
+            texto_original: p.rascunho_original || '',
+            texto_final: (p.texto_final || p.texto_ia || p.rascunho_original || '').trim(),
+            data_envio: p.data_envio || new Date().toISOString(),
+          };
+        });
+
+      const professoresNaoEntregaram = pareceresAtivos
+        .filter(p => p.status !== 'enviado')
+        .map(p => {
+          const prof = professores.find(pr => pr.id === p.professor_id);
+          return {
+            professor_id: p.professor_id,
+            professor_nome: prof?.nome_completo || 'Docente',
+            disciplinas: prof?.disciplinas || [],
+          };
+        });
+
+      await homologarConsolidacaoNoHistorico({
+        solicitacaoId: solicitacaoAtiva.id,
+        estudanteId: estudante.id,
+        turmaId: estudante.turma_id,
+        textoConsolidado: textoConsolidadoEditavel,
+        snapshotPareceres,
+        professoresNaoEntregaram,
+      });
+
+      setAlertaSucesso('Parecer consolidado e homologado com sucesso!');
       setModalConsolidacaoAberto(false);
-      setTimeout(() => setAlertaSucesso(null), 4000);
-    } catch {
-      alert('Erro ao salvar relatório consolidado');
+      setTimeout(() => setAlertaSucesso(null), 5000);
+    } catch (err: any) {
+      alert(`Erro ao homologar parecer: ${err?.message || 'Falha na operação'}`);
     }
+  };
+
+  // Copiar texto consolidado para a área de transferência
+  const handleCopiarTexto = async (conteudoTexto?: string) => {
+    const texto = conteudoTexto || consolidadoAtivo?.conteudo_final || textoConsolidadoEditavel;
+    if (!texto) {
+      alert('Não há texto de parecer para copiar.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(texto);
+      setAlertaSucesso('Texto do parecer copiado para a área de transferência!');
+      setTimeout(() => setAlertaSucesso(null), 3500);
+    } catch {
+      alert('Não foi possível copiar o texto automaticamente.');
+    }
+  };
+
+  // Imprimir parecer consolidado em formato A4 institucional
+  const handleImprimir = (conteudoTexto?: string) => {
+    const texto = conteudoTexto || consolidadoAtivo?.conteudo_final || textoConsolidadoEditavel;
+    if (!texto) {
+      alert('Não há texto de parecer consolidado para imprimir.');
+      return;
+    }
+
+    const turmaAluno = turmas.find(t => t.id === estudante.turma_id);
+    const turnoNome = turmaAluno?.turno 
+      ? (turmaAluno.turno === 'manha' ? 'MANHÃ' : turmaAluno.turno === 'tarde' ? 'TARDE' : turmaAluno.turno.toUpperCase()) 
+      : 'MANHÃ';
+    const turmaTexto = `${turmaAluno?.nome || estudante.turma_nome || 'Turma Regular'} - ${turnoNome}`.toUpperCase();
+    const idadeTexto = calcularIdadeEmAnos(estudante.data_nascimento);
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('Por favor, autorize pop-ups no seu navegador para imprimir o relatório.');
+      return;
+    }
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8">
+          <title>Parecer Pedagógico Integrado - ${estudante.nome_completo}</title>
+          <style>
+            @page { size: A4; margin: 25mm 20mm 20mm 20mm; }
+            body { font-family: Calibri, Arial, sans-serif; color: #0f172a; margin: 0; padding: 24px; font-size: 11pt; line-height: 1.5; }
+            .header-inst { text-align: center; border-bottom: 2px solid #1e40af; padding-bottom: 12px; margin-bottom: 20px; }
+            .header-inst h2 { margin: 0; font-size: 15pt; color: #1e40af; font-weight: 800; }
+            .header-inst p { margin: 3px 0; font-size: 9pt; color: #475569; }
+            .title { text-align: center; font-size: 14pt; font-weight: bold; margin: 24px 0 20px 0; color: #0f172a; }
+            .student-info { margin-bottom: 24px; font-size: 11pt; }
+            .student-info p { margin: 4px 0; }
+            .content { text-align: justify; text-indent: 32px; font-size: 11pt; line-height: 1.6; white-space: pre-line; color: #1e293b; }
+            .footer-sign { margin-top: 60px; text-align: center; }
+            .footer-line { width: 300px; border-top: 1px solid #334155; margin: 0 auto 8px auto; }
+          </style>
+        </head>
+        <body>
+          <div class="header-inst">
+            <h2>${escolaConfig.nome_escola || 'Colégio Integrado PLUGUE'}</h2>
+            <p>CNPJ: ${escolaConfig.cnpj || '12.345.678/0001-90'} • Ano Letivo: ${escolaConfig.ano_letivo_ativo || 2026}</p>
+          </div>
+          <div class="title">PARECER PEDAGÓGICO INTEGRADO</div>
+          <div class="student-info">
+            <p><strong>Nome Completo:</strong> ${estudante.nome_completo.toUpperCase()}  -  <strong>Turma:</strong> ${turmaTexto}</p>
+            <p><strong>Idade:</strong> ${idadeTexto}</p>
+            <p><strong>Período da Emissão:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
+          </div>
+          <div class="content">${texto}</div>
+          <div class="footer-sign">
+            <div class="footer-line"></div>
+            <strong>Direção Escolar</strong>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    win.document.close();
   };
 
   // Gerar e Baixar DOCX formatado estritamente conforme a Seção 5
@@ -358,7 +524,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
               Ciclos:
             </span>
             {solicitacoesAluno.map((sol) => {
-              const dataFormatada = new Date(sol.data_solicitacao).toLocaleDateString('pt-BR');
+              const dataFormatada = formatarDataSolicitacao(sol.created_at || sol.data_solicitacao);
               const ehAtiva = solicitacaoAtiva?.id === sol.id;
               const concluida = sol.status === 'concluido';
               return (
@@ -373,7 +539,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                 >
                   <span>{dataFormatada}</span>
                   <span className={`h-2 w-2 rounded-full ${concluida ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                  <span className="text-[10px] opacity-80 uppercase">{sol.status}</span>
+                  <span className="text-[10px] opacity-80 uppercase">{concluida ? 'Concluído' : sol.status}</span>
                 </button>
               );
             })}
@@ -385,54 +551,113 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
               {/* Barra de Ações Rápidas da Solicitação */}
               <div className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/60 to-purple-50/40 p-4 dark:border-indigo-900/40 dark:bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-black uppercase text-indigo-950 dark:text-indigo-200">
-                      Ciclo Aberto em: {new Date(solicitacaoAtiva.data_solicitacao).toLocaleDateString('pt-BR')}
+                      Ciclo Aberto em: {formatarDataSolicitacao(solicitacaoAtiva.created_at || solicitacaoAtiva.data_solicitacao, true)}
                     </span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${
-                      solicitacaoAtiva.status === 'concluido'
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase shadow-sm ${
+                      isConcluida
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
+                        : 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
                     }`}>
-                      {solicitacaoAtiva.status}
+                      {isConcluida ? (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Concluído / Homologado</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                          <span>Pendente</span>
+                        </>
+                      )}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {pareceresAtivos.filter(p => p.status === 'enviado').length} de {pareceresAtivos.length} pareceres docentes recebidos
+                    {isConcluida && ' • Processo homologado e bloqueado para novas alterações'}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* Botão Consolidar com IA */}
-                  <button
-                    onClick={handleIniciarConsolidacaoIA}
-                    disabled={pareceresAtivos.filter(p => p.status === 'enviado').length === 0}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:from-indigo-700 hover:to-purple-700 active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    <span>Consolidar Pareceres com IA</span>
-                  </button>
+                  {isConcluida ? (
+                    <>
+                      {/* Badge Modo Somente Leitura */}
+                      <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 mr-1 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                        <Lock className="h-3.5 w-3.5" />
+                        <span>Somente Leitura</span>
+                      </span>
 
-                  {/* Botão Exportar DOCX se já consolidado */}
-                  {consolidadoAtivo && (
-                    <button
-                      onClick={() => handleBaixarDocx()}
-                      disabled={gerandoDocx}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 active:scale-95 transition-all disabled:opacity-50"
-                    >
-                      <Download className="h-4 w-4" />
-                      <span>{gerandoDocx ? 'Gerando...' : 'Exportar DOCX'}</span>
-                    </button>
+                      {/* Botão Exportar DOCX */}
+                      <button
+                        onClick={() => handleBaixarDocx()}
+                        disabled={gerandoDocx}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>{gerandoDocx ? 'Gerando...' : 'Exportar DOCX'}</span>
+                      </button>
+
+                      {/* Botão Imprimir */}
+                      <button
+                        onClick={() => handleImprimir()}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 active:scale-95 transition-all"
+                      >
+                        <Printer className="h-4 w-4" />
+                        <span>Imprimir</span>
+                      </button>
+
+                      {/* Botão Copiar Texto */}
+                      <button
+                        onClick={() => handleCopiarTexto()}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 active:scale-95 transition-all"
+                      >
+                        <Copy className="h-4 w-4 text-slate-500" />
+                        <span>Copiar Texto</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* Botão Consolidar com IA */}
+                      <button
+                        onClick={handleIniciarConsolidacaoIA}
+                        disabled={pareceresAtivos.filter(p => p.status === 'enviado').length === 0}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:from-indigo-700 hover:to-purple-700 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        <span>Consolidar Pareceres com IA</span>
+                      </button>
+
+                      {/* Botão Exportar DOCX se já consolidado */}
+                      {consolidadoAtivo && (
+                        <button
+                          onClick={() => handleBaixarDocx()}
+                          disabled={gerandoDocx}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>{gerandoDocx ? 'Gerando...' : 'Exportar DOCX'}</span>
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
 
               {/* Tabela de Atribuição Docente e Status de Envio */}
               <div className="space-y-3">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-indigo-600" />
-                  Grade de Atribuição de Professores ({pareceresAtivos.length})
-                </h5>
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-indigo-600" />
+                    Grade de Atribuição de Professores ({pareceresAtivos.length})
+                  </h5>
+                  {isConcluida && (
+                    <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Status Finais Homologados
+                    </span>
+                  )}
+                </div>
 
                 <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                   <table className="w-full text-left text-xs">
@@ -449,6 +674,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                       {pareceresAtivos.map((parecer) => {
                         const prof = professores.find(p => p.id === parecer.professor_id);
                         const enviado = parecer.status === 'enviado';
+                        const naoEntregue = parecer.status === 'nao_entregue' || (isConcluida && !enviado);
                         const temNotificacaoPendente = notificacoesAdmin.some(
                           n => n.relatorio_professor_id === parecer.id && !n.lido
                         );
@@ -456,78 +682,104 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                         return (
                           <tr key={parecer.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                             <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">
-                              {prof?.nome_completo || 'Docente'}
+                              <div className="flex items-center gap-2">
+                                <span>{prof?.nome_completo || 'Docente'}</span>
+                                {naoEntregue && (
+                                  <span className="text-sm select-none" title="Docente inadimplente no encerramento da solicitação">
+                                    😢
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                               {prof?.disciplinas?.join(', ') || 'Polivalente'}
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${
-                                enviado
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                              }`}>
-                                {enviado ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                                {enviado ? 'Enviado à Secretaria' : 'Pendente (Em Elaboração)'}
-                              </span>
+                              {enviado ? (
+                                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                  <span>Enviado à Secretaria</span>
+                                </span>
+                              ) : naoEntregue ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/50">
+                                  <span className="text-xs">😢</span>
+                                  <span>Não entregue</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                                  <Clock className="h-3 w-3 text-amber-600" />
+                                  <span>Pendente (Em Elaboração)</span>
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-slate-500">
-                              {parecer.data_envio
-                                ? new Date(parecer.data_envio).toLocaleDateString('pt-BR')
-                                : '—'}
+                              {formatarDataSolicitacao(parecer.data_envio)}
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
-                                {/* Visualizar/Editar */}
-                                <button
-                                  onClick={() => handleAbrirParecer(parecer)}
-                                  title="Visualizar e Ajustar Parecer"
-                                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-
-                                {/* Marcar como lido */}
-                                {temNotificacaoPendente && (
+                                {/* Visualizar/Editar (em modo leitura se concluída) */}
+                                {(enviado || isConcluida) && (
                                   <button
-                                    onClick={() => {
-                                      const notif = notificacoesAdmin.find(
-                                        n => n.relatorio_professor_id === parecer.id && !n.lido
-                                      );
-                                      if (notif) marcarNotificacaoComoLida(notif.id);
-                                    }}
-                                    title="Marcar Notificação como Lida"
-                                    className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                    onClick={() => handleAbrirParecer(parecer)}
+                                    title={isConcluida ? "Visualizar Parecer" : "Visualizar e Ajustar Parecer"}
+                                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800"
                                   >
-                                    <Check className="h-4 w-4" />
+                                    <Eye className="h-4 w-4" />
                                   </button>
                                 )}
 
-                                {/* Reenviar aviso */}
-                                {!enviado && (
-                                  <button
-                                    onClick={() => {
-                                      alert(`Notificação de cobrança reenviada para o professor ${prof?.nome_completo || 'Docente'}!`);
-                                    }}
-                                    title="Reenviar Cobrança ao Docente"
-                                    className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/60"
-                                  >
-                                    <BellRing className="h-4 w-4" />
-                                  </button>
+                                {isConcluida && naoEntregue && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 font-semibold italic">
+                                    <Lock className="h-3 w-3 text-slate-400" />
+                                    <span>Bloqueado</span>
+                                  </span>
                                 )}
 
-                                {/* Excluir parecer */}
-                                <button
-                                  onClick={() => {
-                                    if (confirm(`Excluir atribuição de parecer para ${prof?.nome_completo || 'Docente'}?`)) {
-                                      deleteRelatorioProfessor(parecer.id);
-                                    }
-                                  }}
-                                  title="Remover Professor deste Relatório"
-                                  className="rounded-lg p-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                                {!isConcluida && (
+                                  <>
+                                    {/* Marcar como lido */}
+                                    {temNotificacaoPendente && (
+                                      <button
+                                        onClick={() => {
+                                          const notif = notificacoesAdmin.find(
+                                            n => n.relatorio_professor_id === parecer.id && !n.lido
+                                          );
+                                          if (notif) marcarNotificacaoComoLida(notif.id);
+                                        }}
+                                        title="Marcar Notificação como Lida"
+                                        className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </button>
+                                    )}
+
+                                    {/* Reenviar aviso */}
+                                    {!enviado && (
+                                      <button
+                                        onClick={() => {
+                                          alert(`Notificação de cobrança reenviada para o professor ${prof?.nome_completo || 'Docente'}!`);
+                                        }}
+                                        title="Reenviar Cobrança ao Docente"
+                                        className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/60"
+                                      >
+                                        <BellRing className="h-4 w-4" />
+                                      </button>
+                                    )}
+
+                                    {/* Excluir parecer */}
+                                    <button
+                                      onClick={() => {
+                                        if (confirm(`Excluir atribuição de parecer para ${prof?.nome_completo || 'Docente'}?`)) {
+                                          deleteRelatorioProfessor(parecer.id);
+                                        }
+                                      }}
+                                      title="Remover Professor deste Relatório"
+                                      className="rounded-lg p-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -549,7 +801,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                           Parecer Pedagógico Integrado (Oficial)
                         </h5>
                         <span className="text-[10px] text-slate-500">
-                          Homologado em {new Date(consolidadoAtivo.data_geracao).toLocaleDateString('pt-BR')}
+                          Homologado em {formatarDataSolicitacao(consolidadoAtivo.created_at || consolidadoAtivo.data_geracao, true)}
                         </span>
                       </div>
                     </div>
@@ -561,6 +813,22 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                       >
                         <Download className="h-3.5 w-3.5" />
                         <span>Baixar DOCX</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleImprimir(consolidadoAtivo.conteudo_final)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-700 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-slate-800"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        <span>Imprimir</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleCopiarTexto(consolidadoAtivo.conteudo_final)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        <Copy className="h-3.5 w-3.5 text-slate-500" />
+                        <span>Copiar</span>
                       </button>
                     </div>
                   </div>
@@ -582,7 +850,12 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <FileText className="h-5 w-5 text-indigo-600" />
-                Parecer do Professor
+                <span>Parecer do Professor</span>
+                {isConcluida && (
+                  <span className="text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full dark:bg-emerald-950/60 dark:text-emerald-300">
+                    Homologado / Somente Leitura
+                  </span>
+                )}
               </h4>
               <button
                 onClick={() => setParecerEmVisualizacao(null)}
@@ -615,34 +888,56 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
 
             {/* Editor do Texto Final pela Secretaria */}
             <div className="space-y-1.5 text-xs">
-              <label className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px]">
-                3. Texto Final Homologado (Edição Permitida):
+              <label className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                <span>{isConcluida ? '3. Texto Homologado (Bloqueado):' : '3. Texto Final Homologado (Edição Permitida):'}</span>
+                {isConcluida && (
+                  <span className="text-[10px] text-amber-600 font-bold dark:text-amber-400">
+                    🔒 Processo Concluído - Não editável
+                  </span>
+                )}
               </label>
               <textarea
                 rows={5}
+                readOnly={isConcluida}
                 value={editandoTextoFinal}
-                onChange={(e) => setEditandoTextoFinal(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white leading-relaxed"
+                onChange={(e) => !isConcluida && setEditandoTextoFinal(e.target.value)}
+                className={`w-full rounded-xl border p-3 text-xs leading-relaxed ${
+                  isConcluida
+                    ? 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 cursor-not-allowed'
+                    : 'border-slate-200 text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white'
+                }`}
               />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setParecerEmVisualizacao(null)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleSalvarEdicaoParecer}
-                disabled={salvandoEdicaoParecer}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all"
-              >
-                <Save className="h-4 w-4" />
-                <span>{salvandoEdicaoParecer ? 'Salvando...' : 'Salvar Alterações'}</span>
-              </button>
+              {isConcluida ? (
+                <button
+                  type="button"
+                  onClick={() => setParecerEmVisualizacao(null)}
+                  className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  Fechar
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setParecerEmVisualizacao(null)}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSalvarEdicaoParecer}
+                    disabled={salvandoEdicaoParecer}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{salvandoEdicaoParecer ? 'Salvando...' : 'Salvar Alterações'}</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

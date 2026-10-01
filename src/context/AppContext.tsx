@@ -244,8 +244,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (u.role === 'admin') {
               cleanMods = ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'];
             }
+            const mustChange = localStorage.getItem(`plugue_pwd_changed_${u.id}`) === 'true'
+              ? false
+              : (Number(u.must_change_password) === 1 || u.must_change_password === true || u.must_change_password === '1');
             return {
               ...u,
+              must_change_password: mustChange,
               allowed_modules: cleanMods,
             };
           });
@@ -268,6 +272,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (authUserJson) {
         try {
           const parsedAuth = JSON.parse(authUserJson);
+          if (parsedAuth) {
+            parsedAuth.must_change_password =
+              (Number(parsedAuth.must_change_password) === 1 || parsedAuth.must_change_password === true || parsedAuth.must_change_password === '1') &&
+              localStorage.getItem(`plugue_pwd_changed_${parsedAuth.id}`) !== 'true';
+          }
           setAuthenticatedUserState(parsedAuth);
         } catch {}
       }
@@ -275,6 +284,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if ((isSessionActive === 'true' || authUserJson) && (sessionUserJson || authUserJson)) {
         try {
           const parsedUser = JSON.parse(sessionUserJson || authUserJson!);
+          if (parsedUser) {
+            parsedUser.must_change_password =
+              (Number(parsedUser.must_change_password) === 1 || parsedUser.must_change_password === true || parsedUser.must_change_password === '1') &&
+              localStorage.getItem(`plugue_pwd_changed_${parsedUser.id}`) !== 'true';
+          }
           setCurrentUserState(parsedUser);
           setRoleState(parsedUser.role);
           if (!authUserJson) {
@@ -467,7 +481,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('school_os_config', JSON.stringify(tConfig));
           }
           if (tUsers && tUsers.length > 0) {
-            const cleanUsers = tUsers.filter((u: SystemUser) => !['user-prof-1', 'user-prof-2', 'user-prof-3'].includes(u.id));
+            const cleanUsers = tUsers
+              .filter((u: SystemUser) => !['user-prof-1', 'user-prof-2', 'user-prof-3'].includes(u.id))
+              .map((u: SystemUser) => ({
+                ...u,
+                must_change_password:
+                  localStorage.getItem(`plugue_pwd_changed_${u.id}`) === 'true'
+                    ? false
+                    : (Number(u.must_change_password) === 1 || u.must_change_password === true || u.must_change_password === '1'),
+              }));
             setUsers(cleanUsers);
             localStorage.setItem('school_os_users', JSON.stringify(cleanUsers));
 
@@ -490,10 +512,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }) || activeUser;
 
             if (found) {
-              setCurrentUserState(found);
-              setRoleState(found.role);
+              const sanitizedFound = {
+                ...found,
+                must_change_password:
+                  localStorage.getItem(`plugue_pwd_changed_${found.id}`) === 'true'
+                    ? false
+                    : (Number(found.must_change_password) === 1 || found.must_change_password === true || found.must_change_password === '1'),
+              };
+              setCurrentUserState(sanitizedFound);
+              setRoleState(sanitizedFound.role);
               if (activeUser) {
-                setAuthenticatedUserState(found);
+                setAuthenticatedUserState(sanitizedFound);
+                try {
+                  sessionStorage.setItem('plugue_auth_user', JSON.stringify(sanitizedFound));
+                  sessionStorage.setItem('plugue_session_user', JSON.stringify(sanitizedFound));
+                } catch {}
               }
             } else if (!activeUser) {
               setCurrentUserState(cleanUsers[0]);
@@ -913,6 +946,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resetUserPassword = (id: string) => {
+    try {
+      localStorage.removeItem(`plugue_pwd_changed_${id}`);
+    } catch {}
     let updatedUser: SystemUser | undefined;
     setUsers((prev) => {
       const updated = prev.map((u) => {
@@ -925,6 +961,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           };
           if (currentUser.id === id) {
             setCurrentUserState(mod);
+          }
+          if (authenticatedUser?.id === id) {
+            setAuthenticatedUserState(mod);
           }
           updatedUser = mod;
           return mod;
@@ -940,6 +979,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const changePassword = (userId: string, newPassword: string) => {
+    try {
+      localStorage.setItem(`plugue_pwd_changed_${userId}`, 'true');
+    } catch {}
     let updatedUser: SystemUser | undefined;
     setUsers((prev) => {
       const updated = prev.map((u) => {
@@ -952,6 +994,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (currentUser.id === userId) {
             setCurrentUserState(mod);
           }
+          if (authenticatedUser?.id === userId) {
+            setAuthenticatedUserState(mod);
+          }
           updatedUser = mod;
           return mod;
         }
@@ -960,6 +1005,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('school_os_users', JSON.stringify(updated));
       return updated;
     });
+
+    try {
+      const sessAuth = sessionStorage.getItem('plugue_auth_user');
+      if (sessAuth) {
+        const parsed = JSON.parse(sessAuth);
+        if (parsed.id === userId) {
+          sessionStorage.setItem('plugue_auth_user', JSON.stringify({ ...parsed, must_change_password: false }));
+        }
+      }
+      const sessUser = sessionStorage.getItem('plugue_session_user');
+      if (sessUser) {
+        const parsed = JSON.parse(sessUser);
+        if (parsed.id === userId) {
+          sessionStorage.setItem('plugue_session_user', JSON.stringify({ ...parsed, must_change_password: false }));
+        }
+      }
+    } catch (e) {
+      console.error('Falha ao atualizar sessão após troca de senha:', e);
+    }
+
     if (updatedUser) {
       syncWithTurso('save_user', updatedUser);
     }

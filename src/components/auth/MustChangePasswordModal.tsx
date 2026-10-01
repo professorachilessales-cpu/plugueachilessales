@@ -6,15 +6,30 @@ import { KeyRound, ShieldAlert, CheckCircle2, Lock, Eye, EyeOff, AlertCircle } f
 import { formatarCPF } from '@/lib/validations';
 
 export function MustChangePasswordModal() {
-  const { currentUser, changePassword } = useApp();
+  const { currentUser, changePassword, isAuthenticated, isInitialized } = useApp();
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmacaoSenha, setConfirmacaoSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
+  const [fechado, setFechado] = useState(false);
 
-  // Apenas renderiza se houver usuário e ele estiver marcado para troca de senha
-  if (!currentUser || !currentUser.must_change_password) {
+  // Não exibe se o sistema ainda não foi inicializado ou se não há autenticação ativa
+  if (!isInitialized || !isAuthenticated || !currentUser) {
+    return null;
+  }
+
+  // Verifica se o usuário já realizou a redefinição de senha com sucesso nesta máquina
+  const jaAlterouLocalmente = typeof window !== 'undefined' && localStorage.getItem(`plugue_pwd_changed_${currentUser.id}`) === 'true';
+
+  const precisaTrocarSenha = Boolean(
+    currentUser.must_change_password === true ||
+    (currentUser as any).must_change_password === 1 ||
+    (currentUser as any).must_change_password === '1'
+  ) && !jaAlterouLocalmente && !fechado;
+
+  // Apenas renderiza se o usuário realmente necessitar redefinir a senha no primeiro acesso
+  if (!precisaTrocarSenha) {
     return null;
   }
 
@@ -41,10 +56,16 @@ export function MustChangePasswordModal() {
 
     // Salva nova senha e desativa flag de obrigatoriedade
     changePassword(currentUser.id, novaSenha);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`plugue_pwd_changed_${currentUser.id}`, 'true');
+      } catch {}
+    }
     setSucesso(true);
     setTimeout(() => {
       setSucesso(false);
-    }, 1500);
+      setFechado(true);
+    }, 1200);
   };
 
   return (

@@ -215,7 +215,7 @@ export default function LoginPage() {
           cpf: data.user.cpf,
           password_hash: '',
           allowed_modules: data.user.allowed_modules || ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'],
-          must_change_password: Boolean(data.user.must_change_password),
+          must_change_password: (Number(data.user.must_change_password) === 1 || data.user.must_change_password === true || data.user.must_change_password === '1') && (typeof window === 'undefined' || localStorage.getItem(`plugue_pwd_changed_${data.user.id}`) !== 'true'),
           is_active: true,
           created_at: new Date().toISOString(),
         };

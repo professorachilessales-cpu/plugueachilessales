@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
         email: user.email,
         role: user.role,
         cpf: user.cpf,
-        must_change_password: Boolean(user.must_change_password),
+        must_change_password: Number(user.must_change_password) === 1 || user.must_change_password === true || user.must_change_password === '1',
         allowed_modules: typeof user.allowed_modules === 'string' ? JSON.parse(user.allowed_modules) : user.allowed_modules || ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'],
       },
       token: accessToken,

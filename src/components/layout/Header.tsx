@@ -110,7 +110,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
   const naoLidas = notificacoesAdmin.filter(n => !n.lido);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/90 px-4 sm:px-6 backdrop-blur-md transition-colors dark:border-school-dark-border dark:bg-school-dark-surface/90 print:hidden">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 sm:px-6 shadow-xs backdrop-blur-md transition-colors dark:border-school-dark-border dark:bg-school-dark-surface/90 print:hidden">
       {/* Lado Esquerdo: Mobile Trigger + Identificação Completa da Escola */}
       <div className="flex items-center gap-3">
         <button

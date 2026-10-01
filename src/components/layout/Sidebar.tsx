@@ -139,7 +139,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
 
       {/* Sidebar Container: w-64 (~256px) expandida, w-[72px] contraída */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-slate-200 bg-white dark:border-school-dark-border dark:bg-school-dark-surface transition-all duration-300 ease-in-out lg:translate-x-0 print:hidden ${
+        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-slate-200 bg-[#FAFAFA] shadow-[1px_0_4px_rgba(0,0,0,0.03)] dark:border-school-dark-border dark:bg-school-dark-surface dark:shadow-none transition-all duration-300 ease-in-out lg:translate-x-0 print:hidden ${
           isOpenMobile ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0'
         } ${sidebarCollapsed ? 'lg:w-[72px]' : 'lg:w-64'}`}
       >
@@ -198,7 +198,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
 
         {/* Indicador do Nível de Acesso Ativo (RBAC) */}
         {!sidebarCollapsed ? (
-          <div className="mx-3 mt-3 rounded-xl border border-slate-200/80 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-900/60 transition-all">
+          <div className="mx-3 mt-3 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs dark:border-slate-800 dark:bg-slate-900/60 transition-all">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Perfil Ativo
@@ -277,8 +277,8 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
                     sidebarCollapsed ? 'justify-center' : 'justify-between'
                   } ${
                     isActive
-                      ? 'bg-school-blue-50 text-school-blue-900 font-bold border-l-4 border-school-blue-800 shadow-sm dark:bg-school-dark-surfaceSecondary dark:text-school-gold-400 dark:border-school-gold-400'
-                      : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-school-dark-hover dark:hover:text-white'
+                      ? 'bg-school-blue-50 text-school-blue-900 font-bold border-l-4 border-school-blue-800 shadow-xs dark:bg-school-dark-surfaceSecondary dark:text-school-gold-400 dark:border-school-gold-400'
+                      : 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-school-dark-hover dark:hover:text-white'
                   }`}
                 >
                   <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3 min-w-0'}`}>

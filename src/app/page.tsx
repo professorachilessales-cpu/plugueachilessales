@@ -1911,11 +1911,11 @@ export default function DashboardPage() {
               });
 
               const badgeCategoria = {
-                prova: { label: 'Prova / Avaliação', bg: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60' },
-                reuniao: { label: 'Reunião', bg: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60' },
-                feriado: { label: 'Feriado / Recesso', bg: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-200/60 dark:border-red-800/60' },
-                cultural: { label: 'Cultural / Mostra', bg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60' },
-              }[ev.categoria] || { label: ev.categoria, bg: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/60' };
+                prova: { label: 'Prova / Avaliação', bg: 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-800/60' },
+                reuniao: { label: 'Reunião', bg: 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800/60' },
+                feriado: { label: 'Feriado / Recesso', bg: 'bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800/60' },
+                cultural: { label: 'Cultural / Mostra', bg: 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800/60' },
+              }[ev.categoria] || { label: ev.categoria, bg: 'bg-slate-50 text-slate-800 border border-slate-200 dark:bg-slate-800 dark:text-slate-300' };
 
               return (
                 <div

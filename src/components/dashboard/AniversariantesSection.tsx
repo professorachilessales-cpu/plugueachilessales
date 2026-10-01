@@ -60,7 +60,7 @@ export function AniversariantesSection({
   const safeSemana = dadosAniversarios?.semana || [];
   const safeMes = dadosAniversarios?.mes || [];
   return (
-    <div className="overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/60 via-white to-rose-50/40 p-6 shadow-sm dark:border-amber-900/40 dark:bg-gradient-to-br dark:from-amber-950/20 dark:via-school-dark-surface dark:to-rose-950/20 dark:bg-school-dark-surface">
+    <div className="isometric-featured-card overflow-hidden rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50/60 via-white to-rose-50/30 p-6 border-b-2 border-b-amber-300 dark:border-amber-900/40 dark:border-b-amber-800 dark:bg-gradient-to-br dark:from-amber-950/20 dark:via-school-dark-surface dark:to-rose-950/20 dark:bg-school-dark-surface">
       {/* Cabeçalho do Bloco */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-amber-200/50 pb-4 dark:border-amber-900/30">
         <div className="flex items-start gap-3.5">

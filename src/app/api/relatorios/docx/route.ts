@@ -65,10 +65,7 @@ export async function GET(req: NextRequest) {
     const aluno = initialEstudantes.find(e => e.id === alunoId) || initialEstudantes[0];
     const turma = initialTurmas.find(t => t.id === aluno.turma_id) || initialTurmas[0];
 
-    // Calcula idade
-    const partesNasc = (aluno.data_nascimento || '2010-01-01').split('-');
-    const anoNasc = parseInt(partesNasc[0], 10);
-    const idade = isNaN(anoNasc) ? 15 : new Date().getFullYear() - anoNasc;
+    const turnoNome = turma.turno === 'manha' ? 'MANHÃ' : turma.turno === 'tarde' ? 'TARDE' : turma.turno ? turma.turno.toUpperCase() : 'MANHÃ';
 
     const docxBuffer = generateDocxReport({
       escola: {
@@ -81,9 +78,10 @@ export async function GET(req: NextRequest) {
       aluno: {
         nome: aluno.nome_completo,
         turma: turma.nome,
-        turno: turma.turno === 'manha' ? 'Manhã' : turma.turno === 'tarde' ? 'Tarde' : 'Noite',
-        nascimento: new Date(aluno.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR'),
-        idade,
+        turno: turnoNome,
+        data_nascimento: aluno.data_nascimento,
+        dataNascimento: aluno.data_nascimento,
+        nascimento: aluno.data_nascimento,
         matricula: `MAT-${aluno.id.toUpperCase()}`,
       },
       dataEmissao: new Date().toLocaleDateString('pt-BR'),

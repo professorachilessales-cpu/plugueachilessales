@@ -1,24 +1,56 @@
 import zlib from 'node:zlib';
 
 export interface DocxReportData {
-  escola: {
-    nome: string;
-    cnpj: string;
-    endereco: string;
-    contato: string;
-    anoLetivo: number;
+  escola?: {
+    nome?: string;
+    cnpj?: string;
+    endereco?: string;
+    contato?: string;
+    anoLetivo?: number;
     logoUrl?: string;
   };
   aluno: {
     nome: string;
     turma: string;
-    turno: string;
-    nascimento: string;
-    idade: number | string;
-    matricula: string;
+    turno?: string;
+    nascimento?: string;
+    dataNascimento?: string;
+    data_nascimento?: string;
+    idade?: number | string;
+    matricula?: string;
   };
-  dataEmissao: string;
+  dataEmissao?: string;
   conteudoFinal: string;
+}
+
+export function calcularIdadeEmAnos(dataNascimento?: string | Date | null, dataEmissao: Date = new Date()): string {
+  if (!dataNascimento) return "Não informada";
+  
+  let nasc: Date;
+  if (typeof dataNascimento === 'string') {
+    if (dataNascimento.includes('T')) {
+      nasc = new Date(dataNascimento);
+    } else if (dataNascimento.includes('-')) {
+      const [ano, mes, dia] = dataNascimento.split('-').map(Number);
+      nasc = new Date(ano, (mes || 1) - 1, dia || 1);
+    } else if (dataNascimento.includes('/')) {
+      const [dia, mes, ano] = dataNascimento.split('/').map(Number);
+      nasc = new Date(ano, (mes || 1) - 1, dia || 1);
+    } else {
+      nasc = new Date(dataNascimento);
+    }
+  } else {
+    nasc = new Date(dataNascimento);
+  }
+
+  if (isNaN(nasc.getTime())) return "Não informada";
+
+  let anos = dataEmissao.getFullYear() - nasc.getFullYear();
+  const m = dataEmissao.getMonth() - nasc.getMonth();
+  if (m < 0 || (m === 0 && dataEmissao.getDate() < nasc.getDate())) {
+    anos--;
+  }
+  return `${anos} anos`;
 }
 
 function escapeXml(unsafe: string): string {
@@ -105,7 +137,45 @@ function buildZipArchive(files: { name: string; data: Buffer | string }[]): Buff
 }
 
 export function generateDocxReport(data: DocxReportData): Buffer {
-  const { escola, aluno, dataEmissao, conteudoFinal } = data;
+  const { escola = {}, aluno, dataEmissao, conteudoFinal } = data;
+
+  // 1. Nome Completo obrigatoriamente em caixa alta (toUpperCase())
+  const nomeCompletoUpper = (aluno.nome || '').toUpperCase().trim();
+
+  // 2. Turma & Turno: Concatene a identificação da turma com o turno em destaque (ex: 8B - TARDE)
+  const turnoTexto = (aluno.turno || '').toUpperCase().trim();
+  let turmaTexto = (aluno.turma || '').toUpperCase().trim();
+  let turmaTurno = turmaTexto;
+  if (turnoTexto) {
+    if (!turmaTexto.includes(turnoTexto)) {
+      turmaTurno = `${turmaTexto} - ${turnoTexto}`;
+    }
+  }
+
+  // 3. Cálculo Dinâmico da Idade
+  const dataNasc = aluno.data_nascimento || aluno.dataNascimento || aluno.nascimento;
+  let idadeFormatada = '';
+  if (dataNasc) {
+    idadeFormatada = calcularIdadeEmAnos(dataNasc);
+  } else if (aluno.idade !== undefined && aluno.idade !== null && aluno.idade !== '') {
+    idadeFormatada = typeof aluno.idade === 'number' || !String(aluno.idade).includes('ano')
+      ? `${aluno.idade} anos`
+      : String(aluno.idade);
+  } else {
+    idadeFormatada = 'Não informada';
+  }
+
+  // 4. Período da Emissão: Data atual da geração do arquivo no fuso horário local e formatada no padrão brasileiro DD/MM/AAAA
+  let periodoEmissao = '';
+  if (dataEmissao && /^\d{2}\/\d{2}\/\d{4}$/.test(dataEmissao.trim())) {
+    periodoEmissao = dataEmissao.trim();
+  } else {
+    const hoje = new Date();
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const ano = hoje.getFullYear();
+    periodoEmissao = `${dia}/${mes}/${ano}`;
+  }
 
   const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -335,143 +405,102 @@ export function generateDocxReport(data: DocxReportData): Buffer {
       </w:r>
     </w:p>
 
-    <!-- BLOCO DE IDENTIFICAÇÃO DO ESTUDANTE -->
-    <w:tbl>
-      <w:tblPr>
-        <w:tblW w:w="9600" w:type="dxa"/>
-        <w:tblBorders>
-          <w:top w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
-          <w:left w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
-          <w:bottom w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
-          <w:right w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
-          <w:insideH w:val="single" w:sz="4" w:space="0" w:color="E2E8F0"/>
-          <w:insideV w:val="none"/>
-        </w:tblBorders>
-        <w:tblCellMar>
-          <w:top w:w="120" w:type="dxa"/>
-          <w:bottom w:w="120" w:type="dxa"/>
-          <w:left w:w="140" w:type="dxa"/>
-          <w:right w:w="140" w:type="dxa"/>
-        </w:tblCellMar>
-      </w:tblPr>
-      <w:tr>
-        <w:tc>
-          <w:tcPr>
-            <w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/>
-          </w:tcPr>
-          <w:p>
-            <w:pPr>
-              <w:spacing w:line="240" w:lineRule="auto" w:after="60"/>
-            </w:pPr>
-            <w:r>
-              <w:rPr>
-                <w:b/>
-                <w:sz w:val="20"/>
-                <w:color w:val="334155"/>
-              </w:rPr>
-              <w:t>Nome Completo: </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:sz w:val="20"/>
-                <w:color w:val="0F172A"/>
-              </w:rPr>
-              <w:t>${escapeXml(aluno.nome)}</w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:b/>
-                <w:sz w:val="20"/>
-                <w:color w:val="334155"/>
-              </w:rPr>
-              <w:t> | Turma: </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:sz w:val="20"/>
-                <w:color w:val="0F172A"/>
-              </w:rPr>
-              <w:t>${escapeXml(aluno.turma)}</w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:b/>
-                <w:sz w:val="20"/>
-                <w:color w:val="334155"/>
-              </w:rPr>
-              <w:t> | Turno: </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:sz w:val="20"/>
-                <w:color w:val="0F172A"/>
-              </w:rPr>
-              <w:t>${escapeXml(aluno.turno)}</w:t>
-            </w:r>
-          </w:p>
-          <w:p>
-            <w:pPr>
-              <w:spacing w:line="240" w:lineRule="auto" w:after="60"/>
-            </w:pPr>
-            <w:r>
-              <w:rPr>
-                <w:b/>
-                <w:sz w:val="20"/>
-                <w:color w:val="334155"/>
-              </w:rPr>
-              <w:t>Nascimento / Idade: </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:sz w:val="20"/>
-                <w:color w:val="0F172A"/>
-              </w:rPr>
-              <w:t>${escapeXml(aluno.nascimento)} (${escapeXml(String(aluno.idade))} anos)</w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:b/>
-                <w:sz w:val="20"/>
-                <w:color w:val="334155"/>
-              </w:rPr>
-              <w:t> | Matrícula: </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:sz w:val="20"/>
-                <w:color w:val="0F172A"/>
-              </w:rPr>
-              <w:t>${escapeXml(aluno.matricula)}</w:t>
-            </w:r>
-          </w:p>
-          <w:p>
-            <w:pPr>
-              <w:spacing w:line="240" w:lineRule="auto" w:after="0"/>
-            </w:pPr>
-            <w:r>
-              <w:rPr>
-                <w:b/>
-                <w:sz w:val="20"/>
-                <w:color w:val="334155"/>
-              </w:rPr>
-              <w:t>Período Avaliado / Emissão: </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr>
-                <w:sz w:val="20"/>
-                <w:color w:val="0F172A"/>
-              </w:rPr>
-              <w:t>${escapeXml(dataEmissao)}</w:t>
-            </w:r>
-          </w:p>
-        </w:tc>
-      </w:tr>
-    </w:tbl>
-
+    <!-- BLOCO DE IDENTIFICAÇÃO DO ESTUDANTE (PADRÃO OFICIAL) -->
+    <!-- Linha 1: Nome Completo: [NOME EM MAIÚSCULAS]  -  Turma: [NOME DA TURMA - TURNO] -->
     <w:p>
       <w:pPr>
-        <w:spacing w:before="240" w:after="0"/>
+        <w:spacing w:line="240" w:lineRule="auto" w:after="120"/>
       </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:b/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+          <w:color w:val="0F172A"/>
+        </w:rPr>
+        <w:t xml:space="preserve">Nome Completo: </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+          <w:color w:val="0F172A"/>
+        </w:rPr>
+        <w:t xml:space="preserve">${escapeXml(nomeCompletoUpper)}  -  </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:b/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+          <w:color w:val="0F172A"/>
+        </w:rPr>
+        <w:t xml:space="preserve">Turma: </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+          <w:color w:val="0F172A"/>
+        </w:rPr>
+        <w:t xml:space="preserve">${escapeXml(turmaTurno)}</w:t>
+      </w:r>
+    </w:p>
+
+    <!-- Linha 2: Idade: [X anos] -->
+    <w:p>
+      <w:pPr>
+        <w:spacing w:line="240" w:lineRule="auto" w:after="120"/>
+      </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:b/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+          <w:color w:val="0F172A"/>
+        </w:rPr>
+        <w:t xml:space="preserve">Idade: </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+          <w:color w:val="0F172A"/>
+        </w:rPr>
+        <w:t xml:space="preserve">${escapeXml(idadeFormatada)}</w:t>
+      </w:r>
+    </w:p>
+
+    <!-- Linha 3: Período da Emissão: [DD/MM/AAAA] -->
+    <w:p>
+      <w:pPr>
+        <w:spacing w:line="240" w:lineRule="auto" w:after="120"/>
+      </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:b/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+          <w:color w:val="0F172A"/>
+        </w:rPr>
+        <w:t xml:space="preserve">Período da Emissão: </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:sz w:val="22"/>
+          <w:szCs w:val="22"/>
+          <w:color w:val="0F172A"/>
+        </w:rPr>
+        <w:t xml:space="preserve">${escapeXml(periodoEmissao)}</w:t>
+      </w:r>
     </w:p>
 
     <!-- CORPO DO DOCUMENTO CONSOLIDADO -->

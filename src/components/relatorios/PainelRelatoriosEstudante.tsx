@@ -256,6 +256,10 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     setGerandoDocx(true);
     try {
       const turma = turmas.find(t => t.id === estudante.turma_id);
+      const turnoFormatado = turma?.turno
+        ? (turma.turno === 'manha' ? 'MANHÃ' : turma.turno === 'tarde' ? 'TARDE' : turma.turno.toUpperCase())
+        : undefined;
+
       const res = await fetch('/api/relatorios/docx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -270,7 +274,10 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
           aluno: {
             nome: estudante.nome_completo,
             turma: turma?.nome || estudante.turma_nome || 'Turma Regular',
+            turno: turnoFormatado,
+            data_nascimento: estudante.data_nascimento,
             dataNascimento: estudante.data_nascimento,
+            nascimento: estudante.data_nascimento,
             matricula: estudante.id,
           },
           dataEmissao: new Date().toLocaleDateString('pt-BR'),

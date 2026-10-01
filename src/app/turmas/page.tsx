@@ -27,8 +27,9 @@ import {
   Power,
   GraduationCap,
   HeartHandshake
-} from 'lucide-react';
 import { Turno, HorarioAula, Turma, GrupoTurma, GRUPOS_TURMAS_LISTA, Professor } from '@/lib/types';
+import { analisarFaixaEtariaTurma, AnaliseTurmaFaixaEtaria } from '@/lib/faixa-etaria';
+import { ModalFaixaEtariaTurma } from '@/components/turmas/ModalFaixaEtariaTurma';
 
 interface SecaoEquipeTurmaFormProps {
   professores: Professor[];
@@ -268,6 +269,7 @@ export default function TurmasPage() {
     turmas, 
     estudantes, 
     professores, 
+    escolaConfig,
     addTurma, 
     updateTurma, 
     toggleStatusTurma, 
@@ -293,6 +295,7 @@ export default function TurmasPage() {
   const [modalEditarTurmaAberto, setModalEditarTurmaAberto] = useState(false);
   const [turmaEditando, setTurmaEditando] = useState<Turma | null>(null);
   const [modalNovoHorarioAberto, setModalNovoHorarioAberto] = useState(false);
+  const [turmaFaixaEtariaModal, setTurmaFaixaEtariaModal] = useState<AnaliseTurmaFaixaEtaria | null>(null);
   const [filtroGrupo, setFiltroGrupo] = useState<string>('todos');
 
   // Estados de Controle de Status e Migração
@@ -729,6 +732,65 @@ export default function TurmasPage() {
                 </div>
               </div>
 
+              {/* Indicador de Faixa Etária e Distorção Idade-Série */}
+              {(() => {
+                const estudantesTurma = estudantes.filter((e) => e.turma_id === turma.id);
+                const anoLetivoRef = Number(escolaConfig?.ano_letivo_ativo) || Number(turma.ano_letivo) || 2026;
+                const analiseFaixa = analisarFaixaEtariaTurma(turma, estudantesTurma, anoLetivoRef);
+
+                if (alunosMatriculados === 0) return null;
+
+                if (analiseFaixa.temAlunosForaDaFaixa) {
+                  return (
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTurmaFaixaEtariaModal(analiseFaixa);
+                        }}
+                        className="group w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl border border-amber-300/90 bg-amber-50/90 text-amber-900 hover:bg-amber-100 dark:border-amber-800/70 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/70 transition-all text-left shadow-2xs"
+                        title="Clique para ver a análise de faixa etária e distorção idade-série"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                          <span className="font-bold text-[11px] truncate">
+                            Fora da Faixa: {analiseFaixa.totalForaDaFaixa} {analiseFaixa.totalForaDaFaixa === 1 ? 'estudante' : 'estudantes'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 group-hover:underline shrink-0">
+                          Ver lista →
+                        </span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTurmaFaixaEtariaModal(analiseFaixa);
+                      }}
+                      className="group w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-xl border border-emerald-200/90 bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100/80 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50 transition-all text-left shadow-2xs"
+                      title="Clique para ver detalhes da faixa etária da turma"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="font-bold text-[11px] truncate">
+                          Faixa Etária Adequada
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 group-hover:underline shrink-0">
+                        ({analiseFaixa.faixaEsperada})
+                      </span>
+                    </button>
+                  </div>
+                );
+              })()}
+
               {/* Equipe Docente e Apoio Resumo no Card */}
               {(() => {
                 const profsCardIds = turma.professores_ids && turma.professores_ids.length > 0
@@ -802,26 +864,60 @@ export default function TurmasPage() {
               </p>
             </div>
 
-            {role === 'admin' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleAbrirEditarTurma(turmaSelecionada)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                  title="Alterar informações desta turma"
-                >
-                  <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                  <span>Editar Turma</span>
-                </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(() => {
+                const turmaAtual = turmas.find((t) => t.id === turmaSelecionada.id) || turmaSelecionada;
+                const estudantesTurmaSel = estudantes.filter((e) => e.turma_id === turmaAtual.id);
+                const anoLetivoRef = Number(escolaConfig?.ano_letivo_ativo) || Number(turmaAtual.ano_letivo) || 2026;
+                const analiseFaixaSel = analisarFaixaEtariaTurma(turmaAtual, estudantesTurmaSel, anoLetivoRef);
 
-                <button
-                  onClick={() => setModalNovoHorarioAberto(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  <Plus className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                  <span>Adicionar Aula na Grade</span>
-                </button>
-              </div>
-            )}
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setTurmaFaixaEtariaModal(analiseFaixaSel)}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all shadow-2xs ${
+                      analiseFaixaSel.temAlunosForaDaFaixa
+                        ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
+                        : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                    }`}
+                    title="Análise de faixa etária e distorção idade-série desta turma"
+                  >
+                    {analiseFaixaSel.temAlunosForaDaFaixa ? (
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    )}
+                    <span>Faixa Etária ({analiseFaixaSel.faixaEsperada})</span>
+                    {analiseFaixaSel.temAlunosForaDaFaixa && (
+                      <span className="rounded-full bg-amber-200 px-1.5 py-0.2 text-[10px] font-black text-amber-900 dark:bg-amber-900 dark:text-amber-100">
+                        {analiseFaixaSel.totalForaDaFaixa} fora
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
+
+              {role === 'admin' && (
+                <>
+                  <button
+                    onClick={() => handleAbrirEditarTurma(turmaSelecionada)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    title="Alterar informações desta turma"
+                  >
+                    <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                    <span>Editar Turma</span>
+                  </button>
+
+                  <button
+                    onClick={() => setModalNovoHorarioAberto(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                    <span>Adicionar Aula na Grade</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Equipe da Turma (Professores Principais & Equipe de Apoio) */}
@@ -1760,6 +1856,14 @@ export default function TurmasPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Modal de Detalhes da Faixa Etária e Distorção Idade-Série */}
+      {turmaFaixaEtariaModal && (
+        <ModalFaixaEtariaTurma
+          analise={turmaFaixaEtariaModal}
+          onClose={() => setTurmaFaixaEtariaModal(null)}
+        />
       )}
     </div>
   );

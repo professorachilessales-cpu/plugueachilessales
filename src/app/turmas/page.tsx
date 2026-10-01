@@ -27,6 +27,7 @@ import {
   Power,
   GraduationCap,
   HeartHandshake
+} from 'lucide-react';
 import { Turno, HorarioAula, Turma, GrupoTurma, GRUPOS_TURMAS_LISTA, Professor } from '@/lib/types';
 import { analisarFaixaEtariaTurma, AnaliseTurmaFaixaEtaria } from '@/lib/faixa-etaria';
 import { ModalFaixaEtariaTurma } from '@/components/turmas/ModalFaixaEtariaTurma';

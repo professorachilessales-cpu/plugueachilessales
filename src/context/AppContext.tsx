@@ -246,7 +246,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             const mustChange = localStorage.getItem(`plugue_pwd_changed_${u.id}`) === 'true'
               ? false
-              : (Number(u.must_change_password) === 1 || u.must_change_password === true || u.must_change_password === '1');
+              : (Number((u as any).must_change_password) === 1 || u.must_change_password === true || (u as any).must_change_password === '1');
             return {
               ...u,
               must_change_password: mustChange,
@@ -488,7 +488,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 must_change_password:
                   localStorage.getItem(`plugue_pwd_changed_${u.id}`) === 'true'
                     ? false
-                    : (Number(u.must_change_password) === 1 || u.must_change_password === true || u.must_change_password === '1'),
+                    : (Number((u as any).must_change_password) === 1 || u.must_change_password === true || (u as any).must_change_password === '1'),
               }));
             setUsers(cleanUsers);
             localStorage.setItem('school_os_users', JSON.stringify(cleanUsers));

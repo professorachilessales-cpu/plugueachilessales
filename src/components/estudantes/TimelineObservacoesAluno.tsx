@@ -131,7 +131,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
         if (!buscaHistorico.trim()) return true;
         const termo = buscaHistorico.toLowerCase().trim();
         const texto = (o.texto_completo || o.texto || '').toLowerCase();
-        const autor = (o.autor_nome || o.usuario_nome || '').toLowerCase();
+        const autor = (o.autor_nome || (o as any).usuario_nome || '').toLowerCase();
         const cargo = (o.autor_cargo || '').toLowerCase();
         return texto.includes(termo) || autor.includes(termo) || cargo.includes(termo);
       })

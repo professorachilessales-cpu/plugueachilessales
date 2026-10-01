@@ -947,7 +947,7 @@ export async function excluirArquivoDriveComAuditoria(
             OR (drive_file_id = ? AND drive_file_id != '')
             OR (? != '' AND ? != '' AND estudante_id = ? AND nome_arquivo = ?)
          LIMIT 1`,
-        [docId || fileId, fileId || docId, estudanteId || '', nomeArquivo || '', estudanteId || '', nomeArquivo || '']
+        [docId || fileId || '', fileId || docId || '', estudanteId || '', nomeArquivo || '', estudanteId || '', nomeArquivo || '']
       );
       if (lookup.rows && lookup.rows.length > 0) {
         const found = lookup.rows[0];
@@ -1065,7 +1065,7 @@ export async function excluirArquivoDriveComAuditoria(
       if (fileId || docId) {
         await executeTursoQuery(
           `DELETE FROM atestados_professor WHERE drive_file_id = ? OR id = ?`,
-          [fileId || docId, docId || fileId]
+          [fileId || docId || '', docId || fileId || '']
         );
       }
 

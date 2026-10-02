@@ -97,7 +97,8 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     updateRelatorioProfessor, 
     deleteRelatorioProfessor, 
     marcarNotificacaoComoLida, 
-    salvarRelatorioConsolidado
+    salvarRelatorioConsolidado,
+    excluirSolicitacaoRelatorio
   } = useApp();
 
   // Solicitações pertencentes a este estudante (ordenação segura por created_at ou data_solicitacao)
@@ -140,6 +141,10 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
   const [editandoTextoFinal, setEditandoTextoFinal] = useState<string>('');
   const [salvandoEdicaoParecer, setSalvandoEdicaoParecer] = useState(false);
 
+  // Estados de Cancelamento/Exclusão da Solicitação
+  const [modalConfirmarCancelamento, setModalConfirmarCancelamento] = useState(false);
+  const [cancelandoSolicitacao, setCancelandoSolicitacao] = useState(false);
+
   // Estados da Consolidação com IA
   const [modalConsolidacaoAberto, setModalConsolidacaoAberto] = useState(false);
   const [consolidandoComIA, setConsolidandoComIA] = useState(false);
@@ -150,6 +155,24 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
   // Estado de download DOCX
   const [gerandoDocx, setGerandoDocx] = useState(false);
   const [alertaSucesso, setAlertaSucesso] = useState<string | null>(null);
+
+  // Cancelar e excluir solicitação de relatório e todos os pareceres dos professores vinculados
+  const handleConfirmarCancelamentoSolicitacao = async () => {
+    if (!solicitacaoAtiva) return;
+    setCancelandoSolicitacao(true);
+    try {
+      await excluirSolicitacaoRelatorio(solicitacaoAtiva.id);
+      setModalConfirmarCancelamento(false);
+      setAlertaSucesso('Solicitação cancelada e todos os relatórios vinculados foram excluídos com sucesso.');
+      const restante = solicitacoesAluno.filter(s => s.id !== solicitacaoAtiva.id);
+      setSolicitacaoAtivaId(restante[0]?.id || null);
+      setTimeout(() => setAlertaSucesso(null), 4000);
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao cancelar a solicitação.');
+    } finally {
+      setCancelandoSolicitacao(false);
+    }
+  };
 
   // Criar nova solicitação de relatório para a turma do estudante
   const handleCriarSolicitacao = async () => {
@@ -513,42 +536,57 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
           {/* Área da Solicitação Ativa */}
           {solicitacaoAtiva && (
             <div className="space-y-6">
-              {/* Barra de Ações Rápidas da Solicitação */}
-              <div className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/60 to-purple-50/40 p-4 dark:border-indigo-900/40 dark:bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-black uppercase text-indigo-950 dark:text-indigo-200">
+              {/* Barra de Ações Rápidas da Solicitação - Bloco em Alto Contraste */}
+              <div className="rounded-2xl border-2 border-indigo-600/80 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 p-5 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-white">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-sm font-black uppercase tracking-wider text-white drop-shadow-sm flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-indigo-300" />
                       Ciclo Aberto em: {formatarDataSolicitacao(solicitacaoAtiva.created_at || solicitacaoAtiva.data_solicitacao, true)}
                     </span>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase shadow-sm ${
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black uppercase shadow-md ${
                       isConcluida
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
-                        : 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
+                        ? 'bg-emerald-500 text-white border border-emerald-400'
+                        : 'bg-amber-400 text-amber-950 border border-amber-300'
                     }`}>
                       {isConcluida ? (
                         <>
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <CheckCircle2 className="h-3.5 w-3.5 text-white" />
                           <span>Concluído / Homologado</span>
                         </>
                       ) : (
                         <>
-                          <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                          <Clock className="h-3.5 w-3.5 text-amber-950" />
                           <span>Pendente</span>
                         </>
                       )}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-xs text-indigo-200 font-semibold">
                     {pareceresAtivos.filter(p => p.status === 'enviado').length} de {pareceresAtivos.length} pareceres docentes recebidos
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {/* Botão Cancelar Solicitação (Vermelho Chamativo, visível apenas quando pendente) */}
+                  {!isConcluida && (
+                    <button
+                      type="button"
+                      onClick={() => setModalConfirmarCancelamento(true)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-red-600/50 border-2 border-red-500 ring-2 ring-red-400/30 transition-all cursor-pointer"
+                      title="Cancelar e excluir permanentemente esta solicitação e todos os relatórios vinculados"
+                    >
+                      <Trash2 className="h-4 w-4 text-white animate-pulse" />
+                      <span>Cancelar Solicitação</span>
+                    </button>
+                  )}
+
                   {/* Botão Consolidar com IA */}
                   <button
+                    type="button"
                     onClick={handleIniciarConsolidacaoIA}
                     disabled={pareceresAtivos.filter(p => p.status === 'enviado').length === 0}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:from-indigo-700 hover:to-purple-700 active:scale-95 transition-all disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 active:scale-95 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-indigo-600/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Sparkles className="h-4 w-4" />
                     <span>Consolidar Pareceres com IA</span>
@@ -558,27 +596,30 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                   {consolidadoAtivo && (
                     <>
                       <button
+                        type="button"
                         onClick={() => handleBaixarDocx()}
                         disabled={gerandoDocx}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 active:scale-95 transition-all disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-md transition-all disabled:opacity-50"
                       >
                         <Download className="h-4 w-4" />
                         <span>{gerandoDocx ? 'Gerando...' : 'Exportar DOCX'}</span>
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => handleImprimir()}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 active:scale-95 transition-all"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-md border border-slate-700 transition-all"
                       >
                         <Printer className="h-4 w-4" />
                         <span>Imprimir</span>
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => handleCopiarTexto()}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 active:scale-95 transition-all"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-600 bg-slate-800/90 hover:bg-slate-700 text-white px-3.5 py-2.5 text-xs font-bold shadow-md transition-all"
                       >
-                        <Copy className="h-4 w-4 text-slate-500" />
+                        <Copy className="h-4 w-4 text-indigo-300" />
                         <span>Copiar Texto</span>
                       </button>
                     </>
@@ -939,6 +980,67 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Modal de Confirmação de Cancelamento e Exclusão da Solicitação */}
+      {modalConfirmarCancelamento && solicitacaoAtiva && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-2xl border-2 border-red-500/40 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-400 shrink-0">
+                <AlertTriangle className="h-6 w-6 text-red-600 animate-bounce" />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-slate-900 dark:text-white">
+                  Cancelar Solicitação de Relatório?
+                </h4>
+                <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
+                  Atenção: Esta ação é definitiva e irreversível!
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-red-50 p-4 border border-red-200 dark:bg-red-950/30 dark:border-red-900/40 text-xs text-red-900 dark:text-red-200 space-y-2">
+              <p className="font-bold">
+                Ao confirmar o cancelamento, o sistema irá excluir permanentemente:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-[11px] font-medium">
+                <li>Esta solicitação de ciclo aberta em {formatarDataSolicitacao(solicitacaoAtiva.created_at || solicitacaoAtiva.data_solicitacao, true)};</li>
+                <li><strong>Todos os pareceres e relatórios ({pareceresAtivos.length})</strong> enviados ou atribuídos aos professores desta solicitação;</li>
+                <li>Quaisquer minutas de consolidação com IA e notificações pendentes vinculadas a ela.</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={cancelandoSolicitacao}
+                onClick={() => setModalConfirmarCancelamento(false)}
+                className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                Não, Manter Solicitação
+              </button>
+
+              <button
+                type="button"
+                disabled={cancelandoSolicitacao}
+                onClick={handleConfirmarCancelamentoSolicitacao}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-red-600/40 transition-all disabled:opacity-50"
+              >
+                {cancelandoSolicitacao ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Cancelando e excluindo...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    <span>Sim, Cancelar e Excluir Tudo</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

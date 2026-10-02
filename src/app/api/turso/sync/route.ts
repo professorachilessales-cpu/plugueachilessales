@@ -659,6 +659,20 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      case 'delete_solicitacao': {
+        const { solicitacao_id } = payload;
+        try {
+          await executeTursoQuery('DELETE FROM relatorios_professores WHERE solicitacao_id = ?', [solicitacao_id]);
+          await executeTursoQuery('DELETE FROM relatorios_consolidados WHERE solicitacao_id = ?', [solicitacao_id]);
+          await executeTursoQuery('DELETE FROM consolidacoes_pareceres WHERE solicitacao_id = ?', [solicitacao_id]);
+          await executeTursoQuery('DELETE FROM notificacoes_admin WHERE solicitacao_id = ?', [solicitacao_id]);
+          await executeTursoQuery('DELETE FROM solicitacoes_relatorio WHERE id = ?', [solicitacao_id]);
+        } catch (e) {
+          console.warn('Erro ao excluir solicitação no Turso:', e);
+        }
+        return NextResponse.json({ success: true });
+      }
+
       default:
         return NextResponse.json({ error: `Ação '${action}' desconhecida` }, { status: 400 });
     }

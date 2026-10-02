@@ -1699,11 +1699,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const excluirSolicitacaoRelatorio = (solicitacaoId: string) => {
-    setSolicitacoesRelatorio(prev => prev.filter(s => s.id !== solicitacaoId));
-    setRelatoriosProfessores(prev => prev.filter(r => r.solicitacao_id !== solicitacaoId));
-    setRelatoriosConsolidados(prev => prev.filter(c => c.solicitacao_id !== solicitacaoId));
-    setNotificacoesAdmin(prev => prev.filter(n => n.solicitacao_id !== solicitacaoId));
+  const excluirSolicitacaoRelatorio = async (solicitacaoId: string) => {
+    setSolicitacoesRelatorio(prev => {
+      const updated = prev.filter(s => s.id !== solicitacaoId);
+      try { localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    setRelatoriosProfessores(prev => {
+      const updated = prev.filter(r => r.solicitacao_id !== solicitacaoId);
+      try { localStorage.setItem('school_os_relatorios_professores', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    setRelatoriosConsolidados(prev => {
+      const updated = prev.filter(c => c.solicitacao_id !== solicitacaoId);
+      try { localStorage.setItem('school_os_relatorios_consolidados', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    setNotificacoesAdmin(prev => {
+      const updated = prev.filter(n => n.solicitacao_id !== solicitacaoId);
+      try { localStorage.setItem('school_os_notificacoes_admin', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    try {
+      await fetch('/api/turso/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_solicitacao',
+          payload: { solicitacao_id: solicitacaoId },
+        }),
+      });
+    } catch (e) {
+      console.warn('Erro ao sincronizar exclusão com o Turso:', e);
+    }
   };
 
   // 6. Observações Contínuas do Estudante & Auditoria

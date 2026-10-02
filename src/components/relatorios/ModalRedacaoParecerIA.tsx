@@ -15,7 +15,6 @@ import {
   Loader2, 
   Wand2, 
   Edit3, 
-  ShieldAlert,
   Info
 } from 'lucide-react';
 import { RelatorioProfessor, SolicitacaoRelatorio, Estudante, Turma } from '@/lib/types';
@@ -68,15 +67,11 @@ export function ModalRedacaoParecerIA({
     }
   })();
 
-  const isProcessoConcluido = solicitacao.status === 'concluido' || relatorio.status === 'nao_entregue';
-
   const handleSalvarRascunho = () => {
-    if (isProcessoConcluido) return;
     salvarRascunhoProfessor(relatorio.id, rascunho);
   };
 
   const handlePolirComIA = async () => {
-    if (isProcessoConcluido) return;
     if (!rascunho || rascunho.trim().length < 10) {
       setErro('Por favor, digite suas observações sobre o estudante antes de acionar a Inteligência Artificial.');
       return;
@@ -172,21 +167,6 @@ export function ModalRedacaoParecerIA({
         {/* CORPO MODAL COM SCROLL */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
-          {/* BANNER DE BLOQUEIO SE CONCLUÍDO */}
-          {isProcessoConcluido && (
-            <div className="rounded-2xl border border-rose-300 bg-rose-50/90 p-4 dark:border-rose-900/60 dark:bg-rose-950/40 text-xs font-bold text-rose-800 dark:text-rose-200 flex items-center gap-3 shadow-sm">
-              <ShieldAlert className="h-5 w-5 text-rose-600 shrink-0" />
-              <div>
-                <p className="font-extrabold uppercase tracking-wide text-rose-900 dark:text-rose-100">
-                  Processo Homologado e Concluído
-                </p>
-                <p className="text-[11px] font-normal text-rose-700 dark:text-rose-300 mt-0.5">
-                  A rodada de pareceres foi homologada pela coordenação. Novas submissões ou alterações retroativas estão totalmente bloqueadas.
-                </p>
-              </div>
-            </div>
-          )}
-          
           {/* AVISO EXPLICATIVO OBRIGATÓRIO (Seção 3) */}
           <div className="rounded-2xl border border-blue-200/80 bg-blue-50/70 p-4 dark:border-blue-900/60 dark:bg-blue-950/30 flex items-start gap-3 shadow-sm">
             <div className="rounded-xl bg-school-blue-100 p-2 text-school-blue-700 dark:bg-school-blue-900/60 dark:text-school-gold-400 flex-shrink-0 mt-0.5">
@@ -231,40 +211,33 @@ export function ModalRedacaoParecerIA({
             <textarea
               rows={4}
               value={rascunho}
-              readOnly={isProcessoConcluido}
-              onChange={(e) => !isProcessoConcluido && setRascunho(e.target.value)}
+              onChange={(e) => setRascunho(e.target.value)}
               onBlur={handleSalvarRascunho}
               placeholder="Ex: O aluno tem demonstrado facilidade em matemática e raciocínio lógico, porém conversa bastante nos momentos de explicação teórica. Nos trabalhos em equipe tem liderado positivamente..."
-              className={`w-full rounded-2xl border p-4 text-sm transition-all resize-y min-h-[110px] ${
-                isProcessoConcluido
-                  ? 'border-slate-200 bg-slate-100/70 text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 cursor-not-allowed'
-                  : 'border-slate-200 bg-slate-50/50 text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-slate-700 dark:bg-slate-800/50 dark:text-white dark:focus:border-school-gold-400'
-              }`}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-slate-700 dark:bg-slate-800/50 dark:text-white dark:focus:border-school-gold-400 transition-all resize-y min-h-[110px]"
             />
 
             {/* CTA POLIMENTO GEMINI */}
-            {!isProcessoConcluido && (
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={handlePolirComIA}
-                  disabled={polindo || rascunho.trim().length < 5}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-school-blue-700 via-school-blue-800 to-indigo-800 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-900/20 hover:from-school-blue-600 hover:to-indigo-700 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed group"
-                >
-                  {polindo ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
-                      <span>Refinando Relato com IA...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="h-4 w-4 text-school-gold-400 group-hover:rotate-12 transition-transform" />
-                      <span>Aprimorar Relato com Inteligência Artificial</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={handlePolirComIA}
+                disabled={polindo || rascunho.trim().length < 5}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-school-blue-700 via-school-blue-800 to-indigo-800 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-900/20 hover:from-school-blue-600 hover:to-indigo-700 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed group"
+              >
+                {polindo ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
+                    <span>Refinando Relato com IA...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="h-4 w-4 text-school-gold-400 group-hover:rotate-12 transition-transform" />
+                    <span>Aprimorar Relato com Inteligência Artificial</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* VERSÃO GERADA PELA IA EM CAMPO EDITÁVEL */}
@@ -283,21 +256,14 @@ export function ModalRedacaoParecerIA({
               <textarea
                 rows={5}
                 value={textoFinal}
-                readOnly={isProcessoConcluido}
-                onChange={(e) => !isProcessoConcluido && setTextoFinal(e.target.value)}
+                onChange={(e) => setTextoFinal(e.target.value)}
                 placeholder="Aqui você pode ajustar qualquer detalhe antes de encaminhar à secretaria..."
-                className={`w-full rounded-2xl border-2 p-4 text-sm leading-relaxed transition-all resize-y min-h-[140px] ${
-                  isProcessoConcluido
-                    ? 'border-slate-200 bg-slate-100/70 text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 cursor-not-allowed'
-                    : 'border-school-blue-200 bg-white text-slate-900 focus:border-school-blue-600 focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-blue-900/80 dark:bg-slate-800 dark:text-white'
-                }`}
+                className="w-full rounded-2xl border-2 border-school-blue-200 bg-white p-4 text-sm leading-relaxed text-slate-900 focus:border-school-blue-600 focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-blue-900/80 dark:bg-slate-800 dark:text-white transition-all resize-y min-h-[140px]"
               />
               <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                 <Info className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
                 <span>
-                  {isProcessoConcluido 
-                    ? 'Visualização em modo somente leitura. O processo já foi homologado.'
-                    : 'Você tem total liberdade para realizar ajustes, adicionar complementos ou aceitar a sugestão integral da IA.'}
+                  Você tem total liberdade para realizar ajustes, adicionar complementos ou aceitar a sugestão integral da IA.
                 </span>
               </p>
             </div>
@@ -312,39 +278,37 @@ export function ModalRedacaoParecerIA({
             onClick={onClose}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
           >
-            {isProcessoConcluido ? 'Fechar Visualização' : 'Cancelar / Salvar Depois'}
+            Cancelar / Salvar Depois
           </button>
 
-          {!isProcessoConcluido && (
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleSalvarRascunho}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-colors"
-              >
-                <span>Salvar Rascunho</span>
-              </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSalvarRascunho}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-colors"
+            >
+              <span>Salvar Rascunho</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={handleEnviarSecretaria}
-                disabled={enviando || (!textoFinal && !rascunho)}
-                className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/30 hover:bg-school-blue-700 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed"
-              >
-                {enviando ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
-                    <span>Enviando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 text-school-gold-400" />
-                    <span>Enviar à Secretaria</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+            <button
+              type="button"
+              onClick={handleEnviarSecretaria}
+              disabled={enviando || (!textoFinal && !rascunho)}
+              className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/30 hover:bg-school-blue-700 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed"
+            >
+              {enviando ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
+                  <span>Enviando...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 text-school-gold-400" />
+                  <span>Enviar à Secretaria</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
       </div>

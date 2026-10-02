@@ -104,14 +104,6 @@ interface AppContextType {
   marcarTodasNotificacoesLidas: () => void;
   consolidarRelatorioComIA: (solicitacaoId: string, observacoesSecretaria?: string) => Promise<string>;
   salvarRelatorioConsolidado: (solicitacaoId: string, conteudoFinal: string, observacoesSecretaria?: string) => void;
-  homologarConsolidacaoNoHistorico: (dados: {
-    solicitacaoId: string;
-    estudanteId: string;
-    turmaId?: string;
-    textoConsolidado: string;
-    snapshotPareceres?: any[];
-    professoresNaoEntregaram?: any[];
-  }) => Promise<void>;
   excluirSolicitacaoRelatorio: (solicitacaoId: string) => void;
 
   // 6. Observações Contínuas do Estudante (Ficha do Aluno) & Auditoria
@@ -1676,22 +1668,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const salvarRelatorioConsolidado = (solicitacaoId: string, conteudoFinal: string, _observacoesSecretaria?: string) => {
     const agora = new Date().toISOString();
 
-    // 1. Atualiza status principal da solicitação para concluido
     setSolicitacoesRelatorio(prev =>
       prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' } : s))
     );
 
-    // 2. Atualiza docentes pendentes para nao_entregue
-    setRelatoriosProfessores(prev =>
-      prev.map(r => {
-        if (r.solicitacao_id === solicitacaoId && r.status !== 'enviado') {
-          return { ...r, status: 'nao_entregue' };
-        }
-        return r;
-      })
-    );
-
-    // 3. Atualiza relatórios consolidados
     setRelatoriosConsolidados(prev => {
       const existe = prev.find(c => c.solicitacao_id === solicitacaoId);
       if (existe) {
@@ -1709,73 +1689,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...prev,
       ];
     });
-  };
-
-  const homologarConsolidacaoNoHistorico = async (dados: {
-    solicitacaoId: string;
-    estudanteId: string;
-    turmaId?: string;
-    textoConsolidado: string;
-    snapshotPareceres?: any[];
-    professoresNaoEntregaram?: any[];
-  }) => {
-    const agora = new Date().toISOString();
-
-    // 1. Atualização imediata do Status Geral do Processo para 'concluido'
-    setSolicitacoesRelatorio(prev =>
-      prev.map(s => (s.id === dados.solicitacaoId ? { ...s, status: 'concluido' } : s))
-    );
-
-    // 2. Tratamento para Professores Inadimplentes: status passa para 'nao_entregue' e bloqueia edições
-    setRelatoriosProfessores(prev =>
-      prev.map(r => {
-        if (r.solicitacao_id === dados.solicitacaoId && r.status !== 'enviado') {
-          return { ...r, status: 'nao_entregue' };
-        }
-        return r;
-      })
-    );
-
-    // 3. Atualiza relatório consolidado em memória
-    setRelatoriosConsolidados(prev => {
-      const filtrado = prev.filter(c => c.solicitacao_id !== dados.solicitacaoId);
-      return [
-        {
-          id: `rel-cons-${Date.now()}`,
-          solicitacao_id: dados.solicitacaoId,
-          conteudo_final: dados.textoConsolidado,
-          data_geracao: agora,
-          arquivo_docx_url: `/api/relatorios/docx?solicitacao_id=${dados.solicitacaoId}`,
-          created_at: agora,
-        },
-        ...filtrado,
-      ];
-    });
-
-    // 4. Persistência Integral da Consolidação no Banco de Dados via Transação Atômica
-    try {
-      const res = await fetch('/api/relatorios/homologar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          solicitacao_id: dados.solicitacaoId,
-          estudante_id: dados.estudanteId,
-          turma_id: dados.turmaId,
-          texto_consolidado_final: dados.textoConsolidado,
-          homologado_por_usuario_id: currentUser?.id,
-          homologado_por_usuario_nome: currentUser?.name || 'Coordenação Pedagógica',
-          snapshot_pareceres_enviados: dados.snapshotPareceres || [],
-          professores_nao_entregaram: dados.professoresNaoEntregaram || [],
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        console.warn('Aviso de persistência Turso ao homologar:', errorData.error);
-      }
-    } catch (err) {
-      console.warn('Erro ao comunicar com a rota atômica /api/relatorios/homologar:', err);
-    }
   };
 
   const excluirSolicitacaoRelatorio = (solicitacaoId: string) => {
@@ -2388,7 +2301,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         marcarTodasNotificacoesLidas,
         consolidarRelatorioComIA,
         salvarRelatorioConsolidado,
-        homologarConsolidacaoNoHistorico,
         excluirSolicitacaoRelatorio,
         observacoesAluno,
         observacoesAuditoria,

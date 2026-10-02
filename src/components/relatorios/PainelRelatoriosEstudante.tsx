@@ -28,9 +28,7 @@ import {
   RefreshCw,
   ExternalLink,
   Printer,
-  Copy,
-  Lock,
-  ShieldCheck
+  Copy
 } from 'lucide-react';
 import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
 import { calcularIdadeEmAnos } from '@/lib/faixa-etaria';
@@ -99,8 +97,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     updateRelatorioProfessor, 
     deleteRelatorioProfessor, 
     marcarNotificacaoComoLida, 
-    salvarRelatorioConsolidado,
-    homologarConsolidacaoNoHistorico
+    salvarRelatorioConsolidado
   } = useApp();
 
   // Solicitações pertencentes a este estudante (ordenação segura por created_at ou data_solicitacao)
@@ -286,50 +283,13 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     }
   };
 
-  // Salvar & Homologar relatório consolidado no histórico (com transação atômica e bloqueio definitivo)
-  const handleSalvarConsolidado = async () => {
+  // Salvar relatório consolidado
+  const handleSalvarConsolidado = () => {
     if (!solicitacaoAtiva) return;
-    try {
-      const snapshotPareceres = pareceresAtivos
-        .filter(p => p.status === 'enviado')
-        .map(p => {
-          const prof = professores.find(pr => pr.id === p.professor_id);
-          return {
-            professor_id: p.professor_id,
-            professor_nome: prof?.nome_completo || 'Docente',
-            disciplinas: prof?.disciplinas || [],
-            texto_original: p.rascunho_original || '',
-            texto_final: (p.texto_final || p.texto_ia || p.rascunho_original || '').trim(),
-            data_envio: p.data_envio || new Date().toISOString(),
-          };
-        });
-
-      const professoresNaoEntregaram = pareceresAtivos
-        .filter(p => p.status !== 'enviado')
-        .map(p => {
-          const prof = professores.find(pr => pr.id === p.professor_id);
-          return {
-            professor_id: p.professor_id,
-            professor_nome: prof?.nome_completo || 'Docente',
-            disciplinas: prof?.disciplinas || [],
-          };
-        });
-
-      await homologarConsolidacaoNoHistorico({
-        solicitacaoId: solicitacaoAtiva.id,
-        estudanteId: estudante.id,
-        turmaId: estudante.turma_id,
-        textoConsolidado: textoConsolidadoEditavel,
-        snapshotPareceres,
-        professoresNaoEntregaram,
-      });
-
-      setAlertaSucesso('Parecer consolidado e homologado com sucesso!');
-      setModalConsolidacaoAberto(false);
-      setTimeout(() => setAlertaSucesso(null), 5000);
-    } catch (err: any) {
-      alert(`Erro ao homologar parecer: ${err?.message || 'Falha na operação'}`);
-    }
+    salvarRelatorioConsolidado(solicitacaoAtiva.id, textoConsolidadoEditavel);
+    setAlertaSucesso('Parecer consolidado salvo com sucesso!');
+    setModalConsolidacaoAberto(false);
+    setTimeout(() => setAlertaSucesso(null), 3500);
   };
 
   // Copiar texto consolidado para a área de transferência
@@ -578,20 +538,23 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {pareceresAtivos.filter(p => p.status === 'enviado').length} de {pareceresAtivos.length} pareceres docentes recebidos
-                    {isConcluida && ' • Processo homologado e bloqueado para novas alterações'}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  {isConcluida ? (
-                    <>
-                      {/* Badge Modo Somente Leitura */}
-                      <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 mr-1 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
-                        <Lock className="h-3.5 w-3.5" />
-                        <span>Somente Leitura</span>
-                      </span>
+                  {/* Botão Consolidar com IA */}
+                  <button
+                    onClick={handleIniciarConsolidacaoIA}
+                    disabled={pareceresAtivos.filter(p => p.status === 'enviado').length === 0}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:from-indigo-700 hover:to-purple-700 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span>Consolidar Pareceres com IA</span>
+                  </button>
 
-                      {/* Botão Exportar DOCX */}
+                  {/* Ações para Parecer Consolidado Existente */}
+                  {consolidadoAtivo && (
+                    <>
                       <button
                         onClick={() => handleBaixarDocx()}
                         disabled={gerandoDocx}
@@ -601,7 +564,6 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                         <span>{gerandoDocx ? 'Gerando...' : 'Exportar DOCX'}</span>
                       </button>
 
-                      {/* Botão Imprimir */}
                       <button
                         onClick={() => handleImprimir()}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-slate-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 active:scale-95 transition-all"
@@ -610,7 +572,6 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                         <span>Imprimir</span>
                       </button>
 
-                      {/* Botão Copiar Texto */}
                       <button
                         onClick={() => handleCopiarTexto()}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 active:scale-95 transition-all"
@@ -618,30 +579,6 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                         <Copy className="h-4 w-4 text-slate-500" />
                         <span>Copiar Texto</span>
                       </button>
-                    </>
-                  ) : (
-                    <>
-                      {/* Botão Consolidar com IA */}
-                      <button
-                        onClick={handleIniciarConsolidacaoIA}
-                        disabled={pareceresAtivos.filter(p => p.status === 'enviado').length === 0}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:from-indigo-700 hover:to-purple-700 active:scale-95 transition-all disabled:opacity-50"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        <span>Consolidar Pareceres com IA</span>
-                      </button>
-
-                      {/* Botão Exportar DOCX se já consolidado */}
-                      {consolidadoAtivo && (
-                        <button
-                          onClick={() => handleBaixarDocx()}
-                          disabled={gerandoDocx}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 active:scale-95 transition-all disabled:opacity-50"
-                        >
-                          <Download className="h-4 w-4" />
-                          <span>{gerandoDocx ? 'Gerando...' : 'Exportar DOCX'}</span>
-                        </button>
-                      )}
                     </>
                   )}
                 </div>
@@ -654,12 +591,6 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                     <FileText className="h-4 w-4 text-indigo-600" />
                     Grade de Atribuição de Professores ({pareceresAtivos.length})
                   </h5>
-                  {isConcluida && (
-                    <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                      <ShieldCheck className="h-3.5 w-3.5" />
-                      Status Finais Homologados
-                    </span>
-                  )}
                 </div>
 
                 <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
@@ -677,7 +608,6 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                       {pareceresAtivos.map((parecer) => {
                         const prof = professores.find(p => p.id === parecer.professor_id);
                         const enviado = parecer.status === 'enviado';
-                        const naoEntregue = parecer.status === 'nao_entregue' || (isConcluida && !enviado);
                         const temNotificacaoPendente = notificacoesAdmin.some(
                           n => n.relatorio_professor_id === parecer.id && !n.lido
                         );
@@ -685,14 +615,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                         return (
                           <tr key={parecer.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                             <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">
-                              <div className="flex items-center gap-2">
-                                <span>{prof?.nome_completo || 'Docente'}</span>
-                                {naoEntregue && (
-                                  <span className="text-sm select-none" title="Docente inadimplente no encerramento da solicitação">
-                                    😢
-                                  </span>
-                                )}
-                              </div>
+                              <span>{prof?.nome_completo || 'Docente'}</span>
                             </td>
                             <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                               {prof?.disciplinas?.join(', ') || 'Polivalente'}
@@ -702,11 +625,6 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
                                   <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                                   <span>Enviado à Secretaria</span>
-                                </span>
-                              ) : naoEntregue ? (
-                                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/50">
-                                  <span className="text-xs">😢</span>
-                                  <span>Não entregue</span>
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
@@ -720,69 +638,58 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
-                                {/* Visualizar/Editar (em modo leitura se concluída) */}
-                                {(enviado || isConcluida) && (
+                                {/* Visualizar/Editar */}
+                                {enviado && (
                                   <button
                                     onClick={() => handleAbrirParecer(parecer)}
-                                    title={isConcluida ? "Visualizar Parecer" : "Visualizar e Ajustar Parecer"}
+                                    title="Visualizar e Ajustar Parecer"
                                     className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800"
                                   >
                                     <Eye className="h-4 w-4" />
                                   </button>
                                 )}
 
-                                {isConcluida && naoEntregue && (
-                                  <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 font-semibold italic">
-                                    <Lock className="h-3 w-3 text-slate-400" />
-                                    <span>Bloqueado</span>
-                                  </span>
+                                {/* Marcar como lido */}
+                                {temNotificacaoPendente && (
+                                  <button
+                                    onClick={() => {
+                                      const notif = notificacoesAdmin.find(
+                                        n => n.relatorio_professor_id === parecer.id && !n.lido
+                                      );
+                                      if (notif) marcarNotificacaoComoLida(notif.id);
+                                    }}
+                                    title="Marcar Notificação como Lida"
+                                    className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </button>
                                 )}
 
-                                {!isConcluida && (
-                                  <>
-                                    {/* Marcar como lido */}
-                                    {temNotificacaoPendente && (
-                                      <button
-                                        onClick={() => {
-                                          const notif = notificacoesAdmin.find(
-                                            n => n.relatorio_professor_id === parecer.id && !n.lido
-                                          );
-                                          if (notif) marcarNotificacaoComoLida(notif.id);
-                                        }}
-                                        title="Marcar Notificação como Lida"
-                                        className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
-                                      >
-                                        <Check className="h-4 w-4" />
-                                      </button>
-                                    )}
-
-                                    {/* Reenviar aviso */}
-                                    {!enviado && (
-                                      <button
-                                        onClick={() => {
-                                          alert(`Notificação de cobrança reenviada para o professor ${prof?.nome_completo || 'Docente'}!`);
-                                        }}
-                                        title="Reenviar Cobrança ao Docente"
-                                        className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/60"
-                                      >
-                                        <BellRing className="h-4 w-4" />
-                                      </button>
-                                    )}
-
-                                    {/* Excluir parecer */}
-                                    <button
-                                      onClick={() => {
-                                        if (confirm(`Excluir atribuição de parecer para ${prof?.nome_completo || 'Docente'}?`)) {
-                                          deleteRelatorioProfessor(parecer.id);
-                                        }
-                                      }}
-                                      title="Remover Professor deste Relatório"
-                                      className="rounded-lg p-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  </>
+                                {/* Reenviar aviso */}
+                                {!enviado && (
+                                  <button
+                                    onClick={() => {
+                                      alert(`Notificação de cobrança reenviada para o professor ${prof?.nome_completo || 'Docente'}!`);
+                                    }}
+                                    title="Reenviar Cobrança ao Docente"
+                                    className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/60"
+                                  >
+                                    <BellRing className="h-4 w-4" />
+                                  </button>
                                 )}
+
+                                {/* Excluir parecer */}
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Excluir atribuição de parecer para ${prof?.nome_completo || 'Docente'}?`)) {
+                                      deleteRelatorioProfessor(parecer.id);
+                                    }
+                                  }}
+                                  title="Remover Professor deste Relatório"
+                                  className="rounded-lg p-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -891,56 +798,34 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
 
             {/* Editor do Texto Final pela Secretaria */}
             <div className="space-y-1.5 text-xs">
-              <label className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px] flex items-center justify-between">
-                <span>{isConcluida ? '3. Texto Homologado (Bloqueado):' : '3. Texto Final Homologado (Edição Permitida):'}</span>
-                {isConcluida && (
-                  <span className="text-[10px] text-amber-600 font-bold dark:text-amber-400">
-                    🔒 Processo Concluído - Não editável
-                  </span>
-                )}
+              <label className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px]">
+                3. Texto Final Homologado (Edição Permitida):
               </label>
               <textarea
                 rows={5}
-                readOnly={isConcluida}
                 value={editandoTextoFinal}
-                onChange={(e) => !isConcluida && setEditandoTextoFinal(e.target.value)}
-                className={`w-full rounded-xl border p-3 text-xs leading-relaxed ${
-                  isConcluida
-                    ? 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 cursor-not-allowed'
-                    : 'border-slate-200 text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white'
-                }`}
+                onChange={(e) => setEditandoTextoFinal(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 p-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white leading-relaxed"
               />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              {isConcluida ? (
-                <button
-                  type="button"
-                  onClick={() => setParecerEmVisualizacao(null)}
-                  className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                >
-                  Fechar
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setParecerEmVisualizacao(null)}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSalvarEdicaoParecer}
-                    disabled={salvandoEdicaoParecer}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all"
-                  >
-                    <Save className="h-4 w-4" />
-                    <span>{salvandoEdicaoParecer ? 'Salvando...' : 'Salvar Alterações'}</span>
-                  </button>
-                </>
-              )}
+              <button
+                type="button"
+                onClick={() => setParecerEmVisualizacao(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSalvarEdicaoParecer}
+                disabled={salvandoEdicaoParecer}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all"
+              >
+                <Save className="h-4 w-4" />
+                <span>{salvandoEdicaoParecer ? 'Salvando...' : 'Salvar Alterações'}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1046,7 +931,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                       className="inline-flex items-center gap-1.5 rounded-xl bg-purple-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-purple-600/30 hover:bg-purple-700 active:scale-95 transition-all"
                     >
                       <Save className="h-4 w-4" />
-                      <span>Salvar & Homologar no Histórico</span>
+                      <span>Salvar Parecer Consolidado</span>
                     </button>
                   </div>
                 </div>

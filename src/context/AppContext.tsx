@@ -1632,8 +1632,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         alunoNome: aluno?.nome_completo || 'Estudante',
+        nome_estudante: aluno?.nome_completo || 'Estudante',
+        genero: aluno?.genero || aluno?.sexo,
+        sexo: aluno?.sexo || aluno?.genero,
         turmaNome: turma?.nome || '',
+        turma_nome: turma?.nome || '',
         turno: turma?.turno || 'manha',
+        turma_turno: turma?.turno || 'manha',
         pareceres: pareceresPayload,
         observacoesSecretaria,
       }),

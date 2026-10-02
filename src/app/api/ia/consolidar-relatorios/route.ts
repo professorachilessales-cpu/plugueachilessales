@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeTextarea } from '@/lib/security';
 import { 
   determinarGeneroEstudante, 
+  montarPromptConsolidacaoPedagogica,
   montarSystemPromptConsolidacao, 
   montarUserPromptConsolidacao, 
   limparMetatextoEEncerramentos, 
@@ -31,10 +32,13 @@ export async function POST(req: NextRequest) {
       alunoNome,
       nome_estudante,
       genero_estudante,
+      alunoGenero,
       genero,
       sexo,
       turmaNome, 
+      turma_nome,
       turno, 
+      turma_turno,
       pareceres = [],
       anotacoesPedagogicas = [],
       observacoesSecretaria 
@@ -42,28 +46,37 @@ export async function POST(req: NextRequest) {
       alunoNome?: string;
       nome_estudante?: string;
       genero_estudante?: string;
+      alunoGenero?: string;
       genero?: string;
       sexo?: string;
       turmaNome?: string;
+      turma_nome?: string;
       turno?: string;
+      turma_turno?: string;
       pareceres: ParecerDocenteEntrada[];
       anotacoesPedagogicas?: AnotacaoPedagogicaEntrada[];
       observacoesSecretaria?: string;
     };
 
     const nomeFinal = (nome_estudante || alunoNome || 'Estudante').trim();
-    const turmaFinal = (turmaNome || 'Regular').trim();
+    const turmaFinal = (turma_nome || turmaNome || 'Turma Regular').trim();
+    
+    // Normalização amigável de turno
+    const turnoBruto = (turma_turno || turno || '').trim().toLowerCase();
+    const turnoFormatado = turnoBruto === 'manha' || turnoBruto === 'manhã' 
+      ? 'Manhã' 
+      : turnoBruto === 'tarde' 
+        ? 'Tarde' 
+        : turnoBruto === 'noite' 
+          ? 'Noite' 
+          : (turma_turno || turno || 'Regular');
 
     // Determina os parâmetros de gênero e concordância nominal
     const dadosGenero = determinarGeneroEstudante({
       nome_completo: nomeFinal,
-      genero: genero_estudante || genero || sexo,
-      sexo: sexo || genero || genero_estudante,
+      genero: genero_estudante || alunoGenero || genero || sexo,
+      sexo: sexo || genero || alunoGenero || genero_estudante,
     });
-
-    const instrucaoGenero = genero_estudante && genero_estudante.includes('(')
-      ? genero_estudante
-      : dadosGenero.instrucaoGramatical;
 
     // Se não há pareceres e nem anotações pedagógicas válidas
     if ((!pareceres || pareceres.length === 0) && (!anotacoesPedagogicas || anotacoesPedagogicas.length === 0)) {
@@ -102,19 +115,27 @@ export async function POST(req: NextRequest) {
 
     const listaPareceresFormatada = blocosTextos.join('\n\n');
 
-    // Monta os prompts estritos de sistema e usuário
-    const systemPrompt = montarSystemPromptConsolidacao();
-    const userPrompt = montarUserPromptConsolidacao({
-      nomeEstudante: nomeFinal,
-      generoEstudante: instrucaoGenero,
-      listaPareceres: listaPareceresFormatada,
+    // Monta o prompt oficial de consolidação via Gemini
+    const promptConsolidacao = montarPromptConsolidacaoPedagogica({
+      estudanteNome: nomeFinal,
+      turmaNome: turmaFinal,
+      turmaTurno: turnoFormatado,
+      generoGramatical: dadosGenero.generoGramatical,
+      listaPareceresProfessores: listaPareceresFormatada,
     });
 
-    // 1. Tentativa via Google Gemini API
+    // 1. Provedor Primário: Google Gemini API (modelos da família Gemini com fallback em cascata)
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
     if (geminiApiKey && geminiApiKey.trim() !== '' && !geminiApiKey.includes('your-key')) {
-      const modelosGemini = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+      const modelosGemini = [
+        process.env.GEMINI_MODEL,
+        'gemini-3-flash',
+        'gemini-3-pro',
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+        'gemini-1.5-flash'
+      ].filter(Boolean) as string[];
 
       for (const modelo of modelosGemini) {
         try {
@@ -124,17 +145,16 @@ export async function POST(req: NextRequest) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                systemInstruction: {
-                  parts: [{ text: systemPrompt }],
-                },
                 contents: [
                   {
                     role: 'user',
-                    parts: [{ text: userPrompt }],
+                    parts: [{ text: promptConsolidacao }],
                   },
                 ],
                 generationConfig: {
-                  temperature: 0.2,
+                  temperature: 0.7,
+                  topP: 0.95,
+                  topK: 40,
                   maxOutputTokens: 2500,
                 },
               }),
@@ -160,7 +180,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Tentativa via OpenAI API (se configurado)
+    // 2. Provedor Secundário: OpenAI API (se configurado)
     const openAiApiKey = process.env.OPENAI_API_KEY;
     if (openAiApiKey && openAiApiKey.trim() !== '') {
       try {
@@ -173,10 +193,11 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             model: 'gpt-4o-mini',
             messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
+              { role: 'user', content: promptConsolidacao },
             ],
-            temperature: 0.2,
+            temperature: 0.7,
+            top_p: 0.95,
+            max_tokens: 2500,
           }),
         });
 

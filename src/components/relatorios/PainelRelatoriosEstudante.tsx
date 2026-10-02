@@ -264,6 +264,9 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
           genero: estudante.genero || estudante.sexo,
           sexo: estudante.sexo || estudante.genero,
           turmaNome: turmaAluno?.nome || estudante.turma_nome || 'Turma Regular',
+          turma_nome: turmaAluno?.nome || estudante.turma_nome || 'Turma Regular',
+          turno: turmaAluno?.turno || 'Turno Regular',
+          turma_turno: turmaAluno?.turno || 'Turno Regular',
           pareceres: payloadPareceres,
           anotacoesPedagogicas: anotacoesEstudante,
           observacoesSecretaria: observacoesSecretaria,
@@ -1016,6 +1019,16 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                     >
                       <Download className="h-4 w-4 text-school-blue-600" />
                       <span>{gerandoDocx ? 'Exportando...' : 'Exportar DOCX (Word)'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConsolidarComIA}
+                      disabled={consolidandoComIA}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 px-3.5 py-2 text-xs font-bold text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
+                      title="Gerar nova versão consolidada refinada com IA"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+                      <span>Regenerar com IA</span>
                     </button>
                   </div>
 

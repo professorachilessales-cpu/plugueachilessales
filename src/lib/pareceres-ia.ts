@@ -69,39 +69,87 @@ export function determinarGeneroEstudante(estudante: {
 }
 
 /**
- * Constrói o System Prompt oficial com rigor formal pedagógico e restrições estritas de saída
+ * Constrói o Prompt Oficial com Técnica de Consolidação Inteligente e Padrão Institucional via Gemini
  */
-export function montarSystemPromptConsolidacao(): string {
-  return `Você é um especialista em redação pedagógica e avaliação escolar formativa.
-Sua tarefa é consolidar múltiplos pareceres descritivos de professores em um ÚNICO documento coeso, claro e formal sobre o desenvolvimento do estudante.
+export function montarPromptConsolidacaoPedagogica(params: {
+  estudanteNome: string;
+  turmaNome: string;
+  turmaTurno: string;
+  generoGramatical: 'masculino' | 'feminino';
+  listaPareceresProfessores: string;
+}): string {
+  const isFeminino = params.generoGramatical === 'feminino';
+  const generoRotulo = isFeminino
+    ? 'FEMININO (MASCULINO: o estudante, o educando, o aluno, engajado, participativo / FEMININO: a estudante, a educanda, a aluna, engajada, participativa)'
+    : 'MASCULINO (MASCULINO: o estudante, o educando, o aluno, engajado, participativo / FEMININO: a estudante, a educanda, a aluna, engajada, participativa)';
 
-DIRETRIZES DE ESTILO E REDAÇÃO:
-1. Tom de Voz: Linguagem estritamente formal, culta, técnica, profissional e pedagógica.
-2. Correção Gramatical: Corrija todos os desvios ortográficos, pontuação incorreta e inadequações de concordância verbal ou nominal presentes nos textos originais.
-3. Síntese e Clareza: Agrupe ideias correlatas (desenvolvimento cognitivo, socioemocional, participação, autonomia e convivência coletiva), eliminando repetições desnecessárias e contradições.
-4. Concordância de Gênero: Respeite rigorosamente a concordância nominal de gênero do estudante ao longo de todo o documento.
+  return `Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar, operando via Gemini.
+Sua missão é ler todos os relatórios e apontamentos individuais enviados pelos diferentes professores de um estudante e consolidá-los em um parecer único, abrangente, rico e pedagogicamente sofisticado.
 
-RESTRIÇÃO MÁXIMA DE SAÍDA:
-- NÃO inclua seções de "Sugestões de melhoria", "Recomendações para a família", "Próximos passos" ou "Dicas".
-- NÃO adicione saudações, introduções ou notas de encerramento (ex: "Aqui está o texto consolidado:", "Espero ter ajudado", "Em resumo").
-- Entregue APENAS o corpo da análise pedagógica consolidada, dividida em parágrafos temáticos fluidos e bem articulados.`;
+---
+DADOS DO ESTUDANTE:
+- Nome Completo: ${params.estudanteNome}
+- Turma e Turno: ${params.turmaNome} - ${params.turmaTurno}
+- Gênero Gramatical: ${generoRotulo}
+
+---
+RELATÓRIOS INDIVIDUAIS DOS PROFESSORES ENVIADOS:
+"""
+${params.listaPareceresProfessores.trim()}
+"""
+
+---
+DIRETRIZES OBRIGATÓRIAS DE CONSOLIDAÇÃO E REDAÇÃO:
+
+1. ✍️ Saneamento Gramatical e Correção Ortográfica:
+   - Corrija rigorosamente qualquer desvio ortográfico, de acentuação, pontuação ou concordância verbal/nominal presente nos textos originais dos professores.
+   - Aplique com precisão a concordância de gênero informada para ${params.estudanteNome}.
+
+2. 🎨 Vocabulário Técnico, Rico e Variado:
+   - Evite jargões repetitivos ou estruturas mecânicas. Utilize variedade lexical culta adequada ao ambiente escolar (ex.: desenvolvimento cognitivo, competências socioemocionais, mediação pedagógica contextualizada, autorregulação, participação colaborativa, funções executivas, engajamento formativo).
+   - Conecte as diferentes áreas e relatos em parágrafos temáticos contínuos e harmônicos (dimensão cognitiva, dimensão socioemocional/atitudinal e convivência em grupo).
+
+3. 🔄 Síntese e Unificação sem Redundâncias:
+   - Não liste o texto "professor por professor". Integre os pontos comuns e destaque as especificidades de maneira orgânica.
+   - Eleve a linguagem: transforme apontamentos informais ou coloquiais em termos técnicos descritivos e respeitosos.
+
+4. 🚫 Restrições Rígidas:
+   - NÃO adicione saudações, preâmbulos ou notas (ex.: "Aqui está o parecer consolidado:").
+   - NÃO adicione tópicos finais de sugestões para os pais, encaminhamentos ou conselhos.
+   - Retorne EXCLUSIVAMENTE o texto pedagógico consolidado e contínuo, pronto para o documento oficial.`;
 }
 
 /**
- * Constrói o User Prompt estruturado
+ * Constrói o System Prompt oficial com rigor formal pedagógico e restrições estritas de saída (compatibilidade)
+ */
+export function montarSystemPromptConsolidacao(): string {
+  return `Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar, operando via Gemini.
+Sua missão é ler todos os relatórios e apontamentos individuais enviados pelos diferentes professores de um estudante e consolidá-los em um parecer único, abrangente, rico e pedagogicamente sofisticado.
+
+DIRETRIZES OBRIGATÓRIAS DE CONSOLIDAÇÃO E REDAÇÃO:
+1. Saneamento Gramatical e Correção Ortográfica: Corrija rigorosamente qualquer desvio ortográfico, acentuação, pontuação ou concordância verbal/nominal.
+2. Vocabulário Técnico, Rico e Variado: Utilize variedade lexical culta adequada ao ambiente escolar (desenvolvimento cognitivo, competências socioemocionais, mediação pedagógica, autorregulação).
+3. Síntese e Unificação sem Redundâncias: Integre os pontos comuns dos professores e destaque especificidades organicamente, sem listar professor por professor.
+4. Restrições Rígidas: Retorne EXCLUSIVAMENTE o texto pedagógico consolidado, sem preâmbulos, saudações ou sugestões finais.`;
+}
+
+/**
+ * Constrói o User Prompt estruturado (compatibilidade)
  */
 export function montarUserPromptConsolidacao(params: {
   nomeEstudante: string;
   generoEstudante: string;
   listaPareceres: string;
+  turmaNome?: string;
+  turmaTurno?: string;
 }): string {
-  return `DADOS DE ENTRADA:
-- Nome do Estudante: ${params.nomeEstudante}
-- Gênero/Gênero Gramatical: ${params.generoEstudante}
-- Pareceres Originais:
-${params.listaPareceres}
-
-Gere o Parecer Pedagógico Consolidado definitivo, estritamente de acordo com as diretrizes e restrições:`;
+  return montarPromptConsolidacaoPedagogica({
+    estudanteNome: params.nomeEstudante,
+    turmaNome: params.turmaNome || 'Turma Regular',
+    turmaTurno: params.turmaTurno || 'Regular',
+    generoGramatical: params.generoEstudante.toLowerCase().includes('fem') ? 'feminino' : 'masculino',
+    listaPareceresProfessores: params.listaPareceres,
+  });
 }
 
 /**
@@ -117,6 +165,9 @@ export function limparMetatextoEEncerramentos(texto: string): string {
 
   // Remove saudações ou metatexto introdutório da IA (ex: "Aqui está o texto consolidado:", "Com base nos dados:", etc.)
   limpo = limpo.replace(/^(?:aqui está|segue|abaixo|conforme solicitado|olá|prezado|com base nos pareceres|apresento|em resposta ao pedido).*?:\s*\n*/i, '');
+
+  // Remove eventuais títulos no início (ex: "Parecer Pedagógico Consolidado:")
+  limpo = limpo.replace(/^(?:#{1,4}\s*)?(?:parecer pedagógico consolidado|parecer consolidado|relatório consolidado|síntese avaliativa consolidada):?\s*\n+/i, '');
 
   // Remove seções proibidas no final do texto (Sugestões de melhoria, Recomendações, Próximos passos, Dicas, etc.)
   const secoesProibidasRegex = /\n+(?:#{1,4}\s*)?(?:sugestões de melhoria|sugestões pedagógicas|recomendações para a família|recomendações aos responsáveis|recomendações pedagógicas|próximos passos|dicas para os pais|dicas de estudo|orientações para a família|em resumo|conclusão e recomendações)[:\s\S]*$/i;

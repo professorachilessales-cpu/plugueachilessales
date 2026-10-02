@@ -9,11 +9,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function DELETE(
   req: NextRequest,
-  context: { params: { id: string } | Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await Promise.resolve(context.params);
-    const id = resolvedParams?.id;
+    const { id } = await params;
 
     if (!id) {
       return NextResponse.json(

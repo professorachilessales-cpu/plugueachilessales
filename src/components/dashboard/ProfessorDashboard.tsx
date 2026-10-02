@@ -25,10 +25,12 @@ import { ModalRedacaoParecerIA } from '@/components/relatorios/ModalRedacaoParec
 import { ModalRegistrarReposicao } from '@/components/professores/ModalRegistrarReposicao';
 import { ModalAnexarAtestado } from '@/components/professores/ModalAnexarAtestado';
 import { RelatorioProfessor, SolicitacaoRelatorio, Estudante, Turma, ReposicaoAula, AtestadoProfessor } from '@/lib/types';
+import { isProfessorAdministrativo } from '@/lib/pareceres-ia';
 
 export function ProfessorDashboard() {
   const { 
     currentUser, 
+    users,
     professores, 
     turmas, 
     estudantes, 
@@ -67,8 +69,16 @@ export function ProfessorDashboard() {
 
   const turmasIds = useMemo(() => turmasAtribuidas.map(t => t.id), [turmasAtribuidas]);
 
+  // Identifica se o perfil conectado é de Funcionário Administrativo
+  const ehAdministrativo = useMemo(() => {
+    return isProfessorAdministrativo(professorAtual, users);
+  }, [professorAtual, users]);
+
   // 1. SOLICITAÇÕES ATIVAS PARA O PROFESSOR (Bloco de Alertas Críticos)
+  // Professores administrativos não recebem notificações e não elaboram relatórios
   const relatoriosPendentesDoProfessor = useMemo(() => {
+    if (!professorAtual || ehAdministrativo) return [];
+
     const itens: Array<{
       relatorio: RelatorioProfessor;
       solicitacao: SolicitacaoRelatorio;
@@ -93,7 +103,7 @@ export function ProfessorDashboard() {
       });
 
     return itens;
-  }, [relatoriosProfessores, solicitacoesRelatorio, estudantes, turmas, professorAtual]);
+  }, [relatoriosProfessores, solicitacoesRelatorio, estudantes, turmas, professorAtual, ehAdministrativo]);
 
   // 2. REPOSIÇÕES E AULAS DEVIDAS (Regra dos 30 dias)
   const reposicoesDoProfessor = useMemo(() => {
@@ -250,99 +260,102 @@ export function ProfessorDashboard() {
 
       {/* ========================================================================= */}
       {/* 2. BLOCO DE ALERTAS CRÍTICOS (BANNER CHAMATIVO EM TONS DE VERMELHO/ALERTA) */}
+      {/* Exibido estritamente para professores docentes (usuários administrativos não recebem relatórios) */}
       {/* ========================================================================= */}
-      <section className="rounded-3xl border-2 border-rose-300 bg-gradient-to-br from-rose-50 via-rose-100/60 to-amber-50/50 p-6 dark:border-rose-900/80 dark:bg-gradient-to-br dark:from-rose-950/60 dark:via-rose-950/40 dark:to-slate-900 shadow-xl shadow-rose-900/10">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200/80 pb-4 dark:border-rose-900/60">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-lg shadow-rose-600/30 animate-pulse">
-              <ShieldAlert className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black tracking-tight text-rose-950 dark:text-rose-100 uppercase">
-                  Alertas Críticos: Solicitações de Relatório Ativas
-                </h2>
-                <span className="rounded-full bg-rose-600 px-2.5 py-0.5 text-xs font-black text-white">
-                  {relatoriosPendentesDoProfessor.length} Pendente(s)
-                </span>
+      {!ehAdministrativo && (
+        <section className="rounded-3xl border-2 border-rose-300 bg-gradient-to-br from-rose-50 via-rose-100/60 to-amber-50/50 p-6 dark:border-rose-900/80 dark:bg-gradient-to-br dark:from-rose-950/60 dark:via-rose-950/40 dark:to-slate-900 shadow-xl shadow-rose-900/10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-200/80 pb-4 dark:border-rose-900/60">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-lg shadow-rose-600/30 animate-pulse">
+                <ShieldAlert className="h-6 w-6" />
               </div>
-              <p className="text-xs text-rose-800 dark:text-rose-300 mt-0.5">
-                A coordenação aguarda seus pareceres pedagógicos para consolidação dos relatórios dos alunos.
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-black tracking-tight text-rose-950 dark:text-rose-100 uppercase">
+                    Alertas Críticos: Solicitações de Relatório Ativas
+                  </h2>
+                  <span className="rounded-full bg-rose-600 px-2.5 py-0.5 text-xs font-black text-white">
+                    {relatoriosPendentesDoProfessor.length} Pendente(s)
+                  </span>
+                </div>
+                <p className="text-xs text-rose-800 dark:text-rose-300 mt-0.5">
+                  A coordenação aguarda seus pareceres pedagógicos para consolidação dos relatórios dos alunos.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {relatoriosPendentesDoProfessor.length === 0 ? (
+            <div className="py-8 text-center">
+              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="mt-2 text-sm font-bold text-slate-800 dark:text-white">
+                Todos os seus relatórios pedagógicos estão em dia!
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Não há solicitações pendentes de preenchimento para suas turmas atribuídas no momento.
               </p>
             </div>
-          </div>
-        </div>
+          ) : (
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {relatoriosPendentesDoProfessor.map(({ relatorio, solicitacao, aluno, turma }) => (
+                <div
+                  key={relatorio.id}
+                  className="group relative flex flex-col justify-between rounded-2xl border border-rose-200 bg-white p-5 shadow-md transition-all hover:shadow-xl hover:border-rose-400 dark:border-rose-900/80 dark:bg-slate-900"
+                >
+                  <div>
+                    <div className="flex items-start gap-3">
+                      <div className="relative h-12 w-12 rounded-xl overflow-hidden bg-rose-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 border border-rose-200 dark:border-rose-900">
+                        {aluno?.foto_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={aluno.foto_url}
+                            alt={aluno?.nome_completo || 'Estudante'}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-6 w-6 text-rose-700 dark:text-rose-400" />
+                        )}
+                      </div>
 
-        {relatoriosPendentesDoProfessor.length === 0 ? (
-          <div className="py-8 text-center">
-            <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600 dark:text-emerald-400" />
-            <h3 className="mt-2 text-sm font-bold text-slate-800 dark:text-white">
-              Todos os seus relatórios pedagógicos estão em dia!
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Não há solicitações pendentes de preenchimento para suas turmas atribuídas no momento.
-            </p>
-          </div>
-        ) : (
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {relatoriosPendentesDoProfessor.map(({ relatorio, solicitacao, aluno, turma }) => (
-              <div
-                key={relatorio.id}
-                className="group relative flex flex-col justify-between rounded-2xl border border-rose-200 bg-white p-5 shadow-md transition-all hover:shadow-xl hover:border-rose-400 dark:border-rose-900/80 dark:bg-slate-900"
-              >
-                <div>
-                  <div className="flex items-start gap-3">
-                    <div className="relative h-12 w-12 rounded-xl overflow-hidden bg-rose-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 border border-rose-200 dark:border-rose-900">
-                      {aluno?.foto_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={aluno.foto_url}
-                          alt={aluno?.nome_completo || 'Estudante'}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <User className="h-6 w-6 text-rose-700 dark:text-rose-400" />
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className="inline-block rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-300 uppercase tracking-wide">
+                          {turma?.nome || 'Turma não atribuída'}
+                        </span>
+                        <h3 className="mt-1 text-sm font-bold text-slate-900 dark:text-white truncate">
+                          {aluno?.nome_completo}
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                          <Calendar className="h-3 w-3" />
+                          <span>Solicitado em: {formatarDataEvento(solicitacao?.created_at || solicitacao?.data_solicitacao)}</span>
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="min-w-0 flex-1">
-                      <span className="inline-block rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-300 uppercase tracking-wide">
-                        {turma?.nome || 'Turma não atribuída'}
-                      </span>
-                      <h3 className="mt-1 text-sm font-bold text-slate-900 dark:text-white truncate">
-                        {aluno?.nome_completo}
-                      </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
-                        <Calendar className="h-3 w-3" />
-                        <span>Solicitado em: {formatarDataEvento(solicitacao?.created_at || solicitacao?.data_solicitacao)}</span>
-                      </p>
+                    <div className="mt-3 rounded-xl bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-900/60 flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-school-gold-600 flex-shrink-0" />
+                      <span>Seu rascunho será polido automaticamente por IA antes do envio.</span>
                     </div>
                   </div>
 
-                  <div className="mt-3 rounded-xl bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-900/60 flex items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 text-school-gold-600 flex-shrink-0" />
-                    <span>Seu rascunho será polido automaticamente por IA antes do envio.</span>
+                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      onClick={() => {
+                        setItemRelatorioSelecionado({ relatorio, solicitacao, estudante: aluno, turma });
+                        setModalRelatorioAberto(true);
+                      }}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-rose-600/20 hover:bg-rose-700 transition-all cursor-pointer"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>Elaborar Relatório</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <button
-                    onClick={() => {
-                      setItemRelatorioSelecionado({ relatorio, solicitacao, estudante: aluno, turma });
-                      setModalRelatorioAberto(true);
-                    }}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-rose-600/20 hover:bg-rose-700 transition-all cursor-pointer"
-                  >
-                    <FileText className="h-4 w-4" />
-                    <span>Elaborar Relatório</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ========================================================================= */}
       {/* 8.1 REGRA DOS 30 DIAS: DÉBITO E REPOSIÇÃO DE AULAS */}

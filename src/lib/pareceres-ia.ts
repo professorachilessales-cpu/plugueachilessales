@@ -3,6 +3,8 @@
  * Plataforma PLUGUE - Módulo de Relatórios e Pareceres Pedagógicos
  */
 
+import { Professor, Turma, SystemUser } from './types';
+
 export interface DadosGeneroEstudante {
   termo: string;
   generoGramatical: 'masculino' | 'feminino';
@@ -639,4 +641,136 @@ export function simularPolimentoPedagogicoRelato(
   return texto.replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Identifica se um profissional é considerado Administrativo no sistema.
+ * Não são elegíveis para elaborar pareceres ou receber notificações de relatórios:
+ * - Docentes com toggle "Funcionário Administrativo" ativo (eh_administrativo = true)
+ * - Funcionários da escola com cargo/função "Administrativo"
+ * - Colaboradores não-docentes (tipo_profissional = 'funcionario')
+ * - Usuários do sistema com perfil/role 'admin' ou 'direcao'
+ */
+export function isProfessorAdministrativo(
+  p?: Professor | null,
+  users?: SystemUser[]
+): boolean {
+  if (!p) return false;
 
+  // 1. Flag explícita de Funcionário Administrativo (toggle no cadastro de professores)
+  if (
+    p.eh_administrativo === true ||
+    (p as any).eh_administrativo === 1 ||
+    (p as any).eh_administrativo === '1' ||
+    (p as any).eh_administrativo === 'true'
+  ) {
+    return true;
+  }
+
+  // 2. Tipo profissional não-docente (funcionários como administrativo, porteiro, etc.)
+  if (p.tipo_profissional === 'funcionario') {
+    return true;
+  }
+
+  // 3. Função escolar administrativa
+  const func = (p.funcao_escola || '').trim().toLowerCase();
+  if (func === 'administrativo' || func.includes('administrativ')) {
+    return true;
+  }
+
+  // 4. Verificação de conta de usuário com privilégios administrativos/direção
+  if (users && users.length > 0) {
+    const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
+    const user = users.find(u => {
+      const cpfLimpoUser = u.cpf?.replace(/\D/g, '');
+      if (cpfLimpoProf && cpfLimpoUser && cpfLimpoProf === cpfLimpoUser) return true;
+      if (u.id === p.id || (p as any).user_id === u.id || (p as any).profile_id === u.id) return true;
+      if (u.email && p.email && u.email.toLowerCase() === p.email.toLowerCase()) return true;
+      if (u.name && p.nome_completo && u.name.toLowerCase() === p.nome_completo.toLowerCase()) return true;
+      return false;
+    });
+
+    if (user && (user.role === 'admin' || user.role === 'direcao')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Verifica se um profissional é um docente apto e NÃO administrativo
+ */
+export function isDocenteNaoAdministrativo(
+  p?: Professor | null,
+  users?: SystemUser[]
+): boolean {
+  if (!p) return false;
+
+  // Deve estar ativo
+  if (
+    p.ativo === false ||
+    (p as any).ativo === 0 ||
+    (p as any).ativo === '0' ||
+    (p as any).ativo === 'false'
+  ) {
+    return false;
+  }
+
+  // Não pode ser administrativo
+  if (isProfessorAdministrativo(p, users)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Retorna estritamente os professores docentes associados à turma do estudante que NÃO sejam Administrativos.
+ * Vínculos aceitos:
+ * 1. turma.professores_ids (docentes de regência da turma)
+ * 2. turma.professor_regente_id (regente principal)
+ * 3. turma.equipe_apoio_ids (docentes de apoio/AEE vinculados à turma)
+ * 4. professor.turmas_atribuidas_ids (docentes com esta turma no cadastro)
+ */
+export function obterProfessoresDocentesDaTurma(
+  turma: Turma | null | undefined,
+  professores: Professor[],
+  users?: SystemUser[]
+): Professor[] {
+  if (!turma) return [];
+
+  const idsAssociados = new Set<string>();
+
+  // 1. Professores atribuídos à regência da turma
+  if (Array.isArray(turma.professores_ids)) {
+    turma.professores_ids.forEach(id => {
+      if (id && typeof id === 'string') idsAssociados.add(id);
+    });
+  }
+
+  // 2. Professor regente titular da turma
+  if (turma.professor_regente_id && typeof turma.professor_regente_id === 'string') {
+    idsAssociados.add(turma.professor_regente_id);
+  }
+
+  // 3. Equipe de apoio pedagógico / AEE vinculada à turma
+  if (Array.isArray(turma.equipe_apoio_ids)) {
+    turma.equipe_apoio_ids.forEach(id => {
+      if (id && typeof id === 'string') idsAssociados.add(id);
+    });
+  }
+
+  // 4. Professores que tenham a turma explicitamente vinculada em suas fichas
+  professores.forEach(p => {
+    if (
+      (turma.id && p.turmas_atribuidas_ids?.includes(turma.id)) ||
+      (turma.nome && p.turmas_atribuidas_ids?.includes(turma.nome))
+    ) {
+      idsAssociados.add(p.id);
+    }
+  });
+
+  // Filtra apenas os docentes ativos que NÃO sejam administrativos
+  return Array.from(idsAssociados)
+    .map(id => professores.find(p => p.id === id))
+    .filter((p): p is Professor => !!p && isDocenteNaoAdministrativo(p, users));
+}

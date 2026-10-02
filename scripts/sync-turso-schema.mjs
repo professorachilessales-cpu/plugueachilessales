@@ -65,6 +65,7 @@ const statements = [
   "ALTER TABLE professores ADD COLUMN uf TEXT",
   "ALTER TABLE professores ADD COLUMN celular_whatsapp TEXT",
   "ALTER TABLE professores ADD COLUMN observacoes TEXT",
+  "ALTER TABLE professores ADD COLUMN eh_administrativo INTEGER DEFAULT 0",
   "ALTER TABLE estudantes ADD COLUMN rg_numero TEXT",
   "ALTER TABLE estudantes ADD COLUMN rg_data_expedicao TEXT",
   "ALTER TABLE estudantes ADD COLUMN naturalidade_cidade TEXT",

@@ -91,7 +91,7 @@ export default function FuncaoEscolaSelector({
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
           Função na Escola {required && <span className="text-rose-500">*</span>}
         </label>
-        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-300">
           {value ? `Selecionado: ${value}` : 'Escolha uma opção (seleção única)'}
         </span>
       </div>
@@ -122,7 +122,7 @@ export default function FuncaoEscolaSelector({
               className={`relative flex flex-col justify-between p-3 rounded-xl border cursor-pointer select-none transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                 isSelected
                   ? 'border-2 border-indigo-600 bg-indigo-50/90 text-indigo-950 shadow-sm ring-2 ring-indigo-500/25 dark:border-school-gold-400 dark:bg-indigo-950/60 dark:text-school-gold-200 dark:ring-school-gold-400/25'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-slate-700'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/70 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-slate-600'
               }`}
             >
               {/* Topo do Card: Emoji/Ícone e Indicador de Check */}
@@ -134,7 +134,7 @@ export default function FuncaoEscolaSelector({
                   <div className={`p-1 rounded-lg ${
                     isSelected 
                       ? 'bg-indigo-200/80 text-indigo-800 dark:bg-indigo-900 dark:text-school-gold-300' 
-                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
                   }`}>
                     <IconeComp className="h-3.5 w-3.5" />
                   </div>
@@ -143,7 +143,7 @@ export default function FuncaoEscolaSelector({
                 {isSelected ? (
                   <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-school-gold-400 flex-shrink-0 animate-in zoom-in-75 duration-150" />
                 ) : (
-                  <Circle className="h-4 w-4 text-slate-300 dark:text-slate-600 flex-shrink-0" />
+                  <Circle className="h-4 w-4 text-slate-300 dark:text-slate-500 flex-shrink-0" />
                 )}
               </div>
 
@@ -152,11 +152,11 @@ export default function FuncaoEscolaSelector({
                 <span className={`block text-xs font-bold uppercase tracking-tight ${
                   isSelected 
                     ? 'text-indigo-950 dark:text-white' 
-                    : 'text-slate-800 dark:text-slate-200'
+                    : 'text-slate-800 dark:text-slate-100'
                 }`}>
                   {opcao.label}
                 </span>
-                <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-300 leading-tight">
                   {opcao.descricao}
                 </p>
               </div>

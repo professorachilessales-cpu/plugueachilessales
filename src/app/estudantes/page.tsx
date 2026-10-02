@@ -686,7 +686,7 @@ export default function EstudantesPage() {
       <div className={`rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-school-dark-border dark:bg-school-dark-surface ${modalFichaAberto ? 'print:hidden' : ''}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600 dark:bg-slate-800/90 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
               <tr>
                 <th className="px-4 py-3.5">Estudante</th>
                 <th className="px-4 py-3.5">Turma</th>
@@ -696,10 +696,10 @@ export default function EstudantesPage() {
                 <th className="px-4 py-3.5 text-right print:hidden">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
               {estudantesFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={6} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
                     Nenhum estudante encontrado para os filtros selecionados.
                   </td>
                 </tr>
@@ -912,9 +912,9 @@ export default function EstudantesPage() {
       {/* MODAL 1: Cadastro & Edição de Estudante */}
       {modalNovoAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm overflow-y-auto print:hidden">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
             {/* Cabeçalho do Modal */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-school-blue-100 text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300">
                   <Users className="h-6 w-6" />
@@ -923,14 +923,14 @@ export default function EstudantesPage() {
                   <h3 className="text-lg font-black text-slate-900 dark:text-white">
                     {editandoEstudanteId ? 'Editar Cadastro do Estudante' : 'Matrícula & Ficha Cadastral do Estudante'}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-300">
                     Preenchimento oficial com documentos civis, política de cotas, 4 telefones e AEE
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setModalNovoAberto(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -961,8 +961,8 @@ export default function EstudantesPage() {
               />
 
               {/* SEÇÃO 1: DADOS PESSOAIS & DOCUMENTAÇÃO CIVIL */}
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/50 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 dark:border-slate-800">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 dark:border-slate-700">
                   <CreditCard className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                     1. Identificação Civil & Documentação Pessoal
@@ -1121,8 +1121,8 @@ export default function EstudantesPage() {
               </div>
 
               {/* SEÇÃO 2: POLÍTICA DE COTAS & BENEFÍCIOS SOCIAIS */}
-              <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/40 p-4 sm:p-5 dark:border-indigo-900/50 dark:bg-indigo-950/20 space-y-4">
-                <div className="flex items-center gap-2 border-b border-indigo-200/50 pb-2 dark:border-indigo-900/40">
+              <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/40 p-4 sm:p-5 dark:border-indigo-800/60 dark:bg-indigo-950/30 space-y-4">
+                <div className="flex items-center gap-2 border-b border-indigo-200/50 pb-2 dark:border-indigo-800/50">
                   <Award className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                   <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-950 dark:text-indigo-200">
                     2. Política de Cotas & Benefício Social
@@ -1143,7 +1143,7 @@ export default function EstudantesPage() {
                           className={`rounded-xl border py-2 text-center font-bold text-xs uppercase transition-all ${
                             form.percentual_cota === cota
                               ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-500/20'
-                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                           }`}
                         >
                           {cota === '0%' ? ' ( 0% )' : cota === '50%' ? '50% (PARCIAL)' : '100% (INTEGRAL)'}
@@ -1151,7 +1151,7 @@ export default function EstudantesPage() {
                       ))}
                     </div>
                     {/* Informação sobre ETE e IFPE */}
-                    <div className="mt-2.5 rounded-xl bg-indigo-100/70 p-2.5 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex items-start gap-2">
+                    <div className="mt-2.5 rounded-xl bg-indigo-100/70 p-2.5 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 flex items-start gap-2">
                       <AlertCircle className="h-4 w-4 text-indigo-700 dark:text-indigo-400 shrink-0 mt-0.5" />
                       <p className="text-[11px] font-semibold text-indigo-950 dark:text-indigo-200 leading-tight">
                         Esta escolha será utilizada para a inscrição nas <strong>Escolas Técnicas Estaduais (ETE)</strong> e no <strong>Instituto Federal de Pernambuco (IFPE)</strong>.
@@ -1178,8 +1178,8 @@ export default function EstudantesPage() {
               </div>
 
               {/* SEÇÃO 3: FILIAÇÃO & RESPONSÁVEL LEGAL */}
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/50 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 dark:border-slate-800">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 dark:border-slate-700">
                   <UserCheck className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                     3. Filiação & Responsável Legal
@@ -1263,15 +1263,15 @@ export default function EstudantesPage() {
               </div>
 
               {/* SEÇÃO 4: TELEFONES (4 TELEFONES) & CONTATOS */}
-              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/30 p-4 sm:p-5 dark:border-emerald-900/50 dark:bg-emerald-950/20 space-y-4">
-                <div className="flex items-center justify-between border-b border-emerald-200/50 pb-2 dark:border-emerald-900/40">
+              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/30 p-4 sm:p-5 dark:border-emerald-800/60 dark:bg-emerald-950/20 space-y-4">
+                <div className="flex items-center justify-between border-b border-emerald-200/50 pb-2 dark:border-emerald-800/50">
                   <div className="flex items-center gap-2">
                     <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-200">
                       4. Telefones de Contato (Principal + 3 Adicionais) & E-mail
                     </h4>
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full uppercase">
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/70 px-2 py-0.5 rounded-full uppercase border border-emerald-200 dark:border-emerald-800/60">
                     Até 4 números
                   </span>
                 </div>
@@ -1288,7 +1288,7 @@ export default function EstudantesPage() {
                       placeholder="(81) 98765-4321"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">Contato prioritário</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-400 mt-0.5 block">Contato prioritário</span>
                   </div>
 
                   <div>
@@ -1302,7 +1302,7 @@ export default function EstudantesPage() {
                       placeholder="(81) 98111-2222"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">Contato responsável</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-400 mt-0.5 block">Contato responsável</span>
                   </div>
 
                   <div>
@@ -1316,7 +1316,7 @@ export default function EstudantesPage() {
                       placeholder="(81) 97333-4444"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">Contato de emergência</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-400 mt-0.5 block">Contato de emergência</span>
                   </div>
 
                   <div>
@@ -1330,7 +1330,7 @@ export default function EstudantesPage() {
                       placeholder="(81) 98888-5566"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">Telefone para recados</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-400 mt-0.5 block">Telefone para recados</span>
                   </div>
 
                   <div className="sm:col-span-2 lg:col-span-4">
@@ -1349,8 +1349,8 @@ export default function EstudantesPage() {
               </div>
 
               {/* SEÇÃO 5: ENDEREÇO RESIDENCIAL */}
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/50 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 dark:border-slate-800">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 dark:border-slate-700">
                   <MapPin className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                     5. Endereço Residencial
@@ -1400,8 +1400,8 @@ export default function EstudantesPage() {
               </div>
 
               {/* SEÇÃO 6: INCLUSÃO ESCOLAR & ATENDIMENTO ESPECIALIZADO (AEE) */}
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5 dark:border-emerald-900 dark:bg-emerald-950/30 space-y-4">
-                <div className="flex items-center gap-2 border-b border-emerald-200/50 pb-2 dark:border-emerald-900/40">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5 dark:border-emerald-800/60 dark:bg-emerald-950/20 space-y-4">
+                <div className="flex items-center gap-2 border-b border-emerald-200/50 pb-2 dark:border-emerald-800/50">
                   <HeartHandshake className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-200">
                     6. Inclusão Escolar & Atendimento Especializado (AEE)
@@ -1493,8 +1493,8 @@ export default function EstudantesPage() {
               </div>
 
               {/* SEÇÃO 7: MATRÍCULA, HISTÓRICO ESCOLAR & OBSERVAÇÕES GERAIS */}
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/50 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 dark:border-slate-800">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-900/60 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-2 dark:border-slate-700">
                   <Bookmark className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                     7. Matrícula, Histórico Escolar & Observações Gerais
@@ -1550,11 +1550,11 @@ export default function EstudantesPage() {
               </div>
 
               {/* Botões de Ação */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setModalNovoAberto(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 uppercase"
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white uppercase"
                 >
                   Cancelar
                 </button>
@@ -1573,20 +1573,20 @@ export default function EstudantesPage() {
       {/* MODAL 2: Anexo de Documentos no Google Drive */}
       {modalUploadAberto && estudanteSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm print:hidden">
-          <div className="relative w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div className="relative w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <UploadCloud className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
                   Documentos no Google Drive
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-300">
                   Estudante: <strong className="text-slate-800 dark:text-white">{estudanteSelecionado.nome_completo}</strong>
                 </p>
               </div>
               <button
                 onClick={() => setModalUploadAberto(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1601,7 +1601,7 @@ export default function EstudantesPage() {
                 <select
                   value={uploadTipoDoc}
                   onChange={(e) => setUploadTipoDoc(e.target.value as any)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                 >
                   <option value="rg">RG / Documento de Identidade Civil</option>
                   <option value="comprovante_residencia">Comprovante de Residência</option>
@@ -1621,7 +1621,7 @@ export default function EstudantesPage() {
                   required
                   accept=".pdf,image/png,image/jpeg,image/webp"
                   onChange={(e) => setUploadArquivo(e.target.files?.[0] || null)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                 />
               </div>
 
@@ -1660,8 +1660,8 @@ export default function EstudantesPage() {
             </form>
 
             {/* Lista de Documentos já Anexados */}
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-300 mb-3">
                 Documentos já Anexados no Google Drive ({estudanteSelecionado.documentos?.length || 0})
               </h4>
 
@@ -1674,7 +1674,7 @@ export default function EstudantesPage() {
                   {estudanteSelecionado.documentos.map((doc) => (
                     <div
                       key={doc.id}
-                      className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5 text-xs border border-slate-100 dark:bg-slate-900/60 dark:border-slate-800"
+                      className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5 text-xs border border-slate-100 dark:bg-slate-900/60 dark:border-slate-700"
                     >
                       <div className="flex items-center gap-2.5">
                         <FileText className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
@@ -1721,7 +1721,7 @@ export default function EstudantesPage() {
       {/* MODAL 3: Visualização Completa da Ficha e Impressão Timbrada */}
       {modalFichaAberto && estudanteSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm overflow-y-auto modal-print-backdrop">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto card-print border border-slate-200 dark:border-slate-800 modal-print-card">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto card-print border border-slate-200 dark:border-slate-700 modal-print-card">
             {/* Cabeçalho da Ficha Timbrada (Compacto na impressão para caber estritamente em 1 folha A4) */}
             {abaFicha === 'cadastro' && (
               <PrintHeader
@@ -1732,7 +1732,7 @@ export default function EstudantesPage() {
             )}
 
             {/* Barra Superior de Navegação da Ficha Escolar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800 print:hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-700 print:hidden">
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                 <button
                   type="button"
@@ -1740,7 +1740,7 @@ export default function EstudantesPage() {
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
                     abaFicha === 'cadastro'
                       ? 'bg-school-blue-700 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white border border-transparent dark:border-slate-700'
                   }`}
                 >
                   <FileText className="h-3.5 w-3.5" />
@@ -1753,7 +1753,7 @@ export default function EstudantesPage() {
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
                     abaFicha === 'relatorios'
                       ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white border border-transparent dark:border-slate-700'
                   }`}
                 >
                   <Sparkles className="h-3.5 w-3.5" />
@@ -1766,7 +1766,7 @@ export default function EstudantesPage() {
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
                     abaFicha === 'observacoes'
                       ? 'bg-school-blue-700 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white border border-transparent dark:border-slate-700'
                   }`}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
@@ -1779,7 +1779,7 @@ export default function EstudantesPage() {
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shrink-0 ${
                     abaFicha === 'drive'
                       ? 'bg-amber-600 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white border border-transparent dark:border-slate-700'
                   }`}
                 >
                   <Folder className="h-3.5 w-3.5" />
@@ -1795,14 +1795,14 @@ export default function EstudantesPage() {
                         handleAbrirEditar(estudanteSelecionado);
                         setModalFichaAberto(false);
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                     >
                       <Edit3 className="h-3.5 w-3.5" />
                       <span>Editar</span>
                     </button>
                     <button
                       onClick={() => window.print()}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 dark:bg-school-blue-600"
                     >
                       <Printer className="h-3.5 w-3.5" />
                       <span>Imprimir</span>
@@ -1811,7 +1811,7 @@ export default function EstudantesPage() {
                 )}
                 <button
                   onClick={() => setModalFichaAberto(false)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -1820,108 +1820,108 @@ export default function EstudantesPage() {
 
             {/* Conteúdo da Aba 1: Ficha Cadastral do Aluno (Formatada com precisão para 1 página A4) */}
             {abaFicha === 'cadastro' && (
-              <div className="mt-4 sm:mt-6 space-y-4 print:space-y-1.5 print:mt-0 text-xs print:text-[9px] text-slate-700 dark:text-slate-300 print:text-black ficha-a4-sheet">
+              <div className="mt-4 sm:mt-6 space-y-4 print:space-y-1.5 print:mt-0 text-xs print:text-[9px] text-slate-700 dark:text-slate-200 print:text-black ficha-a4-sheet">
                 {/* Seção 1: Identificação Civil & Foto 3x4 */}
-                <div className="flex flex-col sm:flex-row items-start gap-4 print:gap-2.5 border border-slate-200 print:border-slate-400 rounded-xl print:rounded-md p-3 print:p-1.5 bg-slate-50/50 print:bg-white dark:bg-slate-900/30">
+                <div className="flex flex-col sm:flex-row items-start gap-4 print:gap-2.5 border border-slate-200 dark:border-slate-700 print:border-slate-400 rounded-xl print:rounded-md p-3 print:p-1.5 bg-slate-50/50 dark:bg-slate-900/60 print:bg-white">
                   {estudanteSelecionado.foto_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={estudanteSelecionado.foto_url}
                       alt={estudanteSelecionado.nome_completo}
-                      className="h-28 w-24 print:h-[82px] print:w-[64px] rounded-xl print:rounded object-cover border border-slate-300 print:border-slate-500 shadow-sm shrink-0"
+                      className="h-28 w-24 print:h-[82px] print:w-[64px] rounded-xl print:rounded object-cover border border-slate-300 dark:border-slate-600 print:border-slate-500 shadow-sm shrink-0"
                     />
                   ) : (
-                    <div className="flex h-28 w-24 print:h-[82px] print:w-[64px] items-center justify-center rounded-xl print:rounded bg-slate-100 print:bg-slate-50 text-slate-400 font-bold text-xs print:text-[8px] border border-dashed border-slate-300 print:border-slate-400 shrink-0 text-center p-1">
+                    <div className="flex h-28 w-24 print:h-[82px] print:w-[64px] items-center justify-center rounded-xl print:rounded bg-slate-100 dark:bg-slate-800 print:bg-slate-50 text-slate-400 dark:text-slate-400 font-bold text-xs print:text-[8px] border border-dashed border-slate-300 dark:border-slate-600 print:border-slate-400 shrink-0 text-center p-1">
                       FOTO 3x4
                     </div>
                   )}
 
                   <div className="flex-1 min-w-0 space-y-1.5 print:space-y-0.5">
                     <div className="flex items-center justify-between flex-wrap gap-1">
-                      <h4 className="text-base sm:text-lg print:text-[11.5px] font-black uppercase text-slate-900 print:text-black leading-tight truncate max-w-full">
+                      <h4 className="text-base sm:text-lg print:text-[11.5px] font-black uppercase text-slate-900 dark:text-white print:text-black leading-tight truncate max-w-full">
                         {estudanteSelecionado.nome_completo}
                       </h4>
-                      <span className="rounded-full print:rounded bg-blue-100 print:bg-slate-100 px-2 py-0.5 print:px-1.5 print:py-0 text-[10px] print:text-[8px] font-bold text-school-blue-800 print:text-black border print:border-slate-400 shrink-0">
+                      <span className="rounded-full print:rounded bg-blue-100 dark:bg-blue-950/70 print:bg-slate-100 px-2 py-0.5 print:px-1.5 print:py-0 text-[10px] print:text-[8px] font-bold text-school-blue-800 dark:text-blue-300 print:text-black border border-blue-200/80 dark:border-blue-700/60 print:border-slate-400 shrink-0">
                         STATUS: {estudanteSelecionado.status_matricula?.toUpperCase()}
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-x-2 text-[11px] print:text-[8.5px] font-semibold text-school-blue-700 print:text-slate-800">
-                      <span>Turma: <strong>{estudanteSelecionado.turma_nome || 'Não atribuída'}</strong></span>
+                    <div className="flex flex-wrap items-center gap-x-2 text-[11px] print:text-[8.5px] font-semibold text-school-blue-700 dark:text-school-gold-400 print:text-slate-800">
+                      <span>Turma: <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.turma_nome || 'Não atribuída'}</strong></span>
                       <span>•</span>
-                      <span>Histórico Escolar: <strong>{(estudanteSelecionado.tipo_historico_escolar || 'NÃO ENTREGUE').toUpperCase()}</strong></span>
+                      <span>Histórico Escolar: <strong className="text-slate-900 dark:text-white print:text-black">{(estudanteSelecionado.tipo_historico_escolar || 'NÃO ENTREGUE').toUpperCase()}</strong></span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-4 gap-x-2 gap-y-1 print:gap-y-0.5 text-[10.5px] print:text-[8px] pt-1 print:pt-0.5 border-t border-slate-200 print:border-slate-300">
-                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Data Nasc:</span> <strong>{new Date(estudanteSelecionado.data_nascimento).toLocaleDateString('pt-BR')}</strong></div>
-                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Nacionalidade:</span> <strong>{estudanteSelecionado.nacionalidade || 'Brasileira'}</strong></div>
-                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Naturalidade:</span> <strong>{estudanteSelecionado.naturalidade_cidade || 'Não informada'}</strong></div>
-                      <div><span className="text-slate-500 print:text-slate-700 font-medium">CPF:</span> <strong>{estudanteSelecionado.cpf || 'Não informado'}</strong></div>
-                      <div><span className="text-slate-500 print:text-slate-700 font-medium">RG:</span> <strong>{estudanteSelecionado.rg_numero || 'Não informado'}</strong></div>
-                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Exp. RG:</span> <strong>{estudanteSelecionado.rg_data_expedicao ? new Date(estudanteSelecionado.rg_data_expedicao).toLocaleDateString('pt-BR') : 'Não informada'}</strong></div>
-                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Cartão SUS:</span> <strong>{estudanteSelecionado.numero_sus || 'Não informado'}</strong></div>
-                      <div className="truncate"><span className="text-slate-500 print:text-slate-700 font-medium">Certidão:</span> <strong title={estudanteSelecionado.certidao_nascimento || ''}>{estudanteSelecionado.certidao_nascimento || 'Não informada'}</strong></div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-4 gap-x-2 gap-y-1 print:gap-y-0.5 text-[10.5px] print:text-[8px] pt-1 print:pt-0.5 border-t border-slate-200 dark:border-slate-700 print:border-slate-300">
+                      <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-medium">Data Nasc:</span> <strong className="text-slate-900 dark:text-white print:text-black">{new Date(estudanteSelecionado.data_nascimento).toLocaleDateString('pt-BR')}</strong></div>
+                      <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-medium">Nacionalidade:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.nacionalidade || 'Brasileira'}</strong></div>
+                      <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-medium">Naturalidade:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.naturalidade_cidade || 'Não informada'}</strong></div>
+                      <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-medium">CPF:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.cpf || 'Não informado'}</strong></div>
+                      <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-medium">RG:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.rg_numero || 'Não informado'}</strong></div>
+                      <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-medium">Exp. RG:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.rg_data_expedicao ? new Date(estudanteSelecionado.rg_data_expedicao).toLocaleDateString('pt-BR') : 'Não informada'}</strong></div>
+                      <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-medium">Cartão SUS:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.numero_sus || 'Não informado'}</strong></div>
+                      <div className="truncate"><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-medium">Certidão:</span> <strong className="text-slate-900 dark:text-white print:text-black" title={estudanteSelecionado.certidao_nascimento || ''}>{estudanteSelecionado.certidao_nascimento || 'Não informada'}</strong></div>
                     </div>
                   </div>
                 </div>
 
                 {/* Seção 2: Filiação e Responsável Legal */}
-                <div className="rounded-xl print:rounded-md border border-slate-200 print:border-slate-400 p-3 print:p-1.5 space-y-1.5 print:space-y-0.5 bg-white">
-                  <h5 className="font-bold uppercase tracking-wider text-slate-900 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
-                    <UserCheck className="h-3.5 w-3.5 print:h-3 print:w-3 text-school-blue-600 print:text-black shrink-0" />
+                <div className="rounded-xl print:rounded-md border border-slate-200 dark:border-slate-700 print:border-slate-400 p-3 print:p-1.5 space-y-1.5 print:space-y-0.5 bg-white dark:bg-slate-900/60 print:bg-white">
+                  <h5 className="font-bold uppercase tracking-wider text-slate-900 dark:text-white print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
+                    <UserCheck className="h-3.5 w-3.5 print:h-3 print:w-3 text-school-blue-600 dark:text-school-gold-400 print:text-black shrink-0" />
                     <span>Dados de Filiação & Responsável Legal</span>
                   </h5>
                   <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-x-2 gap-y-1 print:gap-y-0 text-xs print:text-[8px] uppercase">
-                    <div><span className="text-slate-500 print:text-slate-700 font-semibold">Mãe:</span> <strong>{estudanteSelecionado.filiacao_materna || 'NÃO DECLARADA'}</strong></div>
-                    <div><span className="text-slate-500 print:text-slate-700 font-semibold">Pai:</span> <strong>{estudanteSelecionado.filiacao_paterna || 'NÃO DECLARADO'}</strong></div>
-                    <div><span className="text-slate-500 print:text-slate-700 font-semibold">Responsável Ativo:</span> <strong>{estudanteSelecionado.nome_responsavel} ({estudanteSelecionado.parentesco_responsavel})</strong></div>
-                    <div><span className="text-slate-500 print:text-slate-700 font-semibold">CPF do Responsável:</span> <strong>{estudanteSelecionado.cpf_responsavel || 'NÃO CADASTRADO'}</strong></div>
+                    <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-semibold">Mãe:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.filiacao_materna || 'NÃO DECLARADA'}</strong></div>
+                    <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-semibold">Pai:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.filiacao_paterna || 'NÃO DECLARADO'}</strong></div>
+                    <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-semibold">Responsável Ativo:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.nome_responsavel} ({estudanteSelecionado.parentesco_responsavel})</strong></div>
+                    <div><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-semibold">CPF do Responsável:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.cpf_responsavel || 'NÃO CADASTRADO'}</strong></div>
                   </div>
                 </div>
 
                 {/* Seção 3: Telefones de Contato (4 números) & Endereço */}
-                <div className="rounded-xl print:rounded-md border border-emerald-200 print:border-slate-400 bg-emerald-50/20 print:bg-white p-3 print:p-1.5 space-y-2 print:space-y-1">
-                  <h5 className="font-bold uppercase tracking-wider text-emerald-950 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
-                    <Phone className="h-3.5 w-3.5 print:h-3 print:w-3 text-emerald-600 print:text-black shrink-0" />
+                <div className="rounded-xl print:rounded-md border border-emerald-200 dark:border-emerald-800/60 print:border-slate-400 bg-emerald-50/20 dark:bg-emerald-950/20 print:bg-white p-3 print:p-1.5 space-y-2 print:space-y-1">
+                  <h5 className="font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-300 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
+                    <Phone className="h-3.5 w-3.5 print:h-3 print:w-3 text-emerald-600 dark:text-emerald-400 print:text-black shrink-0" />
                     <span>Telefones de Contato & Endereço Residencial</span>
                   </h5>
                   
                   {/* Telefones em 4 colunas compactas */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-2 print:gap-1 text-xs print:text-[7.5px]">
-                    <div className="rounded-lg print:rounded bg-white p-2 print:p-1 border border-emerald-100 print:border-slate-300 dark:bg-slate-900">
-                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 print:text-slate-600 block leading-tight">Tel 1 (WhatsApp)</span>
-                      <strong className="font-mono text-emerald-700 print:text-black text-xs print:text-[8px]">
+                    <div className="rounded-lg print:rounded bg-white dark:bg-slate-900 p-2 print:p-1 border border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
+                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 dark:text-slate-400 print:text-slate-600 block leading-tight">Tel 1 (WhatsApp)</span>
+                      <strong className="font-mono text-emerald-700 dark:text-emerald-300 print:text-black text-xs print:text-[8px]">
                         {estudanteSelecionado.telefone_responsavel || 'Não cadastrado'}
                       </strong>
                     </div>
 
-                    <div className="rounded-lg print:rounded bg-white p-2 print:p-1 border border-emerald-100 print:border-slate-300 dark:bg-slate-900">
-                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 print:text-slate-600 block leading-tight">Tel 2 (Responsável)</span>
-                      <strong className="font-mono text-slate-800 print:text-black text-xs print:text-[8px]">
+                    <div className="rounded-lg print:rounded bg-white dark:bg-slate-900 p-2 print:p-1 border border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
+                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 dark:text-slate-400 print:text-slate-600 block leading-tight">Tel 2 (Responsável)</span>
+                      <strong className="font-mono text-slate-800 dark:text-white print:text-black text-xs print:text-[8px]">
                         {estudanteSelecionado.telefone_2 || 'Não informado'}
                       </strong>
                     </div>
 
-                    <div className="rounded-lg print:rounded bg-white p-2 print:p-1 border border-emerald-100 print:border-slate-300 dark:bg-slate-900">
-                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 print:text-slate-600 block leading-tight">Tel 3 (Responsável)</span>
-                      <strong className="font-mono text-slate-800 print:text-black text-xs print:text-[8px]">
+                    <div className="rounded-lg print:rounded bg-white dark:bg-slate-900 p-2 print:p-1 border border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
+                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 dark:text-slate-400 print:text-slate-600 block leading-tight">Tel 3 (Responsável)</span>
+                      <strong className="font-mono text-slate-800 dark:text-white print:text-black text-xs print:text-[8px]">
                         {estudanteSelecionado.telefone_3 || 'Não informado'}
                       </strong>
                     </div>
 
-                    <div className="rounded-lg print:rounded bg-white p-2 print:p-1 border border-emerald-100 print:border-slate-300 dark:bg-slate-900">
-                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 print:text-slate-600 block leading-tight">Tel 4 (Recado)</span>
-                      <strong className="font-mono text-slate-800 print:text-black text-xs print:text-[8px]">
+                    <div className="rounded-lg print:rounded bg-white dark:bg-slate-900 p-2 print:p-1 border border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
+                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 dark:text-slate-400 print:text-slate-600 block leading-tight">Tel 4 (Recado)</span>
+                      <strong className="font-mono text-slate-800 dark:text-white print:text-black text-xs print:text-[8px]">
                         {estudanteSelecionado.telefone_4 || 'Não informado'}
                       </strong>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-x-2 gap-y-0.5 text-xs print:text-[8px] pt-1 print:pt-0 uppercase border-t border-emerald-100 print:border-slate-300">
-                    <div className="truncate"><span className="text-slate-500 print:text-slate-700 font-semibold">E-mail:</span> <strong>{estudanteSelecionado.email || 'NÃO CADASTRADO'}</strong></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-x-2 gap-y-0.5 text-xs print:text-[8px] pt-1 print:pt-0 uppercase border-t border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
+                    <div className="truncate"><span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-semibold">E-mail:</span> <strong className="text-slate-900 dark:text-white print:text-black">{estudanteSelecionado.email || 'NÃO CADASTRADO'}</strong></div>
                     <div className="sm:col-span-2 print:col-span-2 truncate">
-                      <span className="text-slate-500 print:text-slate-700 font-semibold">Endereço:</span>{' '}
-                      <strong>
+                      <span className="text-slate-500 dark:text-slate-400 print:text-slate-700 font-semibold">Endereço:</span>{' '}
+                      <strong className="text-slate-900 dark:text-white print:text-black">
                         {estudanteSelecionado.endereco_logradouro
                           ? `${estudanteSelecionado.endereco_logradouro}, Nº ${estudanteSelecionado.endereco_numero || 'S/N'} - Bairro: ${estudanteSelecionado.endereco_bairro || 'NÃO INFORMADO'}`
                           : estudanteSelecionado.endereco || 'NÃO INFORMADO'}
@@ -1933,50 +1933,50 @@ export default function EstudantesPage() {
                 {/* Seção 4 & 5: Cotas & Benefícios + Inclusão & AEE (Lado a lado na impressão para poupar altura) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-3 print:gap-1.5">
                   {/* Cotas & Benefício Social */}
-                  <div className="rounded-xl print:rounded-md border border-indigo-200 print:border-slate-400 bg-indigo-50/30 print:bg-white p-3 print:p-1.5 space-y-1.5 print:space-y-0.5">
-                    <h5 className="font-bold uppercase tracking-wider text-indigo-950 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
-                      <Award className="h-3.5 w-3.5 print:h-3 print:w-3 text-indigo-600 print:text-black shrink-0" />
+                  <div className="rounded-xl print:rounded-md border border-indigo-200 dark:border-indigo-800/60 print:border-slate-400 bg-indigo-50/30 dark:bg-indigo-950/30 print:bg-white p-3 print:p-1.5 space-y-1.5 print:space-y-0.5">
+                    <h5 className="font-bold uppercase tracking-wider text-indigo-950 dark:text-indigo-200 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
+                      <Award className="h-3.5 w-3.5 print:h-3 print:w-3 text-indigo-600 dark:text-indigo-400 print:text-black shrink-0" />
                       <span>Política de Cotas & Benefício Social</span>
                     </h5>
                     <div className="space-y-1 print:space-y-0 text-xs print:text-[8px]">
                       <div>
-                        <span className="text-slate-600 print:text-slate-700 font-medium">Classificação Cotista:</span>{' '}
-                        <span className="font-bold text-indigo-800 print:text-black uppercase">
+                        <span className="text-slate-600 dark:text-slate-300 print:text-slate-700 font-medium">Classificação Cotista:</span>{' '}
+                        <span className="font-bold text-indigo-800 dark:text-indigo-300 print:text-black uppercase">
                           {estudanteSelecionado.percentual_cota === '0%' || !estudanteSelecionado.percentual_cota ? '0% (AMPLA CONCORRÊNCIA)' : estudanteSelecionado.percentual_cota === '50%' ? '50% (COTA PARCIAL)' : '100% (COTA INTEGRAL)'}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-600 print:text-slate-700 font-medium">Bolsa Família (NIS):</span>{' '}
-                        <span className="font-bold text-slate-800 print:text-black uppercase">
+                        <span className="text-slate-600 dark:text-slate-300 print:text-slate-700 font-medium">Bolsa Família (NIS):</span>{' '}
+                        <span className="font-bold text-slate-800 dark:text-white print:text-black uppercase">
                           {estudanteSelecionado.numero_bolsa_familia || 'NÃO INFORMADO'}
                         </span>
                       </div>
                     </div>
-                    <div className="text-[10px] print:text-[7px] text-indigo-900 print:text-slate-600 font-medium leading-tight">
+                    <div className="text-[10px] print:text-[7px] text-indigo-900 dark:text-indigo-300 print:text-slate-600 font-medium leading-tight">
                       * Critério oficial para inscrições ETE e IFPE.
                     </div>
                   </div>
 
                   {/* Inclusão e AEE */}
-                  <div className="rounded-xl print:rounded-md border border-slate-200 print:border-slate-400 bg-white p-3 print:p-1.5 space-y-1.5 print:space-y-0.5">
-                    <h5 className="font-bold uppercase tracking-wider text-slate-900 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
-                      <HeartHandshake className="h-3.5 w-3.5 print:h-3 print:w-3 text-emerald-600 print:text-black shrink-0" />
+                  <div className="rounded-xl print:rounded-md border border-slate-200 dark:border-slate-700 print:border-slate-400 bg-white dark:bg-slate-900/60 print:bg-white p-3 print:p-1.5 space-y-1.5 print:space-y-0.5">
+                    <h5 className="font-bold uppercase tracking-wider text-slate-900 dark:text-white print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
+                      <HeartHandshake className="h-3.5 w-3.5 print:h-3 print:w-3 text-emerald-600 dark:text-emerald-400 print:text-black shrink-0" />
                       <span>Saúde Escolar & Inclusão (AEE)</span>
                     </h5>
                     <div className="space-y-1 print:space-y-0 text-xs print:text-[8px]">
                       <div className="flex items-center gap-3">
-                        <div><span className="text-slate-600 print:text-slate-700 font-medium">Laudo:</span> <strong className="uppercase">{estudanteSelecionado.possui_laudo ? 'SIM' : 'NÃO'}</strong></div>
-                        <div><span className="text-slate-600 print:text-slate-700 font-medium">Elegível AEE:</span> <strong className="uppercase">{estudanteSelecionado.aee ? 'SIM' : 'NÃO'}</strong></div>
+                        <div><span className="text-slate-600 dark:text-slate-300 print:text-slate-700 font-medium">Laudo:</span> <strong className="text-slate-900 dark:text-white uppercase print:text-black">{estudanteSelecionado.possui_laudo ? 'SIM' : 'NÃO'}</strong></div>
+                        <div><span className="text-slate-600 dark:text-slate-300 print:text-slate-700 font-medium">Elegível AEE:</span> <strong className="text-slate-900 dark:text-white uppercase print:text-black">{estudanteSelecionado.aee ? 'SIM' : 'NÃO'}</strong></div>
                       </div>
                       <div>
-                        <span className="text-slate-600 print:text-slate-700 font-medium">Profissional de Apoio:</span>{' '}
-                        <strong className="text-emerald-700 print:text-black uppercase">
+                        <span className="text-slate-600 dark:text-slate-300 print:text-slate-700 font-medium">Profissional de Apoio:</span>{' '}
+                        <strong className="text-emerald-700 dark:text-emerald-400 print:text-black uppercase">
                           {estudanteSelecionado.apoio_nome || 'NÃO DESIGNADO'}
                         </strong>
                       </div>
                       {estudanteSelecionado.laudo_descricao && (
-                        <div className="text-[10.5px] print:text-[7.5px] text-slate-700 print:text-black leading-tight uppercase truncate">
-                          <span className="font-semibold text-slate-500 print:text-slate-700">CID/Parecer:</span> {estudanteSelecionado.laudo_descricao}
+                        <div className="text-[10.5px] print:text-[7.5px] text-slate-700 dark:text-slate-200 print:text-black leading-tight uppercase truncate">
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 print:text-slate-700">CID/Parecer:</span> {estudanteSelecionado.laudo_descricao}
                         </div>
                       )}
                     </div>
@@ -1985,11 +1985,11 @@ export default function EstudantesPage() {
 
                 {/* Seção 6: Observações (se houver) */}
                 {estudanteSelecionado.observacoes && (
-                  <div className="rounded-xl print:rounded-md border border-slate-200 print:border-slate-400 bg-slate-50 print:bg-white p-2.5 print:p-1.5 space-y-0.5">
-                    <h5 className="font-bold uppercase tracking-wider text-slate-800 print:text-black text-[10px] print:text-[8px] leading-tight">
+                  <div className="rounded-xl print:rounded-md border border-slate-200 dark:border-slate-700 print:border-slate-400 bg-slate-50 dark:bg-slate-900/60 print:bg-white p-2.5 print:p-1.5 space-y-0.5">
+                    <h5 className="font-bold uppercase tracking-wider text-slate-800 dark:text-white print:text-black text-[10px] print:text-[8px] leading-tight">
                       Observações Pedagógicas / Administrativas
                     </h5>
-                    <p className="text-[11px] print:text-[7.5px] text-slate-700 print:text-black leading-snug whitespace-pre-wrap uppercase print:line-clamp-2 max-h-16 print:max-h-8 overflow-hidden">
+                    <p className="text-[11px] print:text-[7.5px] text-slate-700 dark:text-slate-200 print:text-black leading-snug whitespace-pre-wrap uppercase print:line-clamp-2 max-h-16 print:max-h-8 overflow-hidden">
                       {estudanteSelecionado.observacoes}
                     </p>
                   </div>
@@ -1998,13 +1998,13 @@ export default function EstudantesPage() {
                 {/* Seção 7: Assinaturas Oficiais da Ficha Cadastral & Fé Pública */}
                 <div className="pt-6 print:pt-2 space-y-2 print:space-y-1">
                   <div className="grid grid-cols-2 gap-8 print:gap-10 text-center text-[11px] print:text-[8px]">
-                    <div className="border-t border-slate-400 print:border-slate-600 pt-1 text-slate-700 print:text-black font-semibold">
+                    <div className="border-t border-slate-400 dark:border-slate-600 print:border-slate-600 pt-1 text-slate-700 dark:text-slate-200 print:text-black font-semibold">
                       Secretaria Escolar
-                      <span className="block text-[9px] print:text-[6.5px] text-slate-500 print:text-slate-600 font-normal">Responsável pela Emissão</span>
+                      <span className="block text-[9px] print:text-[6.5px] text-slate-500 dark:text-slate-400 print:text-slate-600 font-normal">Responsável pela Emissão</span>
                     </div>
-                    <div className="border-t border-slate-400 print:border-slate-600 pt-1 text-slate-700 print:text-black font-semibold">
+                    <div className="border-t border-slate-400 dark:border-slate-600 print:border-slate-600 pt-1 text-slate-700 dark:text-slate-200 print:text-black font-semibold">
                       Direção Pedagógica
-                      <span className="block text-[9px] print:text-[6.5px] text-slate-500 print:text-slate-600 font-normal">Assinatura & Carimbo</span>
+                      <span className="block text-[9px] print:text-[6.5px] text-slate-500 dark:text-slate-400 print:text-slate-600 font-normal">Assinatura & Carimbo</span>
                     </div>
                   </div>
 
@@ -2041,9 +2041,9 @@ export default function EstudantesPage() {
       {/* MODAL 4: Visualização Rápida da Foto 3x4 & Google Drive */}
       {fotoPreviewEstudante && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in-0 duration-200 print:hidden">
-          <div className="relative w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <div className="relative w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-school-blue-100 text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300">
                   <Camera className="h-5 w-5" />
@@ -2052,7 +2052,7 @@ export default function EstudantesPage() {
                   <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
                     Foto Oficial 3x4 do Estudante
                   </h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Armazenada no Google Drive Institucional
                   </p>
                 </div>
@@ -2060,7 +2060,7 @@ export default function EstudantesPage() {
               <button
                 type="button"
                 onClick={() => setFotoPreviewEstudante(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2078,8 +2078,8 @@ export default function EstudantesPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="text-center p-3 text-slate-400">
-                      <Camera className="h-10 w-10 mx-auto mb-2 text-slate-300" />
+                    <div className="text-center p-3 text-slate-400 dark:text-slate-400">
+                      <Camera className="h-10 w-10 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                       <span className="text-xs font-bold uppercase">Sem Foto</span>
                     </div>
                   )}
@@ -2098,13 +2098,13 @@ export default function EstudantesPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2 border border-slate-100 dark:border-slate-700">
                     <span className="block text-[9px] font-bold text-slate-400 uppercase">Turma</span>
                     <span className="font-bold text-slate-800 dark:text-slate-200">
                       {fotoPreviewEstudante.turma_nome || 'Regular'}
                     </span>
                   </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2 border border-slate-100 dark:border-slate-700">
                     <span className="block text-[9px] font-bold text-slate-400 uppercase">CPF</span>
                     <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">
                       {fotoPreviewEstudante.cpf || 'Não informado'}
@@ -2113,16 +2113,16 @@ export default function EstudantesPage() {
                 </div>
 
                 {/* Estrutura da Pasta no Google Drive */}
-                <div className="rounded-xl bg-slate-950 p-2.5 text-[10px] font-mono text-left text-slate-300 border border-slate-800">
+                <div className="rounded-xl bg-slate-950 p-2.5 text-[10px] font-mono text-left text-slate-300 border border-slate-800 dark:border-slate-700">
                   <div className="text-school-gold-400 font-bold flex items-center gap-1">
                     <Folder className="h-3 w-3" />
                     <span>FICHA DOS ESTUDANTES/</span>
                   </div>
-                  <div className="pl-3 border-l border-slate-800 ml-1 space-y-0.5 mt-0.5">
+                  <div className="pl-3 border-l border-slate-800 dark:border-slate-700 ml-1 space-y-0.5 mt-0.5">
                     <div className="text-amber-300">
                       └── [{(fotoPreviewEstudante.nome_completo || 'A').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').charAt(0).toUpperCase()}]/
                     </div>
-                    <div className="pl-3 border-l border-slate-800 ml-1 space-y-0.5">
+                    <div className="pl-3 border-l border-slate-800 dark:border-slate-700 ml-1 space-y-0.5">
                       <div className="text-blue-300 font-bold truncate max-w-[200px]">
                         └── [{fotoPreviewEstudante.nome_completo.toUpperCase()}]/
                       </div>
@@ -2136,7 +2136,7 @@ export default function EstudantesPage() {
             </div>
 
             {/* Ações */}
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-700">
               {fotoPreviewEstudante.foto_url && (() => {
                 let driveUrl = fotoPreviewEstudante.foto_url;
                 const match = driveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -2172,7 +2172,7 @@ export default function EstudantesPage() {
               <button
                 type="button"
                 onClick={() => setFotoPreviewEstudante(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 Fechar
               </button>

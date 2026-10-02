@@ -191,10 +191,10 @@ export default function ModalNovoFuncionario({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
+      <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
         
         {/* Cabeçalho do Modal */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-indigo-100 p-2 text-indigo-700 dark:bg-indigo-950 dark:text-school-gold-400">
               <Briefcase className="h-6 w-6" />
@@ -203,7 +203,7 @@ export default function ModalNovoFuncionario({
               <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
                 Cadastrar Novo Funcionário
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-300">
                 Ficha funcional de apoio e equipe administrativa da escola
               </p>
             </div>
@@ -220,7 +220,7 @@ export default function ModalNovoFuncionario({
         <form onSubmit={handleSubmit} className="mt-5 space-y-5 text-xs">
           
           {/* Seção 1: Identificação Civil e Funcional */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
             <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
               <UserCheck className="h-4 w-4 text-indigo-600 dark:text-school-gold-400" />
               1. Identificação Civil e Funcional
@@ -356,7 +356,7 @@ export default function ModalNovoFuncionario({
           </div>
 
           {/* Seção 2: Filiação & Endereço Completo com Busca de CEP */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
             <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
               <MapPin className="h-4 w-4 text-indigo-600 dark:text-school-gold-400" />
               2. Filiação & Endereço Completo
@@ -524,7 +524,7 @@ export default function ModalNovoFuncionario({
           </div>
 
           {/* Seção 3: Contatos & Telefones de Emergência */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
             <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
               <Phone className="h-4 w-4 text-indigo-600 dark:text-school-gold-400" />
               3. Contatos & Telefones de Emergência
@@ -635,7 +635,7 @@ export default function ModalNovoFuncionario({
           </div>
 
           {/* Ações do Rodapé */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
             <button
               type="button"
               onClick={onClose}

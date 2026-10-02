@@ -251,9 +251,9 @@ export function ModalRecorteFotoEstudante({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-3 sm:p-5 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+      <div className="relative w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
         {/* Cabeçalho */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-school-blue-100 text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300">
               <Sparkles className="h-5 w-5" />
@@ -481,7 +481,7 @@ export function ModalRecorteFotoEstudante({
         </div>
 
         {/* Barra de Ferramentas & Controles de Edição */}
-        <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 space-y-4">
+        <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700 space-y-4">
           {/* Controle de Zoom Slider & Botões */}
           <div className="flex items-center gap-3">
             <button
@@ -502,7 +502,7 @@ export function ModalRecorteFotoEstudante({
                 onChange={(e) => setZoom(parseFloat(e.target.value))}
                 className="w-full accent-school-blue-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700"
               />
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 w-10 text-right">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 w-10 text-right">
                 {Math.round(zoom * 100)}%
               </span>
             </div>
@@ -542,7 +542,7 @@ export function ModalRecorteFotoEstudante({
             <button
               type="button"
               onClick={resetarAjustes}
-              className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white"
             >
               <RefreshCw className="h-3 w-3" />
               Redefinir
@@ -550,12 +550,12 @@ export function ModalRecorteFotoEstudante({
           </div>
 
           {/* Botões de Ação Final */}
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-700">
             <button
               type="button"
               onClick={onCancelar}
               disabled={processandoEnvio}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
             >
               Cancelar
             </button>

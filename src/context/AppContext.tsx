@@ -47,6 +47,7 @@ import {
   initialAtestadosProfessor,
   initialReposicoesAulas
 } from '@/lib/mock-data';
+import { obterProfessoresDocentesDaTurma } from '@/lib/pareceres-ia';
 
 interface AppContextType {
   theme: 'light' | 'dark';
@@ -155,6 +156,7 @@ interface AppContextType {
   addProfessor: (prof: Omit<Professor, 'id' | 'created_at'>) => void;
   updateProfessor: (id: string, updates: Partial<Professor>) => void;
   toggleProfessorApoio: (id: string) => void;
+  toggleProfessorAdministrativo: (id: string) => void;
   addFaltaProfessor: (falta: Omit<FaltaProfessor, 'id' | 'created_at' | 'homologado'>) => void;
   toggleHomologarFalta: (id: string) => void;
 
@@ -1224,6 +1226,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         return p;
       });
+      localStorage.setItem('school_os_professores', JSON.stringify(updated));
+      return updated;
+    });
+    if (updatedProf) {
+      syncWithTurso('save_professor', updatedProf);
+    }
+  };
+
+  const toggleProfessorAdministrativo = (id: string) => {
+    let updatedProf: Professor | undefined;
+    setProfessores((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id === id) {
+          const mod = { ...p, eh_administrativo: !p.eh_administrativo };
+          updatedProf = mod;
+          return mod;
+        }
+        return p;
+      });
+      localStorage.setItem('school_os_professores', JSON.stringify(updated));
       return updated;
     });
     if (updatedProf) {
@@ -1464,30 +1486,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setSolicitacoesRelatorio(prev => [novaSol, ...prev]);
 
-    // Localiza os professores atribuídos à turma do estudante
+    // Localiza a turma associada ao estudante
     const aluno = estudantes.find(e => e.id === alunoId);
-    const turma = turmas.find(t => t.id === aluno?.turma_id || (t.nome && aluno?.turma_nome && t.nome.trim() === aluno.turma_nome.trim()));
+    const turma = turmas.find(t => 
+      (aluno?.turma_id && t.id === aluno.turma_id) || 
+      (t.nome && aluno?.turma_nome && t.nome.trim().toLowerCase() === aluno.turma_nome.trim().toLowerCase())
+    );
 
-    let profsIds: string[] = [];
+    // Obtém exclusivamente os professores docentes da turma do estudante que NÃO sejam Administrativos
+    const docentesTurma = obterProfessoresDocentesDaTurma(turma, professores, users);
+    let profsValidos: Professor[] = docentesTurma;
+
     if (professoresIdsParam && professoresIdsParam.length > 0) {
-      profsIds = [...professoresIdsParam];
-    } else if (turma?.professores_ids && turma.professores_ids.length > 0) {
-      profsIds = [...turma.professores_ids];
-    }
-    if (turma?.professor_regente_id && !profsIds.includes(turma.professor_regente_id)) {
-      profsIds.push(turma.professor_regente_id);
+      profsValidos = docentesTurma.filter(p => professoresIdsParam.includes(p.id));
     }
 
-    // Inclui professores que tenham a turma explicitamente vinculada em suas fichas
-    professores.forEach(p => {
-      if (turma?.id && p.turmas_atribuidas_ids && p.turmas_atribuidas_ids.includes(turma.id)) {
-        if (!profsIds.includes(p.id)) profsIds.push(p.id);
-      }
-    });
-
-    if (profsIds.length === 0) {
-      profsIds = professores.filter(p => p.ativo).slice(0, 3).map(p => p.id);
-    }
+    const profsIds = profsValidos.map(p => p.id);
 
     const novosRelatoriosProfessores: RelatorioProfessor[] = profsIds.map(profId => ({
       id: `rel-prof-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -2369,6 +2383,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addProfessor,
         updateProfessor,
         toggleProfessorApoio,
+        toggleProfessorAdministrativo,
         addFaltaProfessor,
         toggleHomologarFalta,
         addEvento,

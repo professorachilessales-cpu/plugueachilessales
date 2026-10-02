@@ -82,6 +82,7 @@ const formProfInicial = {
   contato_emergencia_nome: '',
   observacoes: '',
   eh_apoio: false,
+  eh_administrativo: false,
   ativo: true, // Valor Padrão: Ativo (true)
 };
 
@@ -126,6 +127,7 @@ const formEditProfInicial = {
   contato_emergencia_parentesco: '',
   observacoes: '',
   eh_apoio: false,
+  eh_administrativo: false,
   ativo: true,
 };
 
@@ -136,6 +138,7 @@ export default function ProfessoresPage() {
     addProfessor, 
     updateProfessor, 
     toggleProfessorApoio, 
+    toggleProfessorAdministrativo,
     addFaltaProfessor, 
     toggleHomologarFalta, 
     turmas,
@@ -270,6 +273,7 @@ export default function ProfessoresPage() {
       contato_emergencia_parentesco: (prof.contato_emergencia_parentesco || '').toUpperCase(),
       observacoes: (prof.observacoes || '').toUpperCase(),
       eh_apoio: Boolean(prof.eh_apoio),
+      eh_administrativo: Boolean(prof.eh_administrativo),
       ativo: prof.ativo !== false,
     });
     setModalEditProfAberto(true);
@@ -318,6 +322,7 @@ export default function ProfessoresPage() {
       observacoes: formProf.observacoes.trim().toUpperCase(),
       ativo: formProf.ativo !== false,
       eh_apoio: formProf.eh_apoio,
+      eh_administrativo: Boolean(formProf.eh_administrativo),
       turmas_atribuidas_ids: [],
     });
 
@@ -400,6 +405,7 @@ export default function ProfessoresPage() {
       contato_emergencia_parentesco: formEditProf.contato_emergencia_parentesco.trim().toUpperCase(),
       observacoes: formEditProf.observacoes.trim().toUpperCase(),
       eh_apoio: formEditProf.tipo_profissional === 'funcionario' ? false : formEditProf.eh_apoio,
+      eh_administrativo: formEditProf.tipo_profissional === 'funcionario' ? false : Boolean(formEditProf.eh_administrativo),
       ativo: formEditProf.ativo !== false,
     };
 
@@ -446,7 +452,7 @@ export default function ProfessoresPage() {
             <UserCheck className="h-7 w-7 text-school-blue-600 dark:text-school-gold-400" />
             Ficha Funcional dos Docentes & Controle de Ausências
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-300">
             Cadastros funcionais completos em caixa alta e homologação de faltas
           </p>
         </div>
@@ -479,13 +485,13 @@ export default function ProfessoresPage() {
       </div>
 
       {/* Alternador de Abas */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-0.5">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 overflow-x-auto pb-0.5">
         <button
           onClick={() => setAbaAtiva('docentes')}
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all shrink-0 ${
             abaAtiva === 'docentes'
               ? 'border-school-blue-600 text-school-blue-600 dark:border-school-gold-400 dark:text-school-gold-400'
-              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
           }`}
         >
           <GraduationCap className="h-4 w-4" />
@@ -497,7 +503,7 @@ export default function ProfessoresPage() {
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all shrink-0 ${
             abaAtiva === 'faltas'
               ? 'border-school-blue-600 text-school-blue-600 dark:border-school-gold-400 dark:text-school-gold-400'
-              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
           }`}
         >
           <Calendar className="h-4 w-4" />
@@ -509,7 +515,7 @@ export default function ProfessoresPage() {
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all shrink-0 ${
             abaAtiva === 'reposicoes'
               ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400'
-              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
           }`}
         >
           <Clock className="h-4 w-4" />
@@ -521,7 +527,7 @@ export default function ProfessoresPage() {
           className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition-all shrink-0 ${
             abaAtiva === 'atestados'
               ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
-              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              : 'border-transparent text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
           }`}
         >
           <FileText className="h-4 w-4" />
@@ -573,7 +579,7 @@ export default function ProfessoresPage() {
         return (
           <div className="space-y-4">
             {/* Seletor Segmentado de Abas (Tabs) + Busca Rápida */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-slate-700/80 dark:bg-school-dark-surface">
               {/* Tabs Segmentadas: Docentes | Funcionários | Todos */}
               <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800 text-xs">
                 <button
@@ -582,7 +588,7 @@ export default function ProfessoresPage() {
                   className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 font-bold transition-all ${
                     categoriaFiltro === 'docentes'
                       ? 'bg-white text-school-blue-700 shadow-sm dark:bg-slate-700 dark:text-school-gold-400'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                   }`}
                 >
                   <GraduationCap className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
@@ -595,7 +601,7 @@ export default function ProfessoresPage() {
                   className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 font-bold transition-all ${
                     categoriaFiltro === 'funcionarios'
                       ? 'bg-white text-amber-700 shadow-sm dark:bg-slate-700 dark:text-amber-400'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                   }`}
                 >
                   <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -608,28 +614,28 @@ export default function ProfessoresPage() {
                   className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 font-bold transition-all ${
                     categoriaFiltro === 'todos'
                       ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                   }`}
                 >
-                  <Users className="h-4 w-4 text-slate-500" />
+                  <Users className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                   <span>Todos ({totalTodos})</span>
                 </button>
               </div>
 
               {/* Campo de Busca Rápida */}
               <div className="relative min-w-[220px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-300" />
                 <input
                   type="text"
                   value={buscaTermo}
                   onChange={(e) => setBuscaTermo(e.target.value)}
                   placeholder="Buscar nome, CPF ou função..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-400"
                 />
                 {buscaTermo && (
                   <button
                     onClick={() => setBuscaTermo('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -638,9 +644,9 @@ export default function ProfessoresPage() {
             </div>
 
             {/* Filtro de Exibição de Status */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-slate-700/80 dark:bg-school-dark-surface">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider mr-1">
                   Status:
                 </span>
                 <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800 text-xs">
@@ -650,7 +656,7 @@ export default function ProfessoresPage() {
                     className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-all ${
                       filtroStatus === 'ativos'
                         ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
                     <span className="h-2 w-2 rounded-full bg-emerald-300" />
@@ -663,7 +669,7 @@ export default function ProfessoresPage() {
                     className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-all ${
                       filtroStatus === 'inativos'
                         ? 'bg-rose-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
                     <span className="h-2 w-2 rounded-full bg-rose-300" />
@@ -676,7 +682,7 @@ export default function ProfessoresPage() {
                     className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-all ${
                       filtroStatus === 'todos'
                         ? 'bg-school-blue-800 text-white shadow-sm dark:bg-school-blue-600'
-                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
                     <span>Todos ({listaBase.length})</span>
@@ -684,8 +690,8 @@ export default function ProfessoresPage() {
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Mostrando <strong>{resultado.length}</strong> de {listaBase.length}{' '}
+              <div className="text-[11px] text-slate-500 dark:text-slate-300">
+                Mostrando <strong className="text-slate-800 dark:text-white font-bold">{resultado.length}</strong> de {listaBase.length}{' '}
                 {categoriaFiltro === 'docentes'
                   ? 'docente(s)'
                   : categoriaFiltro === 'funcionarios'
@@ -733,15 +739,15 @@ export default function ProfessoresPage() {
                       className={`flex flex-col justify-between rounded-2xl border p-5 shadow-sm transition-all hover:shadow-md ${
                         prof.ativo !== false
                           ? isFuncionario
-                            ? 'border-amber-200/80 bg-white dark:border-amber-900/40 dark:bg-school-dark-surface'
-                            : 'border-slate-200 bg-white dark:border-school-dark-border dark:bg-school-dark-surface'
-                          : 'border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/40 opacity-85 hover:opacity-100'
+                            ? 'border-amber-200/80 bg-white dark:border-amber-800/60 dark:bg-school-dark-surface'
+                            : 'border-slate-200 bg-white dark:border-slate-700/80 dark:bg-school-dark-surface'
+                          : 'border-slate-200 bg-slate-50/80 dark:border-slate-700/60 dark:bg-slate-900/40 opacity-85 hover:opacity-100'
                       }`}
                     >
                       <div>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 block uppercase">
+                            <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-school-gold-400 block uppercase">
                               {prof.matricula || 'MATRÍCULA N/I'}
                             </span>
                             <h3 className="text-base font-black text-slate-900 dark:text-white uppercase truncate mt-0.5">
@@ -752,25 +758,33 @@ export default function ProfessoresPage() {
                           {/* Badges de Status e Categoria */}
                           <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                             {isFuncionario ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300/80">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60">
                                 <span>{getEmojiFuncao(prof.funcao_escola)}</span>
                                 <span>{prof.funcao_escola || 'FUNCIONÁRIO'}</span>
                               </span>
                             ) : (
-                              prof.eh_apoio && (
-                                <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60">
-                                  Apoio
-                                </span>
-                              )
+                              <>
+                                {prof.eh_administrativo && (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/60 dark:border-blue-700/60">
+                                    <span>📂</span>
+                                    <span>Administrativo</span>
+                                  </span>
+                                )}
+                                {prof.eh_apoio && (
+                                  <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60 dark:border-purple-700/60">
+                                    Apoio
+                                  </span>
+                                )}
+                              </>
                             )}
 
                             {prof.ativo !== false ? (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-700/60">
                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                 Ativo
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/70">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/70 dark:border-rose-700/60">
                                 <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
                                 Inativo
                               </span>
@@ -779,15 +793,15 @@ export default function ProfessoresPage() {
                         </div>
 
                         {/* CPF e RG */}
-                        <div className="mt-2.5 flex items-center gap-3 text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                          <span>CPF: <strong>{prof.cpf || 'NÃO INFORMADO'}</strong></span>
-                          <span>RG: <strong>{prof.rg || 'NÃO INFORMADO'}</strong></span>
+                        <div className="mt-2.5 flex items-center gap-3 text-[11px] font-mono text-slate-500 dark:text-slate-300">
+                          <span>CPF: <strong className="text-slate-700 dark:text-white font-bold">{prof.cpf || 'NÃO INFORMADO'}</strong></span>
+                          <span>RG: <strong className="text-slate-700 dark:text-white font-bold">{prof.rg || 'NÃO INFORMADO'}</strong></span>
                         </div>
 
                         {/* Informações Específicas por Tipo */}
                         {isFuncionario ? (
                           <div className="mt-3 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
-                            <div className="flex items-center justify-between rounded-lg bg-amber-50/60 dark:bg-amber-950/20 px-2.5 py-1 border border-amber-200/40">
+                            <div className="flex items-center justify-between rounded-lg bg-amber-50/60 dark:bg-amber-950/40 px-2.5 py-1 border border-amber-200/40 dark:border-amber-800/40">
                               <span className="text-[10px] uppercase font-bold text-amber-900 dark:text-amber-300">
                                 Vínculo:
                               </span>
@@ -797,13 +811,13 @@ export default function ProfessoresPage() {
                             </div>
 
                             {(prof.bairro || prof.logradouro || prof.cidade) && (
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase truncate">
+                              <p className="text-[10px] text-slate-500 dark:text-slate-300 uppercase truncate">
                                 📍 {prof.bairro ? `${prof.bairro}, ` : ''}{prof.cidade || ''} {prof.uf ? `(${prof.uf})` : ''}
                               </p>
                             )}
 
                             {(prof.contato_emergencia_nome || prof.telefone_emergencia) && (
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase truncate">
+                              <p className="text-[10px] text-slate-500 dark:text-slate-300 uppercase truncate">
                                 🚨 Emergência: {prof.contato_emergencia_nome || 'CONTATO'} {prof.contato_emergencia_parentesco ? `(${prof.contato_emergencia_parentesco})` : ''}
                               </p>
                             )}
@@ -812,14 +826,14 @@ export default function ProfessoresPage() {
                           <>
                             {/* Graduação / Instituição Docente */}
                             {prof.graduacao_instituicao && (
-                              <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 uppercase line-clamp-1">
-                                Graduação: <strong className="text-slate-700 dark:text-slate-300">{prof.graduacao_instituicao}</strong>
+                              <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-300 uppercase line-clamp-1">
+                                Graduação: <strong className="text-slate-700 dark:text-white font-bold">{prof.graduacao_instituicao}</strong>
                               </p>
                             )}
 
                             {/* Disciplinas Habilitadas */}
                             <div className="mt-3">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-300">
                                 Disciplinas:
                               </span>
                               <div className="mt-1 flex flex-wrap gap-1">
@@ -827,35 +841,66 @@ export default function ProfessoresPage() {
                                   prof.disciplinas.map((disc) => (
                                     <span
                                       key={disc}
-                                      className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300 uppercase"
+                                      className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border dark:border-slate-700 uppercase"
                                     >
                                       {disc}
                                     </span>
                                   ))
                                 ) : (
-                                  <span className="text-[10px] text-slate-400 uppercase">
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-300 uppercase">
                                     Nenhuma disciplina cadastrada
                                   </span>
                                 )}
                               </div>
+                            </div>
+
+                            {/* Toggle Funcionário Administrativo */}
+                            <div className="mt-3.5 flex items-center justify-between rounded-xl bg-slate-50 dark:bg-slate-800/80 p-2.5 border border-slate-200/70 dark:border-slate-700">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">📂</span>
+                                <div>
+                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
+                                    Funcionário Administrativo?
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-300">
+                                    {prof.eh_administrativo ? 'Sim (Atua na administração)' : 'Não (Apenas docente)'}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={Boolean(prof.eh_administrativo)}
+                                onClick={() => toggleProfessorAdministrativo(prof.id)}
+                                className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  prof.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                                }`}
+                                title={prof.eh_administrativo ? 'Docente é funcionário administrativo (Clique para alternar)' : 'Docente não é administrativo (Clique para alternar)'}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                    prof.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
                             </div>
                           </>
                         )}
                       </div>
 
                       {/* Rodapé do Card: Contatos e Botões de Ação */}
-                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/80 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
                           <span className="truncate pr-2">{prof.email || 'SEM EMAIL'}</span>
-                          <span className="font-mono">{prof.telefone || prof.celular_whatsapp || 'SEM TEL'}</span>
+                          <span className="font-mono text-slate-700 dark:text-white font-semibold">{prof.telefone || prof.celular_whatsapp || 'SEM TEL'}</span>
                         </div>
 
                         <div className="flex items-center gap-2 pt-1">
                           <button
                             onClick={() => handleAbrirFicha(prof)}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-all"
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all"
                           >
-                            <Eye className="h-3.5 w-3.5 text-slate-500" />
+                            <Eye className="h-3.5 w-3.5 text-slate-500 dark:text-slate-300" />
                             <span>Ver Ficha</span>
                           </button>
 
@@ -883,10 +928,10 @@ export default function ProfessoresPage() {
 
       {/* ABA 2: Registro de Faltas */}
       {abaAtiva === 'faltas' && (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-school-dark-border dark:bg-school-dark-surface">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-700 dark:bg-school-dark-surface">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
                 <tr>
                   <th className="px-4 py-3.5">Data Ausência</th>
                   <th className="px-4 py-3.5">Docente</th>
@@ -897,10 +942,10 @@ export default function ProfessoresPage() {
                   <th className="px-4 py-3.5 text-right">Ação</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80">
                 {faltasProfessores.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400 dark:text-slate-300">
                       Nenhuma ausência registrada até o momento.
                     </td>
                   </tr>
@@ -914,11 +959,11 @@ export default function ProfessoresPage() {
                         {falta.professor_nome}
                       </td>
                       <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-300">
+                        <span className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60">
                           {falta.aulas_faltadas} aula(s)
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 max-w-sm uppercase">
+                      <td className="px-4 py-3.5 max-w-sm uppercase text-slate-700 dark:text-slate-200">
                         {falta.justificativa}
                       </td>
                       <td className="px-4 py-3.5">
@@ -941,8 +986,8 @@ export default function ProfessoresPage() {
                         <span
                           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                             falta.homologado
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
                           }`}
                         >
                           {falta.homologado ? 'Homologado pela Direção' : 'Aguardando Homologação'}
@@ -951,7 +996,7 @@ export default function ProfessoresPage() {
                       <td className="px-4 py-3.5 text-right">
                         <button
                           onClick={() => toggleHomologarFalta(falta.id)}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                           {falta.homologado ? 'Reabrir' : 'Homologar'}
                         </button>
@@ -990,21 +1035,21 @@ export default function ProfessoresPage() {
           <div className="space-y-6">
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-school-dark-surface">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-300">
                   Total de Aulas a Repor
                 </span>
                 <div className="mt-2 text-3xl font-black text-slate-900 dark:text-white">
                   {totalAulasARepor}
                 </div>
-                <span className="text-[10px] text-slate-400">em aberto</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-300">em aberto</span>
               </div>
 
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-800/60 dark:bg-emerald-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                   No Prazo (&gt; 5 dias)
                 </span>
-                <div className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-300">
+                <div className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-200">
                   {reposicoesRegulares.length}
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
@@ -1013,11 +1058,11 @@ export default function ProfessoresPage() {
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-800/60 dark:bg-amber-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                   Vencendo (≤ 5 dias)
                 </span>
-                <div className="mt-2 text-3xl font-black text-amber-700 dark:text-amber-300">
+                <div className="mt-2 text-3xl font-black text-amber-700 dark:text-amber-200">
                   {reposicoesAlerta.length}
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">
@@ -1026,11 +1071,11 @@ export default function ProfessoresPage() {
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 dark:border-rose-900/50 dark:bg-rose-950/20">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 dark:border-rose-800/60 dark:bg-rose-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">
                   Vencidas (&gt; 30 dias)
                 </span>
-                <div className="mt-2 text-3xl font-black text-rose-700 dark:text-rose-300">
+                <div className="mt-2 text-3xl font-black text-rose-700 dark:text-rose-200">
                   {reposicoesVencidas.length}
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-400">
@@ -1039,11 +1084,11 @@ export default function ProfessoresPage() {
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-800/60 dark:bg-blue-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
                   Homologadas
                 </span>
-                <div className="mt-2 text-3xl font-black text-blue-700 dark:text-blue-300">
+                <div className="mt-2 text-3xl font-black text-blue-700 dark:text-blue-200">
                   {reposicoesHomologadas.length}
                 </div>
                 <span className="text-[10px] text-blue-600 dark:text-blue-400">Aulas validadas</span>
@@ -1051,8 +1096,8 @@ export default function ProfessoresPage() {
             </div>
 
             {/* Ranking de Débito de Reposições por Professor */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-school-dark-surface space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <Clock className="h-4 w-4 text-rose-600" />
                 Ranking de Débito de Reposições por Docente (Regra dos 30 Dias)
               </h4>
@@ -1068,12 +1113,12 @@ export default function ProfessoresPage() {
                   }).length;
 
                   return (
-                    <div key={prof.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50 flex items-center justify-between">
+                    <div key={prof.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-700 dark:bg-slate-900/60 flex items-center justify-between">
                       <div>
                         <span className="font-bold text-slate-900 dark:text-white text-xs block">
                           {prof.nome_completo}
                         </span>
-                        <span className="text-[10px] text-slate-500">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-300">
                           {prof.disciplinas?.join(', ') || 'Polivalente'}
                         </span>
                       </div>
@@ -1082,7 +1127,7 @@ export default function ProfessoresPage() {
                           {totalAulas} aula(s)
                         </span>
                         {vencidas > 0 && (
-                          <span className="text-[9px] font-bold text-red-600 block">
+                          <span className="text-[9px] font-bold text-red-600 dark:text-red-400 block">
                             {vencidas} vencida(s)!
                           </span>
                         )}
@@ -1094,9 +1139,9 @@ export default function ProfessoresPage() {
             </div>
 
             {/* Tabela de Reposições */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-school-dark-surface">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-3">Docente</th>
                     <th className="px-4 py-3">Data Falta</th>
@@ -1108,10 +1153,10 @@ export default function ProfessoresPage() {
                     <th className="px-4 py-3 text-right">Ação Direção</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80">
                   {reposicoesAulas.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400">
+                      <td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400 dark:text-slate-300">
                         Nenhuma reposição de aula registrada.
                       </td>
                     </tr>
@@ -1137,35 +1182,35 @@ export default function ProfessoresPage() {
                           </td>
                           <td className="px-4 py-3.5">
                             {homologada ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-extrabold text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-extrabold text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-300/80 dark:border-blue-700/60">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Reposta
                               </span>
                             ) : vencida ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300/80 dark:border-rose-700/60">
                                 <AlertTriangle className="h-3 w-3" />
                                 Vencida ({Math.abs(diff)}d em atraso)
                               </span>
                             ) : alerta ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60">
                                 <Clock className="h-3 w-3" />
                                 Vencendo ({diff}d restantes)
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60">
                                 <CheckCircle2 className="h-3 w-3" />
                                 No prazo ({diff}d restantes)
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3.5 font-bold">
+                          <td className="px-4 py-3.5 font-bold text-slate-800 dark:text-white">
                             {rep.qtd_aulas_faltantes || rep.aulas_total || 0} aula(s)
                           </td>
-                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 max-w-xs truncate">
+                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-200 max-w-xs truncate">
                             {rep.conteudo_programatico || 'Reposição curricular'}
                           </td>
                           <td className="px-4 py-3.5">
-                            <span className="uppercase text-[10px] font-black tracking-wider text-slate-600 dark:text-slate-300">
+                            <span className="uppercase text-[10px] font-black tracking-wider text-slate-600 dark:text-slate-200">
                               {rep.status}
                             </span>
                           </td>
@@ -1175,7 +1220,7 @@ export default function ProfessoresPage() {
                                 onClick={() => homologarReposicaoAula(rep.id, !homologada)}
                                 className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors ${
                                   homologada
-                                    ? 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                    ? 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
                                     : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
                                 }`}
                               >
@@ -1217,41 +1262,41 @@ export default function ProfessoresPage() {
           <div className="space-y-6">
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-school-dark-surface">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-300">
                   Total de Atestados
                 </span>
                 <div className="mt-2 text-3xl font-black text-slate-900 dark:text-white">
                   {totalAtestados}
                 </div>
-                <span className="text-[10px] text-slate-400">registrados no Drive</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-300">registrados no Drive</span>
               </div>
 
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-800/60 dark:bg-emerald-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                   Dias Abonados
                 </span>
-                <div className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-300">
+                <div className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-200">
                   {totalDiasAbonados}
                 </div>
                 <span className="text-[10px] text-emerald-600 dark:text-emerald-400">afastamentos justificados</span>
               </div>
 
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-800/60 dark:bg-blue-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
                   Homologados
                 </span>
-                <div className="mt-2 text-3xl font-black text-blue-700 dark:text-blue-300">
+                <div className="mt-2 text-3xl font-black text-blue-700 dark:text-blue-200">
                   {aprovados}
                 </div>
                 <span className="text-[10px] text-blue-600 dark:text-blue-400">validados pela direção</span>
               </div>
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-800/60 dark:bg-amber-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                   Aguardando Validação
                 </span>
-                <div className="mt-2 text-3xl font-black text-amber-700 dark:text-amber-300">
+                <div className="mt-2 text-3xl font-black text-amber-700 dark:text-amber-200">
                   {pendentes}
                 </div>
                 <span className="text-[10px] text-amber-600 dark:text-amber-400">análise pendente</span>
@@ -1259,9 +1304,9 @@ export default function ProfessoresPage() {
             </div>
 
             {/* Tabela de Atestados */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-school-dark-surface">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-3">Docente</th>
                     <th className="px-4 py-3">CID & Motivo</th>
@@ -1273,10 +1318,10 @@ export default function ProfessoresPage() {
                     <th className="px-4 py-3 text-right">Ação Direção</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80">
                   {atestadosProfessor.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400">
+                      <td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400 dark:text-slate-300">
                         Nenhum atestado médico registrado.
                       </td>
                     </tr>
@@ -1290,7 +1335,7 @@ export default function ProfessoresPage() {
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="font-bold text-slate-800 dark:text-slate-200">CID: {atest.cid || 'N/I'}</span>
-                            <span className="text-[11px] text-slate-500 block truncate max-w-xs">{atest.motivo || 'Licença médica'}</span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-300 block truncate max-w-xs">{atest.motivo || 'Licença médica'}</span>
                           </td>
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
                             {new Date(atest.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(atest.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')}
@@ -1319,10 +1364,10 @@ export default function ProfessoresPage() {
                           <td className="px-4 py-3.5">
                             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${
                               atest.status === 'aprovado'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60'
                                 : atest.status === 'rejeitado'
-                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300/80 dark:border-rose-700/60'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
                             }`}>
                               {atest.status}
                             </span>
@@ -1339,7 +1384,7 @@ export default function ProfessoresPage() {
                               ) : (
                                 <button
                                   onClick={() => aprovarAtestadoProfessor(atest.id, false)}
-                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
+                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                 >
                                   Revogar
                                 </button>
@@ -1372,14 +1417,14 @@ export default function ProfessoresPage() {
       {/* MODAL 1: Cadastrar Novo Professor (Em Caixa Alta) */}
       {modalNovoProfAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <GraduationCap className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
                   Cadastrar Novo Docente
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-300">
                   Preenchimento obrigatório em CAIXA ALTA
                 </p>
               </div>
@@ -1393,7 +1438,7 @@ export default function ProfessoresPage() {
 
             <form onSubmit={handleCadastrarProfessor} className="mt-4 space-y-4 text-xs">
               {/* Seção 1: Identificação Civil e Funcional */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                   <UserCheck className="h-4 w-4 text-school-blue-600" />
                   1. Identificação Civil e Funcional
@@ -1456,7 +1501,7 @@ export default function ProfessoresPage() {
               </div>
 
               {/* Seção 2: Formação Acadêmica & Titulação */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                   <Award className="h-4 w-4 text-school-blue-600" />
                   2. Formação Acadêmica & Titulação
@@ -1583,7 +1628,7 @@ export default function ProfessoresPage() {
               </div>
 
               {/* Seção 3: Filiação e Endereço */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                   <MapPin className="h-4 w-4 text-school-blue-600" />
                   3. Filiação & Endereço Completo
@@ -1632,7 +1677,7 @@ export default function ProfessoresPage() {
               </div>
 
               {/* Seção 4: Contatos & Emergência */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                   <Phone className="h-4 w-4 text-school-blue-600" />
                   4. Contatos & Telefones de Emergência
@@ -1704,6 +1749,33 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
+                  {/* Toggle Funcionário Administrativo */}
+                  <div className="flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
+                    <div>
+                      <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
+                        Funcionário Administrativo?
+                      </span>
+                      <span className="text-[10px] text-blue-700 dark:text-blue-400">
+                        {formProf.eh_administrativo ? 'Sim, atua na administração escolar' : 'Não, somente regência docente'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(formProf.eh_administrativo)}
+                      onClick={() => setFormProf((prev) => ({ ...prev, eh_administrativo: !prev.eh_administrativo }))}
+                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        formProf.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          formProf.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
                   {/* Toggle Apoio */}
                   <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30">
                     <span className="font-bold text-purple-900 dark:text-purple-200 text-xs">
@@ -1767,7 +1839,7 @@ export default function ProfessoresPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setModalNovoProfAberto(false)}
@@ -1790,8 +1862,8 @@ export default function ProfessoresPage() {
       {/* MODAL 2: Alterar Dados do Colaborador (Docente ou Funcionário) */}
       {modalEditProfAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Edit2 className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
@@ -1799,7 +1871,7 @@ export default function ProfessoresPage() {
                     ? 'Alterar Ficha do Funcionário'
                     : 'Alterar Dados do Docente'}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-300">
                   Atualização cadastral e funcional em CAIXA ALTA
                 </p>
               </div>
@@ -1813,7 +1885,7 @@ export default function ProfessoresPage() {
 
             <form onSubmit={handleSalvarEdicaoProfessor} className="mt-4 space-y-4 text-xs">
               {/* Seção 1: Identificação Civil e Funcional */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                   <UserCheck className="h-4 w-4 text-school-blue-600" />
                   1. Identificação Civil e Funcional
@@ -1979,7 +2051,7 @@ export default function ProfessoresPage() {
                 </div>
               ) : (
                 /* Formação Acadêmica & Titulação para Docentes */
-                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
                   <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                     <Award className="h-4 w-4 text-school-blue-600" />
                     2. Formação Acadêmica & Titulação
@@ -2109,7 +2181,7 @@ export default function ProfessoresPage() {
               )}
 
               {/* Seção 3: Filiação & Endereço Completo */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                   <MapPin className="h-4 w-4 text-school-blue-600" />
                   3. Filiação & Endereço Completo
@@ -2271,7 +2343,7 @@ export default function ProfessoresPage() {
               </div>
 
               {/* Seção 4: Contatos & Telefones de Emergência */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
                 <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px] flex items-center gap-1.5">
                   <Phone className="h-4 w-4 text-school-blue-600" />
                   4. Contatos & Telefones de Emergência
@@ -2369,6 +2441,35 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
+                  {/* Toggle Funcionário Administrativo (somente para Docentes) */}
+                  {formEditProf.tipo_profissional !== 'funcionario' && (
+                    <div className="flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30 sm:col-span-2">
+                      <div>
+                        <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
+                          O professor é funcionário Administrativo?
+                        </span>
+                        <span className="text-[10px] text-blue-700 dark:text-blue-400">
+                          {formEditProf.eh_administrativo ? 'Sim, atua no setor administrativo escolar' : 'Não, somente regência docente'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(formEditProf.eh_administrativo)}
+                        onClick={() => setFormEditProf((prev) => ({ ...prev, eh_administrativo: !prev.eh_administrativo }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formEditProf.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            formEditProf.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+
                   {/* Toggle Apoio (somente para Docentes) */}
                   {formEditProf.tipo_profissional !== 'funcionario' && (
                     <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30 sm:col-span-2">
@@ -2407,7 +2508,7 @@ export default function ProfessoresPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setModalEditProfAberto(false)}
@@ -2431,8 +2532,8 @@ export default function ProfessoresPage() {
       {/* MODAL 3: Ficha Funcional Completa do Colaborador (Docente ou Funcionário) */}
       {modalFichaProfAberto && professorSelecionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-700">
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-xs font-bold text-school-blue-700 dark:text-school-gold-400 uppercase">
@@ -2441,29 +2542,37 @@ export default function ProfessoresPage() {
 
                   {professorSelecionado.tipo_profissional === 'funcionario' ? (
                     <>
-                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300/80">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60">
                         <span>{getEmojiFuncao(professorSelecionado.funcao_escola)}</span>
                         <span>{professorSelecionado.funcao_escola || 'FUNCIONÁRIO'}</span>
                       </span>
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                         {professorSelecionado.vinculo_empregaticio || 'EFETIVO'}
                       </span>
                     </>
                   ) : (
-                    professorSelecionado.eh_apoio && (
-                      <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60">
-                        Apoio / AEE
-                      </span>
-                    )
+                    <>
+                      {professorSelecionado.eh_administrativo && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/60 dark:border-blue-700/60">
+                          <span>📂</span>
+                          <span>Administrativo</span>
+                        </span>
+                      )}
+                      {professorSelecionado.eh_apoio && (
+                        <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60 dark:border-purple-700/60">
+                          Apoio / AEE
+                        </span>
+                      )}
+                    </>
                   )}
 
                   {professorSelecionado.ativo !== false ? (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-700/60">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       Ativo
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/70">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/70 dark:border-rose-700/60">
                       <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
                       Inativo
                     </span>
@@ -2479,14 +2588,14 @@ export default function ProfessoresPage() {
                     handleAbrirEditar(professorSelecionado);
                     setModalFichaProfAberto(false);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
                   <Edit2 className="h-3.5 w-3.5" />
                   <span>Editar</span>
                 </button>
                 <button
                   onClick={() => setModalFichaProfAberto(false)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -2497,7 +2606,7 @@ export default function ProfessoresPage() {
             {professorSelecionado.tipo_profissional === 'funcionario' ? (
               <div className="mt-5 space-y-4 text-xs uppercase text-slate-700 dark:text-slate-300">
                 {/* 1. Identificação Civil e Funcional */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-2">
                   <h4 className="font-bold text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
                     <UserCheck className="h-4 w-4 text-amber-600" />
                     1. Identificação Civil e Funcional
@@ -2518,7 +2627,7 @@ export default function ProfessoresPage() {
                 </div>
 
                 {/* 2. Função na Escola */}
-                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20 space-y-2">
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800/60 dark:bg-amber-950/40 space-y-2">
                   <h4 className="font-bold text-amber-900 dark:text-amber-200 text-[11px] flex items-center gap-1.5">
                     <Briefcase className="h-4 w-4 text-amber-600" />
                     2. Função na Escola
@@ -2529,7 +2638,7 @@ export default function ProfessoresPage() {
                       <span className="text-sm font-black text-amber-950 dark:text-amber-200 block">
                         {professorSelecionado.funcao_escola || 'NÃO DEFINIDA'}
                       </span>
-                      <span className="text-[10px] text-slate-500 normal-case block">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-300 normal-case block">
                         Profissional do quadro funcional e operacional da unidade escolar
                       </span>
                     </div>
@@ -2537,9 +2646,9 @@ export default function ProfessoresPage() {
                 </div>
 
                 {/* 3. Filiação & Endereço Completo */}
-                <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-2">
                   <h4 className="font-bold text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4 text-school-blue-600" />
+                    <MapPin className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
                     3. Filiação & Endereço Completo
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -2565,9 +2674,9 @@ export default function ProfessoresPage() {
                 </div>
 
                 {/* 4. Contatos & Telefones de Emergência */}
-                <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-2">
                   <h4 className="font-bold text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
-                    <Phone className="h-4 w-4 text-school-blue-600" />
+                    <Phone className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
                     4. Contatos & Telefones de Emergência
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -2590,9 +2699,9 @@ export default function ProfessoresPage() {
 
                 {/* 5. Observações */}
                 {professorSelecionado.observacoes && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-1">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-1">
                     <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Observações / Histórico</h4>
-                    <p className="text-slate-600 dark:text-slate-300 font-normal normal-case">
+                    <p className="text-slate-600 dark:text-slate-200 font-normal normal-case">
                       {professorSelecionado.observacoes}
                     </p>
                   </div>
@@ -2601,7 +2710,7 @@ export default function ProfessoresPage() {
             ) : (
               <div className="mt-5 space-y-4 text-xs uppercase text-slate-700 dark:text-slate-300">
                 {/* Documentação */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-1.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-1.5">
                   <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Documentos Pessoais</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <div><strong>CPF:</strong> {professorSelecionado.cpf || 'NÃO INFORMADO'}</div>
@@ -2616,7 +2725,7 @@ export default function ProfessoresPage() {
                 </div>
 
                 {/* Formação e Titulação */}
-                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/40 dark:bg-blue-950/20 space-y-1.5">
+                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-800/60 dark:bg-blue-950/40 space-y-1.5">
                   <h4 className="font-bold text-school-blue-950 dark:text-blue-200 text-[11px]">Formação & Titulação</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div><strong>Titulação:</strong> <span className="font-bold text-school-blue-700 dark:text-school-gold-400">{professorSelecionado.titulacao || 'GRADUAÇÃO'}</span></div>
@@ -2636,7 +2745,7 @@ export default function ProfessoresPage() {
                 </div>
 
                 {/* Filiação e Residência */}
-                <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-1.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-1.5">
                   <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Filiação & Residência</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div><strong>Mãe:</strong> {professorSelecionado.nome_mae || 'NÃO INFORMADA'}</div>
@@ -2646,7 +2755,7 @@ export default function ProfessoresPage() {
                 </div>
 
                 {/* Telefones e Emergência */}
-                <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800 space-y-1.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-1.5">
                   <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Contatos & Emergência</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div><strong>Telefone:</strong> {professorSelecionado.telefone || 'NÃO INFORMADO'}</div>
@@ -2657,11 +2766,37 @@ export default function ProfessoresPage() {
                   </div>
                 </div>
 
+                {/* Atuação Funcional & Administrativa */}
+                <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-4 dark:border-blue-800/60 dark:bg-blue-950/40 space-y-1.5">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
+                    <Briefcase className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
+                    Atuação Funcional & Administrativa
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <strong>Funcionário Administrativo:</strong>{' '}
+                      {professorSelecionado.eh_administrativo ? (
+                        <span className="font-bold text-blue-700 dark:text-blue-400">SIM (ATUA NA ADMINISTRAÇÃO)</span>
+                      ) : (
+                        <span className="font-medium text-slate-500 dark:text-slate-300">NÃO (EXCLUSIVO DOCÊNCIA)</span>
+                      )}
+                    </div>
+                    <div>
+                      <strong>Apoio Escolar / AEE:</strong>{' '}
+                      {professorSelecionado.eh_apoio ? (
+                        <span className="font-bold text-purple-700 dark:text-purple-400">SIM (PROFISSIONAL DE APOIO)</span>
+                      ) : (
+                        <span className="font-medium text-slate-500 dark:text-slate-300">NÃO</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Observações */}
                 {professorSelecionado.observacoes && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-1">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-1">
                     <h4 className="font-bold text-slate-900 dark:text-white text-[11px]">Observações</h4>
-                    <p className="text-slate-600 dark:text-slate-300 font-normal">
+                    <p className="text-slate-600 dark:text-slate-200 font-normal">
                       {professorSelecionado.observacoes}
                     </p>
                   </div>
@@ -2675,15 +2810,15 @@ export default function ProfessoresPage() {
       {/* MODAL 4: Registrar Falta / Atestado */}
       {modalNovaFaltaAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
                 Registrar Ausência / Falta Docente
               </h3>
               <button
                 onClick={() => setModalNovaFaltaAberto(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2747,7 +2882,7 @@ export default function ProfessoresPage() {
                   value={formFalta.justificativa}
                   onChange={(e) => setFormFalta({ ...formFalta, justificativa: e.target.value.toUpperCase() })}
                   placeholder="EX: CONSULTA MÉDICA COMPROVADA COM DECLARAÇÃO..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs uppercase text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"
                 />
               </div>
 
@@ -2760,15 +2895,15 @@ export default function ProfessoresPage() {
                   value={formFalta.atestado_drive_link}
                   onChange={(e) => setFormFalta({ ...formFalta, atestado_drive_link: e.target.value })}
                   placeholder="https://drive.google.com/file/d/.../view"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setModalNovaFaltaAberto(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
                   Cancelar
                 </button>

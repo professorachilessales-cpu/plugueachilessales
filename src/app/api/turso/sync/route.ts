@@ -274,14 +274,14 @@ export async function POST(req: NextRequest) {
         await executeTursoQuery(
           `INSERT INTO professores (
             id, profile_id, nome_completo, matricula, tipo_profissional, funcao_escola,
-            formacao, disciplinas, telefone, email, eh_apoio, ativo, turmas_atribuidas_ids,
+            formacao, disciplinas, telefone, email, eh_apoio, eh_administrativo, ativo, turmas_atribuidas_ids,
             cpf, rg, rg_data_expedicao, data_nascimento, genero, vinculo_empregaticio,
             graduacao_instituicao, titulacao, pos_graduacao_instituicao, graduacao_inicio,
             graduacao_fim, pos_graduacao_inicio, pos_graduacao_fim, filiacao_1, filiacao_2,
             nome_mae, nome_pai, cep, logradouro, numero, complemento, bairro, cidade, uf,
             endereco_completo, celular_whatsapp, telefone_emergencia, telefone_emergencia2,
             contato_emergencia_nome, contato_emergencia_parentesco, observacoes, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             profile_id = excluded.profile_id,
             nome_completo = excluded.nome_completo,
@@ -293,6 +293,7 @@ export async function POST(req: NextRequest) {
             telefone = excluded.telefone,
             email = excluded.email,
             eh_apoio = excluded.eh_apoio,
+            eh_administrativo = excluded.eh_administrativo,
             ativo = excluded.ativo,
             turmas_atribuidas_ids = excluded.turmas_atribuidas_ids,
             cpf = excluded.cpf,
@@ -338,6 +339,7 @@ export async function POST(req: NextRequest) {
             p.telefone || '',
             p.email || '',
             p.eh_apoio ? 1 : 0,
+            p.eh_administrativo ? 1 : 0,
             p.ativo !== false ? 1 : 0,
             JSON.stringify(p.turmas_atribuidas_ids || []),
             p.cpf || null,

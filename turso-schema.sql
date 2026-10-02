@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS professores (
     telefone TEXT,
     email TEXT NOT NULL,
     eh_apoio INTEGER DEFAULT 0, -- 0 = falso, 1 = verdadeiro
+    eh_administrativo INTEGER DEFAULT 0, -- 0 = falso, 1 = verdadeiro (professor com atribuição administrativa)
     ativo INTEGER DEFAULT 1,
     turmas_atribuidas_ids TEXT DEFAULT '[]', -- JSON Array string
     cpf TEXT,

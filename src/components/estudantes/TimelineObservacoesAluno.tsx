@@ -1044,7 +1044,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
   return (
     <div className="space-y-6">
       {/* Topo: Título, Ações e Filtro de Tags */}
-      <div className="space-y-3 border-b border-slate-200 pb-3.5 dark:border-slate-800">
+      <div className="space-y-3 border-b border-slate-200 pb-3.5 dark:border-slate-700">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
@@ -1130,7 +1130,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
       )}
 
       {/* Formulário de Registro Rápido */}
-      <form onSubmit={handleAdicionarObservacao} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40 space-y-3">
+      <form onSubmit={handleAdicionarObservacao} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -1190,10 +1190,10 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
       <div 
         ref={historicoSectionRef}
         id="historico-registros" 
-        className="relative rounded-2xl border border-slate-200 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/30 shadow-xs overflow-hidden"
+        className="relative rounded-2xl border border-slate-200 bg-slate-50/40 dark:border-slate-700 dark:bg-slate-900/60 shadow-xs overflow-hidden"
       >
         {/* Sticky Header com Título, Contador e Controles de Busca e Ordenação */}
-        <div className="sticky top-0 z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/90 bg-white/95 px-4 py-3.5 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="sticky top-0 z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/90 bg-white/95 px-4 py-3.5 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95">
           <div className="flex items-center gap-2.5">
             <div className="rounded-xl bg-school-blue-50 p-2 text-school-blue-700 dark:bg-school-blue-950/60 dark:text-school-blue-300">
               <MessageSquare className="h-4 w-4" />
@@ -1273,13 +1273,13 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
           className="relative max-h-[500px] lg:max-h-[60vh] overflow-y-auto scrollbar-thin scroll-smooth p-4 pr-3.5 space-y-4"
         >
           {observacoes.length === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center text-xs text-slate-400 dark:border-slate-800 bg-white/50 dark:bg-slate-900/30">
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center text-xs text-slate-400 dark:border-slate-700 bg-white/50 dark:bg-slate-900/30">
               {buscaHistorico.trim()
                 ? 'Nenhuma observação encontrada para o termo pesquisado.'
                 : 'Nenhuma observação registrada nesta categoria.'}
             </div>
           ) : (
-            <div className="relative pl-6 space-y-4 before:absolute before:bottom-2 before:top-2 before:left-2.5 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+            <div className="relative pl-6 space-y-4 before:absolute before:bottom-2 before:top-2 before:left-2.5 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-700">
               {observacoes.map((obs) => {
                 const catKey = (obs.categoria || obs.tipo || 'geral') as TipoObservacaoAluno;
                 const conf = CATEGORIAS_CONFIG[catKey] || CATEGORIAS_CONFIG.geral;
@@ -1304,7 +1304,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
                     {/* Card da Observação com clique para leitura completa */}
                     <div 
                       onClick={() => setObservacaoLeitura(obs)}
-                      className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-xs transition-all hover:shadow-md hover:border-school-blue-300 dark:border-slate-800 dark:bg-school-dark-surface dark:hover:border-school-blue-700 space-y-2"
+                      className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-xs transition-all hover:shadow-md hover:border-school-blue-300 dark:border-slate-700 dark:bg-school-dark-surface dark:hover:border-school-blue-700 space-y-2"
                     >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
@@ -1315,7 +1315,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
                           <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
                             {obs.autor_nome || 'Usuário'}
                           </span>
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-500 dark:bg-slate-800">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                             {obs.autor_cargo || 'Autor'}
                           </span>
                         </div>
@@ -1368,7 +1368,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line line-clamp-3">
+                      <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line line-clamp-3">
                         {obs.texto_completo || obs.texto}
                       </p>
                     </div>
@@ -1398,8 +1398,8 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
       {/* Modal 1: Leitura Integral da Observação */}
       {observacaoLeitura && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="relative w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="relative w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-700">
               <div className="flex items-center gap-2">
                 {(() => {
                   const catKey = (observacaoLeitura.categoria || observacaoLeitura.tipo || 'geral') as TipoObservacaoAluno;
@@ -1418,13 +1418,13 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               </div>
               <button
                 onClick={() => setObservacaoLeitura(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
+            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200/40 dark:border-slate-700/50">
               <User className="h-4 w-4 text-slate-400 shrink-0" />
               <div>
                 Registrado por <strong>{observacaoLeitura.autor_nome || 'Usuário'}</strong> ({observacaoLeitura.autor_cargo || 'Autor'})
@@ -1437,13 +1437,13 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               </div>
             </div>
 
-            <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-950/40">
               <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap font-normal">
                 {observacaoLeitura.texto_completo || observacaoLeitura.texto}
               </p>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700">
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
@@ -1470,7 +1470,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               <button
                 type="button"
                 onClick={() => setObservacaoLeitura(null)}
-                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 cursor-pointer"
+                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-750 cursor-pointer"
               >
                 Fechar
               </button>
@@ -1482,8 +1482,8 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
       {/* Modal 2: Edição da Observação (Apenas o autor) */}
       {observacaoEditando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="relative w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="relative w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-700">
               <div className="flex items-center gap-2">
                 <Edit3 className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
                 <h3 className="text-sm font-black text-slate-900 dark:text-white">
@@ -1492,7 +1492,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               </div>
               <button
                 onClick={() => setObservacaoEditando(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1515,11 +1515,11 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
                 required
               />
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setObservacaoEditando(null)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
                   Cancelar
                 </button>
@@ -1539,9 +1539,9 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
       {/* Modal 3: Trilha de Auditoria & Histórico de Alterações do Estudante */}
       {modalAuditoriaAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
             {/* Header do Modal */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-700">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-school-blue-50 text-school-blue-700 dark:bg-school-blue-950/60 dark:text-school-blue-300">
                   <ShieldCheck className="h-5 w-5" />
@@ -1557,14 +1557,14 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               </div>
               <button
                 onClick={() => setModalAuditoriaAberto(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Filtros rápidos do modal */}
-            <div className="flex items-center justify-between gap-2 py-3 border-b border-slate-100 dark:border-slate-800 flex-wrap">
+            <div className="flex items-center justify-between gap-2 py-3 border-b border-slate-100 dark:border-slate-700 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -1609,7 +1609,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
             {/* Lista dos registros de auditoria */}
             <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1 text-xs">
               {auditoriasFiltradas.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 dark:border-slate-800">
+                <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400 dark:border-slate-700">
                   <ShieldCheck className="h-8 w-8 mx-auto mb-2 opacity-30 text-slate-400" />
                   <p className="font-bold">Nenhum evento registrado nesta categoria de auditoria.</p>
                   <p className="text-[11px] mt-0.5">As exclusões e modificações são registradas de forma atômica no banco de dados.</p>

@@ -65,6 +65,7 @@ export async function GET() {
         funcao_escola: row.funcao_escola || null,
         ativo: toBoolean(row.ativo, true),
         eh_apoio: toBoolean(row.eh_apoio),
+        eh_administrativo: toBoolean(row.eh_administrativo),
         disciplinas: row.disciplinas ? (typeof row.disciplinas === 'string' ? JSON.parse(row.disciplinas) : row.disciplinas) : [],
         turmas_atribuidas_ids: row.turmas_atribuidas_ids ? (typeof row.turmas_atribuidas_ids === 'string' ? JSON.parse(row.turmas_atribuidas_ids) : row.turmas_atribuidas_ids) : [],
       }));

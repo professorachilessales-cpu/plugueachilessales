@@ -30,7 +30,7 @@ import {
   Printer,
   Copy
 } from 'lucide-react';
-import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
+import { determinarGeneroEstudante, obterProfessoresDocentesDaTurma } from '@/lib/pareceres-ia';
 import { calcularIdadeEmAnos } from '@/lib/faixa-etaria';
 
 export function formatarDataSolicitacao(dataStr?: string | null, incluirHora: boolean = false): string {
@@ -84,6 +84,7 @@ interface PainelRelatoriosEstudanteProps {
 export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatoriosEstudanteProps) {
   const { 
     currentUser, 
+    users,
     escolaConfig, 
     professores, 
     turmas, 
@@ -176,18 +177,28 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
 
   // Criar nova solicitação de relatório para a turma do estudante
   const handleCriarSolicitacao = async () => {
-    const turmaAluno = turmas.find(t => t.id === estudante.turma_id);
-    let idsProfessores: string[] = [];
-    if (turmaAluno) {
-      if (turmaAluno.professores_ids && turmaAluno.professores_ids.length > 0) {
-        idsProfessores = [...turmaAluno.professores_ids];
-      }
-      if (turmaAluno.professor_regente_id && !idsProfessores.includes(turmaAluno.professor_regente_id)) {
-        idsProfessores.push(turmaAluno.professor_regente_id);
-      }
+    // Localiza a turma do estudante por ID ou correspondência de nome
+    const turmaAluno = turmas.find(t => 
+      (estudante.turma_id && t.id === estudante.turma_id) || 
+      (t.nome && estudante.turma_nome && t.nome.trim().toLowerCase() === estudante.turma_nome.trim().toLowerCase())
+    );
+
+    if (!turmaAluno) {
+      alert(
+        `O estudante "${estudante.nome_completo}" não possui uma turma válida vinculada.\n\nPor favor, vincule o estudante a uma turma antes de abrir a solicitação de relatório.`
+      );
+      return;
     }
+
+    // Filtra exclusivamente os professores associados à turma do estudante que NÃO sejam Administrativos
+    const professoresValidos = obterProfessoresDocentesDaTurma(turmaAluno, professores, users);
+    const idsProfessores = professoresValidos.map(p => p.id);
+
     if (idsProfessores.length === 0) {
-      idsProfessores = professores.slice(0, 3).map(p => p.id);
+      alert(
+        `Nenhum professor docente ativo (não administrativo) está associado à turma "${turmaAluno.nome}".\n\nApenas os professores associados à turma do estudante que não sejam administrativos podem receber a notificação e emitir relatórios.\n\nPor favor, associe os professores docentes a esta turma na gestão de Turmas antes de solicitar relatórios.`
+      );
+      return;
     }
 
     const novaSolicitacaoId = await addSolicitacaoRelatorio(
@@ -198,7 +209,9 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     );
 
     setSolicitacaoAtivaId(novaSolicitacaoId);
-    setAlertaSucesso('Nova solicitação de relatório aberta com sucesso para o corpo docente!');
+    setAlertaSucesso(
+      `Nova solicitação de relatório aberta com sucesso para ${idsProfessores.length} professor(es) da turma!`
+    );
     setTimeout(() => setAlertaSucesso(null), 4000);
   };
 
@@ -507,7 +520,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
       ) : (
         <>
           {/* Abas das Solicitações por Data */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-100 dark:border-slate-700">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 shrink-0 mr-1">
               Ciclos:
             </span>
@@ -636,9 +649,9 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                   </h5>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-600 dark:bg-slate-800/90 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
                       <tr>
                         <th className="px-4 py-3">Professor(a)</th>
                         <th className="px-4 py-3">Disciplinas</th>
@@ -647,7 +660,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                         <th className="px-4 py-3 text-right">Ações da Secretaria</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-school-dark-surface">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 bg-white dark:bg-school-dark-surface">
                       {pareceresAtivos.map((parecer) => {
                         const prof = professores.find(p => p.id === parecer.professor_id);
                         const enviado = parecer.status === 'enviado';
@@ -799,8 +812,8 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
       {/* MODAL 1: Visualizar & Ajustar Parecer do Professor */}
       {parecerEmVisualizacao && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-700">
               <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <FileText className="h-5 w-5 text-indigo-600" />
                 <span>Parecer do Professor</span>
@@ -812,7 +825,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
               </h4>
               <button
                 onClick={() => setParecerEmVisualizacao(null)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -820,8 +833,8 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
 
             {/* Rascunho Original vs Texto Polido por IA */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                <span className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block mb-1">
                   1. Rascunho Bruto do Docente:
                 </span>
                 <p className="text-slate-700 dark:text-slate-300 italic whitespace-pre-line">
@@ -852,11 +865,11 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => setParecerEmVisualizacao(null)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 Cancelar
               </button>
@@ -877,8 +890,8 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
       {/* MODAL 2: Consolidação com IA e Revisão Interativa */}
       {modalConsolidacaoAberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface border border-slate-200 dark:border-slate-800 space-y-4 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="relative w-full max-w-3xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface border border-slate-200 dark:border-slate-700 space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-700">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600 text-white">
                   <Sparkles className="h-5 w-5" />
@@ -887,14 +900,14 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                   <h4 className="text-base font-black text-slate-900 dark:text-white">
                     Consolidação de Pareceres com Inteligência Artificial
                   </h4>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Sintetizando contribuições de todos os professores em um parecer oficial unificado
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setModalConsolidacaoAberto(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -906,7 +919,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                 <h5 className="text-sm font-bold text-purple-950 dark:text-purple-200">
                   Sintetizando pareceres docentes com IA...
                 </h5>
-                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                   Processando pareceres descritivos docentes com rigor formal, concordância de gênero estrita e ausência de metatexto.
                 </p>
                 <div className="w-full max-w-xs mx-auto bg-purple-200/60 dark:bg-purple-900/40 h-1.5 rounded-full overflow-hidden mt-3">
@@ -925,7 +938,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                     <label className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px]">
                       Parecer Consolidado (Editável antes de homologar):
                     </label>
-                    <span className="text-[10px] text-purple-600 font-bold">
+                    <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">
                       Formatado para Documento Word DOCX Oficial
                     </span>
                   </div>
@@ -937,15 +950,15 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                   />
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-700">
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleBaixarDocx(textoConsolidadoEditavel)}
                       disabled={gerandoDocx}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
                     >
-                      <Download className="h-4 w-4 text-school-blue-600" />
+                      <Download className="h-4 w-4 text-school-blue-600 dark:text-school-blue-400" />
                       <span>{gerandoDocx ? 'Exportando...' : 'Exportar DOCX (Word)'}</span>
                     </button>
                     <button
@@ -964,7 +977,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                     <button
                       type="button"
                       onClick={() => setModalConsolidacaoAberto(false)}
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
+                      className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
                     >
                       Voltar
                     </button>

@@ -238,6 +238,7 @@ export interface Professor {
   email: string;
   ativo: boolean;
   eh_apoio?: boolean; // Opção de Profissional de Apoio Escolar / AEE (estilo toggle)
+  eh_administrativo?: boolean; // Opção se o professor é funcionário Administrativo (estilo toggle)
   turmas_atribuidas_ids?: string[];
 
   // Identificação Civil e Funcional

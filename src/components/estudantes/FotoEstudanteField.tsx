@@ -593,8 +593,8 @@ export function FotoEstudanteField({
       {/* ======================================================== */}
       {modalDesktopAberto && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-xl bg-school-blue-100 text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300">
                   <Laptop className="h-5 w-5" />
@@ -603,13 +603,13 @@ export function FotoEstudanteField({
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white">
                     Escolher Foto do Estudante
                   </h4>
-                  <p className="text-[11px] text-slate-500">Selecione a origem da fotografia</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Selecione a origem da fotografia</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setModalDesktopAberto(false)}
-                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -630,7 +630,7 @@ export function FotoEstudanteField({
               <button
                 type="button"
                 onClick={handleAbrirGoogleDrive}
-                className="w-full flex items-center gap-3.5 p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 hover:bg-school-blue-50/50 hover:border-school-blue-300 text-left transition-all dark:border-slate-800 dark:bg-slate-850 dark:hover:border-school-blue-600"
+                className="w-full flex items-center gap-3.5 p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 hover:bg-school-blue-50/50 hover:border-school-blue-300 text-left transition-all dark:border-slate-700 dark:bg-slate-800 dark:hover:border-school-blue-500"
               >
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 shrink-0">
                   <Cloud className="h-6 w-6" />
@@ -649,7 +649,7 @@ export function FotoEstudanteField({
               <button
                 type="button"
                 onClick={handleEnviarComputador}
-                className="w-full flex items-center gap-3.5 p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 hover:bg-school-blue-50/50 hover:border-school-blue-300 text-left transition-all dark:border-slate-800 dark:bg-slate-850 dark:hover:border-school-blue-600"
+                className="w-full flex items-center gap-3.5 p-4 rounded-2xl border-2 border-slate-100 bg-slate-50 hover:bg-school-blue-50/50 hover:border-school-blue-300 text-left transition-all dark:border-slate-700 dark:bg-slate-800 dark:hover:border-school-blue-500"
               >
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-school-blue-100 text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300 shrink-0">
                   <Upload className="h-6 w-6" />
@@ -673,7 +673,7 @@ export function FotoEstudanteField({
       {/* ======================================================== */}
       {actionSheetMobileAberto && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/70 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 animate-in slide-in-from-bottom duration-200">
+          <div className="w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 animate-in slide-in-from-bottom duration-200">
             {/* Barra de arraste visual */}
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-300 dark:bg-slate-700" />
 
@@ -752,7 +752,7 @@ export function FotoEstudanteField({
               <button
                 type="button"
                 onClick={() => setActionSheetMobileAberto(false)}
-                className="w-full mt-2 py-3 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="w-full mt-2 py-3 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 Cancelar
               </button>
@@ -766,8 +766,8 @@ export function FotoEstudanteField({
       {/* ======================================================== */}
       {modalDrivePickerAberto && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                   <Cloud className="h-5 w-5" />
@@ -776,13 +776,13 @@ export function FotoEstudanteField({
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white">
                     Google Drive &bull; Foto do Estudante
                   </h4>
-                  <p className="text-[11px] text-slate-500">Selecione ou insira o link do arquivo</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Selecione ou insira o link do arquivo</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setModalDrivePickerAberto(false)}
-                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -801,7 +801,7 @@ export function FotoEstudanteField({
 
               {/* Pasta do Estudante no Drive */}
               <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 border border-slate-200 dark:border-slate-700 space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                   Pasta Oficial do Estudante:
                 </span>
                 <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-amber-700 dark:text-amber-400">
@@ -812,7 +812,7 @@ export function FotoEstudanteField({
 
               {/* Arquivos encontrados na pasta do estudante */}
               {carregandoPasta ? (
-                <div className="flex items-center justify-center p-6 text-xs text-slate-500 gap-2">
+                <div className="flex items-center justify-center p-6 text-xs text-slate-500 dark:text-slate-400 gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-school-blue-600" />
                   <span>Consultando arquivos da pasta do estudante no Drive...</span>
                 </div>
@@ -855,16 +855,16 @@ export function FotoEstudanteField({
                   placeholder="https://drive.google.com/file/d/1A2B3C.../view"
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
-                <p className="mt-1 text-[11px] text-slate-500">
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                   Cole o link de compartilhamento ou ID do arquivo de imagem do Google Drive.
                 </p>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setModalDrivePickerAberto(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
                   Cancelar
                 </button>

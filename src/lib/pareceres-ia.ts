@@ -79,9 +79,7 @@ export function montarPromptConsolidacaoPedagogica(params: {
   listaPareceresProfessores: string;
 }): string {
   const isFeminino = params.generoGramatical === 'feminino';
-  const generoRotulo = isFeminino
-    ? 'FEMININO (MASCULINO: o estudante, o educando, o aluno, engajado, participativo / FEMININO: a estudante, a educanda, a aluna, engajada, participativa)'
-    : 'MASCULINO (MASCULINO: o estudante, o educando, o aluno, engajado, participativo / FEMININO: a estudante, a educanda, a aluna, engajada, participativa)';
+  const estudanteGenero = isFeminino ? 'FEMININO' : 'MASCULINO';
 
   return `Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar, operando via Gemini.
 Sua missão é ler todos os relatórios e apontamentos individuais enviados pelos diferentes professores de um estudante e consolidá-los em um parecer único, abrangente, rico e pedagogicamente sofisticado.
@@ -90,7 +88,7 @@ Sua missão é ler todos os relatórios e apontamentos individuais enviados pelo
 DADOS DO ESTUDANTE:
 - Nome Completo: ${params.estudanteNome}
 - Turma e Turno: ${params.turmaNome} - ${params.turmaTurno}
-- Gênero Gramatical: ${generoRotulo}
+- Gênero Gramatical: ${estudanteGenero} (MASCULINO: o estudante, o educando, o aluno, engajado, participativo / FEMININO: a estudante, a educanda, a aluna, engajada, participativa)
 
 ---
 RELATÓRIOS INDIVIDUAIS DOS PROFESSORES ENVIADOS:

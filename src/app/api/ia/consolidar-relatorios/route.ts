@@ -124,27 +124,35 @@ export async function POST(req: NextRequest) {
       listaPareceresProfessores: listaPareceresFormatada,
     });
 
-    // 1. Provedor Primário: Google Gemini API (modelos da família Gemini com fallback em cascata)
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    // 1. Provedor Primário: Google Gemini API Oficial (modelos da família Gemini com fallback em cascata)
+    const geminiApiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
 
-    if (geminiApiKey && geminiApiKey.trim() !== '' && !geminiApiKey.includes('your-key')) {
+    if (geminiApiKey && !geminiApiKey.includes('your-key')) {
       const modelosGemini = [
         process.env.GEMINI_MODEL,
-        'gemini-3-flash',
-        'gemini-3-pro',
         'gemini-2.5-flash',
+        'gemini-1.5-flash',
+        'gemini-2.0-flash',
         'gemini-2.5-pro',
-        'gemini-1.5-flash'
+        'gemini-3.8-flash',
+        'gemini-flash-latest'
       ].filter(Boolean) as string[];
 
       for (const modelo of modelosGemini) {
         try {
           const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey.trim()}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                systemInstruction: {
+                  parts: [
+                    {
+                      text: 'Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar, operando via Gemini. Sua missão é ler todos os relatórios e apontamentos individuais enviados pelos diferentes professores de um estudante e consolidá-los em um parecer único, abrangente, rico e pedagogicamente sofisticado. Siga rigorosamente as diretrizes e retorne EXCLUSIVAMENTE o texto pedagógico consolidado e contínuo, pronto para o documento oficial, sem qualquer saudação, preâmbulo, nota ou tópico final de encaminhamentos.'
+                    }
+                  ]
+                },
                 contents: [
                   {
                     role: 'user',
@@ -152,10 +160,10 @@ export async function POST(req: NextRequest) {
                   },
                 ],
                 generationConfig: {
-                  temperature: 0.7,
+                  temperature: 0.5,
                   topP: 0.95,
                   topK: 40,
-                  maxOutputTokens: 2500,
+                  maxOutputTokens: 3500,
                 },
               }),
             }
@@ -170,12 +178,15 @@ export async function POST(req: NextRequest) {
                 success: true,
                 conteudo_consolidado: textoFinalLimpo,
                 textoConsolidado: textoFinalLimpo,
-                provider: modelo,
+                provider: `google-gemini-${modelo}`,
               });
             }
+          } else {
+            const errorBody = await response.text();
+            console.warn(`[Google Gemini API] Falha no modelo ${modelo} (HTTP ${response.status}):`, errorBody);
           }
         } catch (geminiError) {
-          console.warn(`Tentativa com ${modelo} falhou:`, geminiError);
+          console.warn(`[Google Gemini API] Tentativa com ${modelo} falhou:`, geminiError);
         }
       }
     }

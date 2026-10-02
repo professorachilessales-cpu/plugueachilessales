@@ -187,52 +187,60 @@ export function gerarConsolidadoHeuristico(params: {
 }
 
 /**
- * Constrói o Prompt Oficial com Pipeline de Transformação Estrita em 3 Etapas
- * (Saneamento Gramatical Completo + Interpretação/Reestruturação Pedagógica + Redação Final Polida)
+ * Constrói o Prompt Oficial com Técnica Few-Shot e Padrão Institucional
  */
 export function montarPromptPipelinePolimentoRelato(params: {
   estudanteNome: string;
   generoGramatical: 'masculino' | 'feminino';
   textoRelatoLivre: string;
 }): string {
-  const generoFormatado = params.generoGramatical === 'feminino'
-    ? 'FEMININO: ela, a aluna, a estudante, dedicada, participativa'
-    : 'MASCULINO: ele, o aluno, o estudante, dedicado, participativo';
+  const isFeminino = params.generoGramatical === 'feminino';
+  const generoFormatado = isFeminino
+    ? 'FEMININO (ela, a estudante, a aluna, participativa)'
+    : 'MASCULINO (ele, o estudante, o aluno, participativo)';
 
-  return `Você é um linguista revisor e coordenador pedagógico sênior.
-Sua função é reescrever o texto do professor, eliminando 100% dos erros gramaticais e elevando o relato a um padrão pedagógico formal, rico e contextualizado.
+  const artigoEstudante = isFeminino ? 'a estudante' : 'o estudante';
+  const artigoAluno = isFeminino ? 'a aluna' : 'o aluno';
+  const estimulado = isFeminino ? 'estimulada' : 'estimulado';
+
+  const saidaRefinadaExemplo = `No decorrer das atividades e rotinas pedagógicas observadas, constatou-se que ${artigoEstudante} ${params.estudanteNome} relata situações que sugerem possíveis sintomas de maus-tratos, além de apresentar episódios de uso frequente de linguagem inadequada (palavrões) e falas desconexas. No âmbito atitudinal e socioemocional, ${artigoAluno} responde de forma satisfatória às intervenções docentes quando ${estimulado} de maneira estruturada, demonstrando postura participativa e colaborativa nas dinâmicas escolares.`;
+
+  return `Você é um redator pedagógico institucional e revisor linguístico escolar sênior.
+Sua função é ler o relato livre e as anotações pontuais do professor, corrigir 100% dos erros gramaticais e de concordância, e reescrever o texto em formato técnico, culto e institucional.
 
 ---
-DADOS DE ENTRADA:
-- Nome do Estudante: ${params.estudanteNome}
+METADADOS DO ESTUDANTE:
+- Nome Completo: ${params.estudanteNome}
 - Gênero Gramatical: ${generoFormatado}
-- Texto Bruto do Relato Livre:
+
+---
+EXEMPLO OBRIGATÓRIO DO PADRÃO INSTITUCIONAL ESPERADO:
+
+[ENTRADA BRUTA]:
+"Estudante alegra com sintomas de maus tratos
+Fala mutos palavroes e farses desconecao"
+
+[SAÍDA REFINADA ESPERADA]:
+"${saidaRefinadaExemplo}"
+
+---
+PROCESSO DE EXECUÇÃO:
+1. Correção Gramatical: Elimine todos os desvios de ortografia, digitação, acentuação e pontuação.
+2. Concordância: Ajuste rigorosamente o gênero gramatical informado em todos os artigos, pronomes, substantivos e adjetivos referentes ao estudante.
+3. Transposição para o Estilo Institucional:
+   - Inicie o relato situando a observação no contexto escolar (ex: "No decorrer das atividades e rotinas pedagógicas observadas, constatou-se que...").
+   - Traduza termos leigos em vocabulário técnico-pedagógico adequado.
+   - Integre dimensões de desenvolvimento atitudinal, socioemocional e cognitivo pertinentes ao relato.
+4. Restrição de Saída:
+   - Proibido incluir saudações, introduções ou notas (ex: "Segue o texto:", "Versão corrigida:").
+   - Proibido adicionar recomendações à família ou tarefas no final.
+   - Retorne APENAS o texto refinado pronto para ser gravado.
+
+---
+TEXTO DO RELATO LIVRE A PROCESSAR:
 """
 ${params.textoRelatoLivre.trim()}
-"""
----
-
-PROCESSO OBRIGATÓRIO DE TRANSFORMAÇÃO (PASSO A PASSO):
-
-Etapa 1: Saneamento Gramatical Completo (Tolerância Zero a Erros)
-- Corrija absolutamente todos os erros de ortografia, acentuação gráfica, pontuação, uso de crase e digitação.
-- Ajuste toda a concordância nominal (gênero e número) de acordo com o gênero do estudante informado acima.
-- Ajuste toda a concordância verbal e a uniformidade de tempos verbais (evite misturar presente e pretérito sem sentido cronológico).
-- Remova coloquialismos, abreviações informais (ex: "vc", "pq", "tbm") e vícios de oralidade (ex: "aí", "daí", "então", "né").
-
-Etapa 2: Interpretação do Contexto e Reestruturação Pedagógica
-- Compreenda o real significado e a intenção por trás do relato livre do professor.
-- Traduza observações leigas ou informais em linguagem pedagógica e descritiva institucional (exemplo: transformar "aluno briga muito e não quer fazer nada" em "apresenta desafios no relacionamento interpessoal com os pares e oscilações no engajamento durante as atividades propostas").
-- Amplie a redação, conectando os pontos levantados com aspectos do desenvolvimento cognitivo, motor, atitudinal ou socioemocional pertinentes ao contexto escolar.
-
-Etapa 3: Redação Final Polida
-- O texto final deve ser coeso, fluido, formal e estruturado em parágrafos pedagógicos bem encadeados.
-- Preserve a verdade dos fatos descritos pelo professor; não invente dados clínicos ou ocorrências que não existam no relato.
-
-REGRAS RÍGIDAS DE SAÍDA:
-- NÃO escreva preâmbulos, saudações ou explicações (proibido usar: "Aqui está o texto revisado:", "Versão corrigida:", "Espero ter ajudado").
-- NÃO adicione conclusões, encaminhamentos ou conselhos no final.
-- Retorne EXCLUSIVAMENTE o texto final corrigido e ampliado, pronto para ser inserido no campo do formulário.`;
+"""`;
 }
 
 /**
@@ -263,8 +271,7 @@ export function limparMetatextoEEncerramentosRelato(texto: string): string {
 }
 
 /**
- * Heurística pedagógica resiliente que executa o pipeline em etapas:
- * Saneamento gramatical estrito + Interpretação contextual + Reestruturação pedagógica ampla
+ * Heurística pedagógica resiliente alinhada ao padrão institucional oficial
  */
 export function simularPolimentoPedagogicoRelato(
   textoOriginal: string, 
@@ -272,13 +279,14 @@ export function simularPolimentoPedagogicoRelato(
   generoGramatical: 'masculino' | 'feminino' = 'masculino'
 ): string {
   const isFeminino = generoGramatical === 'feminino';
-  const artigo = isFeminino ? 'a' : 'o';
-  const pronome = isFeminino ? 'ela' : 'ele';
+  const artigoEstudante = isFeminino ? 'a estudante' : 'o estudante';
+  const artigoAluno = isFeminino ? 'a aluna' : 'o aluno';
+  const estimulado = isFeminino ? 'estimulada' : 'estimulado';
   const nome = alunoNome || (isFeminino ? 'a aluna' : 'o aluno');
   
   let texto = textoOriginal.trim();
 
-  // Etapa 1: Saneamento Gramatical (abreviações e oralidades)
+  // 1. Saneamento de abreviações e erros ortográficos frequentes
   texto = texto
     .replace(/\bvc\b/gi, 'você')
     .replace(/\bpq\b/gi, 'porque')
@@ -294,8 +302,14 @@ export function simularPolimentoPedagogicoRelato(
 
   if (!texto.endsWith('.')) texto += '.';
 
-  // Etapa 2: Dicionário de reestruturação pedagógica institucional
+  // 2. Transposição para o padrão técnico-pedagógico institucional
   const conversoes: [RegExp, string][] = [
+    [/\b(?:estudante\s+)?alegr?a\s+(?:de\s+)?(?:com\s+)?sintomas\s+de\s+maus[\s-]tratos\b/gi, 'relata situações que sugerem possíveis sintomas de maus-tratos'],
+    [/\bsintomas\s+de\s+maus[\s-]tratos\b/gi, 'situações que sugerem possíveis sintomas de maus-tratos'],
+    [/\b(?:fala|usa|falam)\s+mut?os\s+palavr[oõ]es\b/gi, 'apresentar episódios de uso frequente de linguagem inadequada (palavrões)'],
+    [/\bpalavr[oõ]es\b/gi, 'linguagem inadequada (palavrões)'],
+    [/\bfars?es?\s+desconec[aã]o\b/gi, 'falas desconexas'],
+    [/\bfrases?\s+desconexas?\b/gi, 'falas desconexas'],
     [/\b(?:alun[oa]\s+)?briga\s+muito\s+e\s+n[aã]o\s+quer\s+fazer\s+nada\b/gi, 'apresenta desafios no relacionamento interpessoal com os pares e oscilações no engajamento durante as atividades propostas'],
     [/\bn[aã]o para quiet[oa]\s+e\s+atrapalha\b/gi, 'apresenta momentos de inquietação psicomotora que demandam mediação pedagógica contínua para manutenção do foco e harmonia do ambiente coletivo'],
     [/\bn[aã]o para quiet[oa]\b/gi, 'apresenta inquietação psicomotora e constantes deslocamentos em sala'],
@@ -319,9 +333,9 @@ export function simularPolimentoPedagogicoRelato(
     texto = texto.replace(regex, substituto);
   });
 
-  // Etapa 3: Redação Final Polida e Encadeada
+  // 3. Estruturação no padrão institucional (com abertura contextualizada e dimensão atitudinal)
   const textoLimpo = texto.charAt(0).toLowerCase() + texto.slice(1);
-  return `No decorrer das atividades e rotinas pedagógicas observadas, constatou-se que ${artigo} estudante ${alunoNome || ''} ${textoLimpo} No âmbito atitudinal e socioemocional, ${pronome} responde satisfatoriamente às intervenções docentes quando estimulado${isFeminino ? 'a' : 'o'} de maneira estruturada, revelando-se participativo${isFeminino ? 'a' : ''} e colaborativo${isFeminino ? 'a' : ''} nas dinâmicas escolares.`.replace(/\s+/g, ' ').trim();
+  return `No decorrer das atividades e rotinas pedagógicas observadas, constatou-se que ${artigoEstudante} ${alunoNome || ''} ${textoLimpo} No âmbito atitudinal e socioemocional, ${artigoAluno} responde de forma satisfatória às intervenções docentes quando ${estimulado} de maneira estruturada, demonstrando postura participativa e colaborativa nas dinâmicas escolares.`.replace(/\s+/g, ' ').trim();
 }
 
 

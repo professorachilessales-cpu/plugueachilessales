@@ -97,7 +97,7 @@ interface AppContextType {
   salvarRascunhoProfessor: (relatorioId: string, rascunho: string) => void;
   updateRelatorioProfessor: (relatorioId: string, updates: Partial<RelatorioProfessor>) => void;
   deleteRelatorioProfessor: (relatorioId: string) => void;
-  polirRelatorioComIA: (relatorioId: string, rascunho: string) => Promise<string>;
+  polirRelatorioComIA: (relatorioId: string, rascunho: string, dadosExtras?: { estudante?: Estudante; turma?: Turma }) => Promise<string>;
   enviarRelatorioProfessor: (relatorioId: string, textoFinal: string) => Promise<void>;
   marcarNotificacaoLida: (notificacaoId: string) => void;
   marcarNotificacaoComoLida: (notificacaoId: string) => void;
@@ -1514,20 +1514,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const polirRelatorioComIA = async (relatorioId: string, rascunho: string): Promise<string> => {
+  const polirRelatorioComIA = async (
+    relatorioId: string, 
+    rascunho: string,
+    dadosExtras?: { estudante?: Estudante; turma?: Turma }
+  ): Promise<string> => {
     const rel = relatoriosProfessores.find(r => r.id === relatorioId);
     const sol = solicitacoesRelatorio.find(s => s.id === rel?.solicitacao_id);
-    const aluno = estudantes.find(e => e.id === sol?.aluno_id);
-    const turma = turmas.find(t => t.id === aluno?.turma_id);
+    const aluno = dadosExtras?.estudante || estudantes.find(e => e.id === sol?.aluno_id);
+    const turma = dadosExtras?.turma || turmas.find(t => t.id === aluno?.turma_id);
     const prof = professores.find(p => p.id === rel?.professor_id);
+
+    const nomeEstudante = aluno?.nome_completo || 'Estudante';
+    const generoEstudante = aluno?.genero || (aluno as any)?.sexo || '';
 
     const res = await fetch('/api/ia/polir-relatorio', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         rascunho,
-        alunoNome: aluno?.nome_completo || 'Estudante',
-        alunoGenero: aluno?.genero || (aluno as any)?.sexo || '',
+        alunoNome: nomeEstudante,
+        estudanteNome: nomeEstudante,
+        alunoGenero: generoEstudante,
+        estudanteGenero: generoEstudante,
+        genero: generoEstudante,
         turmaNome: turma?.nome || '',
         disciplina: prof?.disciplinas?.join(', ') || '',
         professorNome: prof?.nome_completo || currentUser.name,

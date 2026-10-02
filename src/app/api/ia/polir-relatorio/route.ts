@@ -16,7 +16,10 @@ export async function POST(req: NextRequest) {
     const { 
       rascunho, 
       alunoNome, 
+      estudanteNome,
+      nome_estudante,
       alunoGenero,
+      estudanteGenero,
       genero,
       sexo,
       turmaNome, 
@@ -32,18 +35,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const nomeFinal = (estudanteNome || alunoNome || nome_estudante || 'Estudante').trim();
+    const generoInformado = estudanteGenero || alunoGenero || genero || sexo || '';
+
     // Identificação de gênero para concordância gramatical estrita em gênero e número
     const dadosGenero = determinarGeneroEstudante({
-      nome_completo: alunoNome,
-      genero: alunoGenero || genero || sexo,
-      sexo: sexo || genero || alunoGenero,
+      nome_completo: nomeFinal,
+      genero: generoInformado,
+      sexo: generoInformado,
     });
 
-    const systemPrompt = montarSystemPromptPolimentoRelato();
-    const userPrompt = montarUserPromptPolimentoRelato({
-      alunoNome,
+    const systemPrompt = montarSystemPromptPolimentoRelato({
+      estudanteNome: nomeFinal,
       generoGramatical: dadosGenero.generoGramatical,
-      instrucaoGenero: dadosGenero.instrucaoGramatical,
+    });
+
+    const userPrompt = montarUserPromptPolimentoRelato({
+      alunoNome: nomeFinal,
+      generoGramatical: dadosGenero.generoGramatical,
       turmaNome,
       disciplina,
       professorNome,
@@ -74,8 +83,8 @@ export async function POST(req: NextRequest) {
                   },
                 ],
                 generationConfig: {
-                  temperature: 0.2,
-                  maxOutputTokens: 1500,
+                  temperature: 0.3,
+                  maxOutputTokens: 2048,
                 },
               }),
             }
@@ -141,7 +150,7 @@ export async function POST(req: NextRequest) {
     // 3. Fallback Pedagógico Resiliente (Garante funcionamento offline sem quebrar restrições)
     const textoPolido = simularPolimentoPedagogicoRelato(
       rascunhoLimpo, 
-      alunoNome, 
+      nomeFinal, 
       dadosGenero.generoGramatical
     );
     const textoFinal = limparMetatextoEEncerramentosRelato(textoPolido);

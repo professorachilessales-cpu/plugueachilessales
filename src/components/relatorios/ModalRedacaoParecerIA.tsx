@@ -85,7 +85,10 @@ export function ModalRedacaoParecerIA({
     setErro(null);
     setPolindo(true);
     try {
-      const resultado = await polirRelatorioComIA(relatorio.id, rascunho);
+      const resultado = await polirRelatorioComIA(relatorio.id, rascunho, {
+        estudante,
+        turma,
+      });
       setTextoIa(resultado);
       setTextoFinal(resultado);
     } catch (e: any) {

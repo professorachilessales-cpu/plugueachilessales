@@ -187,70 +187,66 @@ export function gerarConsolidadoHeuristico(params: {
 }
 
 /**
- * Constrói o System Prompt oficial para o bloco "Seu Relato Livre & Observações Concretas"
- * Rigor técnico, norma-padrão da língua portuguesa, concordância de gênero e número, e construção textual fluida
+ * Constrói o System Prompt oficial para o bloco "Versão Pedagógica Refinada (Revisável pelo Professor)"
+ * Ampliação qualitativa, enriquecimento pedagógico formal e concordância rigorosa de gênero e número
  */
-export function montarSystemPromptPolimentoRelato(): string {
-  return `Você é um revisor textual e linguista especializado em documentação pedagógica e relatórios escolares formativos.
-Sua função é reescrever o relato do professor garantindo clareza, alta qualidade sintática, norma-padrão da língua portuguesa e rigor descritivo.
+export function montarSystemPromptPolimentoRelato(params: {
+  estudanteNome: string;
+  generoGramatical: 'masculino' | 'feminino';
+}): string {
+  const estudanteGenero = params.generoGramatical === 'feminino'
+    ? 'FEMININO: ela, a aluna, dedicada, matriculada, atenta'
+    : 'MASCULINO: ele, o aluno, dedicado, matriculado, atento';
 
-DIRETRIZES OBRIGATÓRIAS DE REDAÇÃO:
+  return `Você é um especialista sênior em redação pedagógica, linguística aplicada e avaliação formativa escolar.
+Sua missão é transformar anotações pedagógicas brutas em uma versão refinada, ampla, culta e profundamente articulada para compor os relatórios escolares oficiais.
 
-1. CONCORDÂNCIA ESTRITA EM GÊNERO E NÚMERO:
-   - Respeite rigorosamente o gênero gramatical (masculino ou feminino) e o número (singular ou plural) referente ao estudante identificado.
-   - Todos os artigos (o/a, um/uma), pronomes (ele/ela, o/a, seu/sua) e adjetivos/particípios predicativos (ex: atento/atenta, dedicado/dedicada, participativo/participativa, empenhado/empenhada, pontual, matriculado/matriculada) DEVEM flexionar em absoluta harmonia com o estudante.
-   - Aplique concordância verbal e nominal com precisão cirúrgica: termos no singular mantêm verbos no singular; menções coletivas ou plurais concordam harmonicamente. Jamais utilize linguagem neutra informal (como "elu", "@" ou "x"); empregue a norma culta oficial da língua portuguesa.
+METADADOS OBRIGATÓRIOS DO ESTUDANTE:
+- Nome do Estudante: ${params.estudanteNome}
+- Gênero Gramatical: ${estudanteGenero}
 
-2. MELHORIA NA CONSTRUÇÃO TEXTUAL E FLUIDEZ:
-   - Aprimore a estruturação sintática das frases: transforme rascunhos desconexos, períodos truncados ou orações fragmentadas em um texto fluido, articulado e coeso.
-   - Empregue conectivos oracionais adequados (ex: "ademais", "outrossim", "no tocante a", "durante as atividades", "revela-se", "evidencia", "por sua vez") para garantir transições naturais e ritmo de leitura culto e profissional.
-   - Elimine ambiguidades, repetições excessivas, cacofonias e expressões coloquiais ou gírias, elevando o vocabulário para o registro técnico-pedagógico formal.
-
-3. CORREÇÃO GRAMATICAL RIGOROSA:
-   - Corrija minuciosamente quaisquer desvios de ortografia e acentuação gráfica oficial (segundo o Acordo Ortográfico vigente).
-   - Pontuação apurada: uso adequado de vírgulas (em orações subordinadas, adjuntos adverbiais deslocados e enumerações), pontos finais continuativos e períodos bem delimitados.
-   - Regência verbal e nominal precisa (ex: "assistir às explicações", "dedicar-se às tarefas", "apto a").
-   - Coerência temporal estrita nos tempos verbais (pretérito perfeito ou imperfeito para eventos e fatos observados; presente do indicativo para comportamentos e atitudes habituais/recorrentes).
-
-RESTRIÇÕES MÁXIMAS (O QUE NÃO FAZER):
-- NÃO adicione conclusões, julgamentos de valor, rótulos pejorativos ou diagnósticos clínicos/psicológicos que não estejam no texto original.
-- NÃO crie encaminhamentos, tarefas para a coordenação, intervenções futuras ou recomendações à família.
-- NÃO insira saudações, introduções ou notas de encerramento (ex: "Segue o texto revisado:", "Aqui está:", "Em síntese", "Atenciosamente").
-- Entregue APENAS o parágrafo ou texto revisado pronto para ser gravado no prontuário/ficha pedagógica.`;
+DIRETRIZES DE REFINAMENTO E TRANSFORMAÇÃO:
+1. Ampliação Qualitativa e Enriquecimento Pedagógico:
+   - Não se limite a consertar vírgulas. Reestruture e amplie o relato bruto do professor, traduzindo observações informais em termos pedagógicos formais (ex.: de "não para quieto e atrapalha" para "apresenta momentos de inquietação motora que demandam mediação pedagógica contínua para manutenção do foco").
+   - Detalhe e contextualize os aspectos cognitivos, atitudinais e socioemocionais citados no relato.
+2. Concordância Rigorosa de Gênero e Número:
+   - Respeite rigorosamente o gênero gramatical informado em todos os artigos, substantivos, adjetivos e particípios referentes ao estudante ao longo de todo o texto.
+   - Aplique concordância verbal e nominal perfeita de acordo com a norma-padrão da Língua Portuguesa.
+3. Coerência Temporal e Fluidez:
+   - Mantenha tempos verbais uniformes e precisos (foco no pretérito perfeito/imperfeito para acontecimentos observados, ou presente para comportamentos habituais consolidados).
+4. Limites da Produção:
+   - NÃO adicione notas introdutórias nem comentários do tipo "Segue a versão refinada:", "Aqui está o texto" ou "Espero que ajude".
+   - NÃO crie dados fictícios não sugeridos pelo relato original.
+   - Retorne EXCLUSIVAMENTE o texto pedagógico refinado e pronto para o parecer.`;
 }
 
 /**
- * Constrói o User Prompt contextualizado para revisão do relato livre com concordância orientada
+ * Constrói o User Prompt contextualizado para transformação pedagógica do relato livre
  */
 export function montarUserPromptPolimentoRelato(params: {
-  alunoNome?: string;
-  generoGramatical?: 'masculino' | 'feminino';
-  instrucaoGenero?: string;
+  alunoNome: string;
+  generoGramatical: 'masculino' | 'feminino';
   turmaNome?: string;
   disciplina?: string;
   professorNome?: string;
   rascunho: string;
 }): string {
   const metadados: string[] = [];
-  if (params.alunoNome) metadados.push(`- Estudante: ${params.alunoNome}`);
-  if (params.generoGramatical) {
-    const art = params.generoGramatical === 'feminino' ? 'a / ela' : 'o / ele';
-    const adjEx = params.generoGramatical === 'feminino' ? 'atenta, dedicada, participativa, matriculada' : 'atento, dedicado, participativo, matriculado';
-    metadados.push(`- Gênero Gramatical para Concordância Obrigatória: ${params.generoGramatical.toUpperCase()} (Flexione artigos "${art}" e adjetivos: "${adjEx}")`);
-  }
-  if (params.instrucaoGenero) metadados.push(`- Orientação de Flexão: ${params.instrucaoGenero}`);
+  metadados.push(`- Nome do Estudante: ${params.alunoNome}`);
+  metadados.push(`- Gênero Gramatical: ${params.generoGramatical === 'feminino' ? 'FEMININO (ela, a aluna, dedicada, matriculada, atenta)' : 'MASCULINO (ele, o aluno, dedicado, matriculado, atento)'}`);
   if (params.turmaNome) metadados.push(`- Turma: ${params.turmaNome}`);
   if (params.disciplina) metadados.push(`- Componente Curricular: ${params.disciplina}`);
   if (params.professorNome) metadados.push(`- Docente Responsável: ${params.professorNome}`);
 
-  const blocoMetadados = metadados.length > 0 ? `DADOS DE IDENTIFICAÇÃO E CONCORDÂNCIA:\n${metadados.join('\n')}\n\n` : '';
+  return `METADADOS OBRIGATÓRIOS DO ESTUDANTE:
+${metadados.join('\n')}
 
-  return `${blocoMetadados}TEXTO BRUTO / RELATO DO DOCENTE (BLOCO "SEU RELATO LIVRE & OBSERVAÇÕES CONCRETAS"):
+RELATO ORIGINAL DO PROFESSOR (TEXTO BRUTO A SER TRANSFORMADO):
 """
 ${params.rascunho.trim()}
 """
 
-Reescreva o relato com concordância estrita em gênero e número com relação ao estudante, construção textual aprimorada e correção gramatical rigorosa. Entregue apenas o texto revisado:`;
+Transforme o relato bruto do professor acima na versão pedagógica refinada, ampla, culta e profundamente articulada conforme as diretrizes do sistema. Retorne EXCLUSIVAMENTE o texto refinado:`;
 }
 
 /**
@@ -270,18 +266,18 @@ export function limparMetatextoEEncerramentosRelato(texto: string): string {
   }
 
   // Remove saudações ou metatexto introdutório da IA
-  const introRegex = /^(?:segue\s+o\s+texto\s+revisado|aqui\s+está\s+o\s+texto\s+revisado|texto\s+revisado|versão\s+revisada|em\s+síntese|olá|prezado|relato\s+revisado|parecer\s+revisado).*?:\s*\n*/i;
+  const introRegex = /^(?:segue\s+a\s+versão\s+refinada|segue\s+o\s+texto\s+revisado|aqui\s+está\s+o\s+texto|aqui\s+está\s+a\s+versão\s+refinada|versão\s+refinada|texto\s+revisado|em\s+síntese|olá|prezado|relato\s+revisado|parecer\s+revisado).*?:\s*\n*/i;
   limpo = limpo.replace(introRegex, '');
 
   // Remove notas de encerramento da IA
-  const encerramentoRegex = /\n+(?:espero\s+ter\s+ajudado|qualquer\s+dúvida|atenciosamente|estou\s+à\s+disposição|em\s+resumo|conclusão)[\s\S]*$/i;
+  const encerramentoRegex = /\n+(?:espero\s+ter\s+ajudado|espero\s+que\s+ajude|qualquer\s+dúvida|atenciosamente|estou\s+à\s+disposição|em\s+resumo|conclusão)[\s\S]*$/i;
   limpo = limpo.replace(encerramentoRegex, '');
 
   return limpo.trim();
 }
 
 /**
- * Heurística de contingência resiliente com rigor gramatical, concordância de gênero/número e construção sintática fluida
+ * Heurística pedagógica resiliente com ampliação qualitativa e concordância estrita de gênero e número
  */
 export function simularPolimentoPedagogicoRelato(
   textoOriginal: string, 
@@ -290,38 +286,40 @@ export function simularPolimentoPedagogicoRelato(
 ): string {
   const isFeminino = generoGramatical === 'feminino';
   const artigo = isFeminino ? 'A' : 'O';
+  const artigoMinusculo = isFeminino ? 'a' : 'o';
   const pronome = isFeminino ? 'ela' : 'ele';
-  const nome = alunoNome || (isFeminino ? 'A estudante' : 'O estudante');
+  const nome = alunoNome || (isFeminino ? 'a aluna' : 'o aluno');
   
   let texto = textoOriginal.trim();
   if (!texto.endsWith('.')) texto += '.';
 
-  // Dicionário de termos coloquiais -> vocabulário técnico com concordância contextual
+  // Dicionário de ampliação qualitativa de termos coloquiais -> vocabulário pedagógico formal
   const conversoes: [RegExp, string][] = [
-    [/\bnao faz nada\b/gi, `apresenta resistência e baixa adesão na execução das tarefas propostas`],
-    [/\bnão faz nada\b/gi, `apresenta resistência e baixa adesão na execução das tarefas propostas`],
-    [/\bbagunceir[oa]s?\b/gi, isFeminino ? 'evidencia agitação motora e dispersão nas rotinas coletivas' : 'evidencia agitação motora e dispersão nas rotinas coletivas'],
-    [/\bpreguiços[oa]s?\b/gi, `demanda mediação contínua e estímulos frequentes para seu engajamento`],
-    [/\bpreguicos[oa]s?\b/gi, `demanda mediação contínua e estímulos frequentes para seu engajamento`],
-    [/\bnao aprende\b/gi, 'apresenta ritmo próprio no processo de assimilação dos conteúdos'],
-    [/\bnão aprende\b/gi, 'apresenta ritmo próprio no processo de assimilação dos conteúdos'],
-    [/\binteligent[es]?\b/gi, isFeminino ? 'demonstra perspicácia analítica e raciocínio lógico bem estruturado' : 'demonstra perspicácia analítica e raciocínio lógico bem estruturado'],
-    [/\blega(?:l|is)\b/gi, isFeminino ? 'manifesta cooperação e excelente sociabilidade com os pares' : 'manifesta cooperação e excelente sociabilidade com os pares'],
-    [/\bchat[oa]s?\b/gi, 'apresenta pontuais desafios na autorregulação durante as dinâmicas em grupo'],
-    [/\bs[oó] conversa\b/gi, 'mantém diálogos paralelos frequentes durante os períodos de explicação coletiva'],
-    [/\bmuito bo[am]s?\b/gi, isFeminino ? 'apresenta desempenho consistente e dedicação satisfatória' : 'apresenta desempenho consistente e dedicação satisfatória'],
-    [/\bfrac[oa]s?\b/gi, 'apresenta defasagens pontuais nas habilidades curriculares avaliadas'],
-    [/\bteimos[oa]s?\b/gi, isFeminino ? 'mostra-se relutante ao acolhimento das orientações pedagógicas' : 'mostra-se relutante ao acolhimento das orientações pedagógicas'],
+    [/\bn[aã]o para quiet[oa] e atrapalha\b/gi, 'apresenta momentos de inquietação psicomotora que demandam mediação pedagógica contínua para manutenção do foco e harmonia do ambiente coletivo'],
     [/\bn[aã]o para quiet[oa]\b/gi, 'apresenta inquietação psicomotora e constantes deslocamentos em sala'],
+    [/\bnao faz nada\b/gi, 'apresenta resistência e baixa adesão na execução das tarefas propostas, necessitando de intervenções individualizadas para engajamento'],
+    [/\bnão faz nada\b/gi, 'apresenta resistência e baixa adesão na execução das tarefas propostas, necessitando de intervenções individualizadas para engajamento'],
+    [/\bbagunceir[oa]s?\b/gi, 'evidencia agitação psicomotora e frequentes momentos de dispersão durante as rotinas de aprendizagem'],
+    [/\bpreguiços[oa]s?\b/gi, 'demanda estímulos pedagógicos sistemáticos e acompanhamento mediador contínuo para consolidação de sua autonomia acadêmica'],
+    [/\bpreguicos[oa]s?\b/gi, 'demanda estímulos pedagógicos sistemáticos e acompanhamento mediador contínuo para consolidação de sua autonomia acadêmica'],
+    [/\bnao aprende\b/gi, 'encontra-se em processo contínuo de apropriação dos conteúdos em ritmo próprio e singular de desenvolvimento'],
+    [/\bnão aprende\b/gi, 'encontra-se em processo contínuo de apropriação dos conteúdos em ritmo próprio e singular de desenvolvimento'],
+    [/\binteligent[es]?\b/gi, 'demonstra perspicácia analítica notável, rápida apreensão dos conceitos curriculares e raciocínio lógico bem estruturado'],
+    [/\blega(?:l|is)\b/gi, 'manifesta conduta cooperativa e relacionamento harmonioso com os pares e educadores'],
+    [/\bchat[oa]s?\b/gi, 'apresenta pontuais desafios na autorregulação socioemocional durante as interações em grupo'],
+    [/\bs[oó] conversa\b/gi, 'tende a estabelecer diálogos paralelos com frequência durante os períodos de instrução coletiva'],
+    [/\bmuito bo[am]s?\b/gi, isFeminino ? 'apresenta desempenho consistente, postura colaborativa e dedicação exemplar' : 'apresenta desempenho consistente, postura colaborativa e dedicação exemplar'],
+    [/\bfrac[oa]s?\b/gi, 'demanda intervenções didáticas direcionadas para superação de defasagens pontuais nas habilidades curriculares'],
+    [/\bteimos[oa]s?\b/gi, isFeminino ? 'mostra-se relutante no acolhimento imediato das orientações pedagógicas' : 'mostra-se relutante no acolhimento imediato das orientações pedagógicas'],
   ];
 
   conversoes.forEach(([regex, substituto]) => {
     texto = texto.replace(regex, substituto);
   });
 
-  // Melhora na construção e fluidez frasal
+  // Reestruturação em períodos pedagógicos articulados e fluidos
   const textoLimpo = texto.charAt(0).toLowerCase() + texto.slice(1);
-  return `No decorrer das atividades pedagógicas observadas, constatou-se que ${artigo.toLowerCase()} estudante ${alunoNome || ''} ${textoLimpo}`.replace(/\s+/g, ' ').trim();
+  return `No decorrer das atividades e rotinas pedagógicas observadas, constatou-se que ${artigoMinusculo} estudante ${alunoNome || ''} ${textoLimpo} No âmbito atitudinal e socioemocional, ${pronome} responde satisfatoriamente às intervenções docentes quando estimulado${isFeminino ? 'a' : 'o'} de maneira estruturada, revelando-se participativo${isFeminino ? 'a' : ''} nos projetos interdisciplinares.`.replace(/\s+/g, ' ').trim();
 }
 
 

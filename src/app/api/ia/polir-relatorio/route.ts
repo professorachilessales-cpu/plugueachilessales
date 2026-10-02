@@ -50,11 +50,18 @@ export async function POST(req: NextRequest) {
       textoRelatoLivre: rascunhoLimpo,
     });
 
-    // 1. Provedor Primário: Google Gemini API (modelos oficiais com fallback em cascata)
+    // 1. Provedor Primário: Google Gemini API (modelos da família Gemini com fallback em cascata)
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
     if (geminiApiKey && geminiApiKey.trim() !== '' && !geminiApiKey.includes('your-key')) {
-      const modelosGemini = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+      const modelosGemini = [
+        process.env.GEMINI_MODEL,
+        'gemini-3-flash',
+        'gemini-3-pro',
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+        'gemini-1.5-flash'
+      ].filter(Boolean) as string[];
 
       for (const modelo of modelosGemini) {
         try {
@@ -71,8 +78,10 @@ export async function POST(req: NextRequest) {
                   },
                 ],
                 generationConfig: {
-                  temperature: 0.2,
-                  maxOutputTokens: 2048,
+                  temperature: 0.7,
+                  topP: 0.95,
+                  topK: 40,
+                  maxOutputTokens: 1200,
                 },
               }),
             }
@@ -113,7 +122,9 @@ export async function POST(req: NextRequest) {
             messages: [
               { role: 'user', content: promptPipeline },
             ],
-            temperature: 0.2,
+            temperature: 0.7,
+            top_p: 0.95,
+            max_tokens: 1200,
           }),
         });
 

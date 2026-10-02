@@ -187,7 +187,7 @@ export function gerarConsolidadoHeuristico(params: {
 }
 
 /**
- * Constrói o Prompt Oficial com Técnica Few-Shot e Padrão Institucional
+ * Constrói o Prompt Oficial com Técnica de Lapidação Pedagógica Criativa e Padrão Institucional via Gemini
  */
 export function montarPromptPipelinePolimentoRelato(params: {
   estudanteNome: string;
@@ -196,17 +196,17 @@ export function montarPromptPipelinePolimentoRelato(params: {
 }): string {
   const isFeminino = params.generoGramatical === 'feminino';
   const generoFormatado = isFeminino
-    ? 'FEMININO (ela, a estudante, a aluna, participativa)'
-    : 'MASCULINO (ele, o estudante, o aluno, participativo)';
+    ? 'FEMININO: ela, a estudante, a educanda, a aluna, reflexiva, colaborativa'
+    : 'MASCULINO: ele, o estudante, o educando, o aluno, reflexivo, colaborativo';
 
   const artigoEstudante = isFeminino ? 'a estudante' : 'o estudante';
   const artigoAluno = isFeminino ? 'a aluna' : 'o aluno';
   const estimulado = isFeminino ? 'estimulada' : 'estimulado';
 
-  const saidaRefinadaExemplo = `No decorrer das atividades e rotinas pedagógicas observadas, constatou-se que ${artigoEstudante} ${params.estudanteNome} relata situações que sugerem possíveis sintomas de maus-tratos, além de apresentar episódios de uso frequente de linguagem inadequada (palavrões) e falas desconexas. No âmbito atitudinal e socioemocional, ${artigoAluno} responde de forma satisfatória às intervenções docentes quando ${estimulado} de maneira estruturada, demonstrando postura participativa e colaborativa nas dinâmicas escolares.`;
+  const saidaEsperada = `No decorrer das atividades e rotinas pedagógicas observadas, constatou-se que ${artigoEstudante} ${params.estudanteNome} relata situações que sugerem possíveis sintomas de maus-tratos, além de apresentar episódios de uso frequente de linguagem inadequada (palavrões) e falas desconexas. No âmbito atitudinal e socioemocional, ${artigoAluno} responde de forma satisfatória às intervenções docentes quando ${estimulado} de maneira estruturada, demonstrando postura participativa e colaborativa nas dinâmicas escolares.`;
 
-  return `Você é um redator pedagógico institucional e revisor linguístico escolar sênior.
-Sua função é ler o relato livre e as anotações pontuais do professor, corrigir 100% dos erros gramaticais e de concordância, e reescrever o texto em formato técnico, culto e institucional.
+  return `Você é um consultor pedagógico institucional sênior, mestre em avaliação formativa e literatura descritiva educacional, operando via Gemini.
+Sua missão é pegar apontamentos brutos de professores (frequentemente informais, truncados ou com vícios de linguagem) e lapidá-los com alta sensibilidade pedagógica, criatividade de vocabulário e rigor formal impecável.
 
 ---
 METADADOS DO ESTUDANTE:
@@ -214,30 +214,38 @@ METADADOS DO ESTUDANTE:
 - Gênero Gramatical: ${generoFormatado}
 
 ---
-EXEMPLO OBRIGATÓRIO DO PADRÃO INSTITUCIONAL ESPERADO:
+DIRETRIZES DE ESTILO CRIATIVO & INSTITUCIONAL:
+
+1. 🎨 Repertório Vocabular Fluido e Enriquecido:
+   - Evite frases clichês repetitivas. Explore recursos estilísticos cultos e termos pedagógicos sofisticados (ex.: "desenvolvimento socioafetivo", "mediação contextualizada", "funções executivas e autorregulação", "linguagem expressiva e pragmática", "receptividade às intervenções").
+   - Conecte as ações concretas do relato original com as dimensões formativas da BNCC (competências cognitivas, atitudinais, comunicativas e socioemocionais).
+
+2. ✍️ Saneamento Gramatical sem Perder a Essência:
+   - Corrija 100% dos desvios ortográficos, pontuações truncadas, concordâncias verbais e nominais.
+   - Aplique com rigor absoluto a concordância de gênero informada para ${params.estudanteNome}.
+
+3. 🔍 Contextualização Sensível e Humana:
+   - Capte o contexto subjacente das anotações rápidas do docente e estruture uma narrativa pedagógica coerente, fluida e equilibrada, que valorize o potencial de desenvolvimento do aluno mesmo ao relatar dificuldades ou episódios de indisciplina.
+
+---
+REFERÊNCIA DE TRANSFORMAÇÃO ESPERADA:
 
 [ENTRADA BRUTA]:
 "Estudante alegra com sintomas de maus tratos
 Fala mutos palavroes e farses desconecao"
 
-[SAÍDA REFINADA ESPERADA]:
-"${saidaRefinadaExemplo}"
+[SAÍDA ESPERADA - ELEGANTE, CRIATIVA E INSTITUCIONAL]:
+"${saidaEsperada}"
 
 ---
-PROCESSO DE EXECUÇÃO:
-1. Correção Gramatical: Elimine todos os desvios de ortografia, digitação, acentuação e pontuação.
-2. Concordância: Ajuste rigorosamente o gênero gramatical informado em todos os artigos, pronomes, substantivos e adjetivos referentes ao estudante.
-3. Transposição para o Estilo Institucional:
-   - Inicie o relato situando a observação no contexto escolar (ex: "No decorrer das atividades e rotinas pedagógicas observadas, constatou-se que...").
-   - Traduza termos leigos em vocabulário técnico-pedagógico adequado.
-   - Integre dimensões de desenvolvimento atitudinal, socioemocional e cognitivo pertinentes ao relato.
-4. Restrição de Saída:
-   - Proibido incluir saudações, introduções ou notas (ex: "Segue o texto:", "Versão corrigida:").
-   - Proibido adicionar recomendações à família ou tarefas no final.
-   - Retorne APENAS o texto refinado pronto para ser gravado.
+RESTRIÇÕES E LIMITES:
+- NÃO invente laudos ou ocorrências que contrariem o relato original.
+- NÃO adicione cabeçalhos, saudações, introduções ou notas conversacionais (ex: "Aqui está o texto refinado:").
+- NÃO adicione seções de "Dicas para a coordenação", "Encaminhamentos" ou "Sugestões".
+- Retorne EXCLUSIVAMENTE o texto pedagógico refinado, pronto para leitura e validação do professor.
 
 ---
-TEXTO DO RELATO LIVRE A PROCESSAR:
+TEXTO DO RELATO LIVRE:
 """
 ${params.textoRelatoLivre.trim()}
 """`;

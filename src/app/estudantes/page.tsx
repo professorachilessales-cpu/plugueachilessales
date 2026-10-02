@@ -1804,6 +1804,17 @@ export default function EstudantesPage() {
                     </button>
                   </>
                 )}
+                {abaFicha === 'observacoes' && (
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('imprimir-observacoes-estudante'))}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 transition-all cursor-pointer"
+                    title="Imprimir relatório com todas as observações do estudante"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    <span>Imprimir Relatório</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setModalFichaAberto(false)}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"

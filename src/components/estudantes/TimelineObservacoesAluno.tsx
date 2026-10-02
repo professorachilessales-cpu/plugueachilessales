@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Estudante, ObservacaoAluno, TipoObservacaoAluno } from '@/lib/types';
 import { 
@@ -22,8 +22,10 @@ import {
   Clock,
   ShieldCheck,
   ArrowUp,
-  Search
+  Search,
+  Printer
 } from 'lucide-react';
+import { calcularIdadeEmAnos } from '@/lib/faixa-etaria';
 
 interface TimelineObservacoesAlunoProps {
   estudante: Estudante;
@@ -80,6 +82,8 @@ function isObservacaoAtiva(o: any): boolean {
 export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAlunoProps) {
   const { 
     currentUser, 
+    escolaConfig,
+    turmas,
     observacoesAluno, 
     observacoesAuditoria, 
     addObservacaoAluno, 
@@ -177,6 +181,790 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
     });
   }, [auditoriasDesteEstudante, filtroAuditoriaEvento]);
 
+  // Função utilitária para sanitização e escape de strings no HTML de impressão
+  const escapeHtml = (text?: string | null): string => {
+    if (!text) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  // Formatação amigável de data e hora
+  const formatarDataHora = (dataStr?: string | null): string => {
+    if (!dataStr) return 'Data recente';
+    try {
+      const d = new Date(dataStr);
+      if (isNaN(d.getTime())) return 'Data recente';
+      return d.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return 'Data recente';
+    }
+  };
+
+  // 1. IMPRIMIR TODAS AS OBSERVAÇÕES (OU FILTRADAS) EM FORMATO DE RELATÓRIO INSTITUCIONAL
+  const handleImprimirRelatorio = (apenasFiltradas: boolean = false) => {
+    const lista = apenasFiltradas ? observacoes : observacoesAtivasDesteEstudante;
+    if (lista.length === 0) {
+      alert('Não há observações disponíveis para impressão neste momento.');
+      return;
+    }
+
+    const turmaAluno = turmas.find(t => t.id === estudante.turma_id);
+    const turnoNome = turmaAluno?.turno 
+      ? (turmaAluno.turno === 'manha' ? 'MANHÃ' : turmaAluno.turno === 'tarde' ? 'TARDE' : turmaAluno.turno.toUpperCase()) 
+      : 'MANHÃ';
+    const turmaTexto = `${turmaAluno?.nome || estudante.turma_nome || 'Turma Regular'} - ${turnoNome}`.toUpperCase();
+    const idadeTexto = calcularIdadeEmAnos(estudante.data_nascimento);
+    const dataNascFormatada = estudante.data_nascimento 
+      ? new Date(estudante.data_nascimento.includes('T') ? estudante.data_nascimento : `${estudante.data_nascimento}T12:00:00`).toLocaleDateString('pt-BR') 
+      : 'Não informada';
+    const dataEmissao = new Date().toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const contagem = {
+      pedagogico: lista.filter(o => (o.categoria || o.tipo || '').toLowerCase() === 'pedagogico').length,
+      comportamental: lista.filter(o => (o.categoria || o.tipo || '').toLowerCase() === 'comportamental').length,
+      saude: lista.filter(o => (o.categoria || o.tipo || '').toLowerCase() === 'saude').length,
+      geral: lista.filter(o => (o.categoria || o.tipo || '').toLowerCase() === 'geral').length,
+    };
+
+    const escopoDescricao = apenasFiltradas && (filtroCategoria !== 'todos' || buscaHistorico.trim())
+      ? `Relatório Filtrado: ${filtroCategoria !== 'todos' ? (CATEGORIAS_CONFIG[filtroCategoria as TipoObservacaoAluno]?.label || filtroCategoria) : 'Todas as Categorias'}${buscaHistorico.trim() ? ` • Termo: "${buscaHistorico}"` : ''}`
+      : 'Relatório Completo de Observações do Estudante';
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('Por favor, autorize pop-ups no seu navegador para imprimir o relatório.');
+      return;
+    }
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8">
+          <title>Relatório de Observações - ${escapeHtml(estudante.nome_completo)}</title>
+          <style>
+            @page {
+              size: A4;
+              margin: 15mm 15mm 15mm 15mm;
+            }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .no-print { display: none !important; }
+            }
+            * { box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              color: #0f172a;
+              margin: 0;
+              padding: 16px;
+              font-size: 10pt;
+              line-height: 1.45;
+              background: #ffffff;
+            }
+            .no-print-bar {
+              background: #f1f5f9;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 10px 16px;
+              margin-bottom: 20px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+            }
+            .btn-print {
+              background: #1e3a8a;
+              color: #ffffff;
+              border: none;
+              padding: 8px 18px;
+              border-radius: 6px;
+              font-weight: 700;
+              font-size: 11pt;
+              cursor: pointer;
+            }
+            .btn-close {
+              background: #e2e8f0;
+              color: #334155;
+              border: none;
+              padding: 8px 14px;
+              border-radius: 6px;
+              font-weight: 600;
+              font-size: 10pt;
+              cursor: pointer;
+            }
+            .header-inst {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              border-bottom: 2px solid #1e3a8a;
+              padding-bottom: 12px;
+              margin-bottom: 14px;
+            }
+            .header-left {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+            .header-logo {
+              max-height: 65px;
+              max-width: 120px;
+              object-fit: contain;
+            }
+            .header-school-name {
+              margin: 0;
+              font-size: 14pt;
+              font-weight: 900;
+              color: #1e3a8a;
+              text-transform: uppercase;
+              letter-spacing: -0.3px;
+            }
+            .header-school-meta {
+              margin: 2px 0 0 0;
+              font-size: 8pt;
+              color: #475569;
+              line-height: 1.35;
+            }
+            .header-right {
+              text-align: right;
+              font-size: 8pt;
+              color: #64748b;
+            }
+            .header-doc-title {
+              font-size: 9pt;
+              font-weight: 800;
+              color: #0f172a;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .title-banner {
+              text-align: center;
+              background: #f8fafc;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 8px 12px;
+              margin-bottom: 14px;
+            }
+            .title-banner h2 {
+              margin: 0;
+              font-size: 12pt;
+              font-weight: 800;
+              color: #0f172a;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .title-banner p {
+              margin: 3px 0 0 0;
+              font-size: 8.5pt;
+              color: #64748b;
+            }
+            .student-box {
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              padding: 10px 14px;
+              margin-bottom: 14px;
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 6px 16px;
+              font-size: 9pt;
+            }
+            .student-box p {
+              margin: 0;
+            }
+            .student-box strong {
+              color: #334155;
+              text-transform: uppercase;
+              font-size: 8pt;
+            }
+            .metrics-box {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+              margin-bottom: 14px;
+              font-size: 8.5pt;
+            }
+            .metric-badge {
+              padding: 4px 8px;
+              border-radius: 6px;
+              border: 1px solid #cbd5e1;
+              background: #f8fafc;
+              font-weight: 600;
+            }
+            .metric-badge strong {
+              color: #1e3a8a;
+            }
+            .obs-card {
+              border: 1px solid #e2e8f0;
+              border-left-width: 4px;
+              border-radius: 6px;
+              padding: 10px 12px;
+              margin-bottom: 10px;
+              page-break-inside: avoid;
+              background: #ffffff;
+            }
+            .obs-card.comportamental { border-left-color: #d97706; }
+            .obs-card.pedagogico { border-left-color: #4f46e5; }
+            .obs-card.saude { border-left-color: #e11d48; }
+            .obs-card.geral { border-left-color: #475569; }
+
+            .obs-header {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 8px;
+              margin-bottom: 6px;
+              padding-bottom: 4px;
+              border-bottom: 1px solid #f1f5f9;
+              font-size: 8.5pt;
+            }
+            .obs-tag {
+              display: inline-block;
+              padding: 2px 6px;
+              border-radius: 4px;
+              font-size: 7.5pt;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.3px;
+              margin-right: 6px;
+            }
+            .obs-tag.comportamental { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+            .obs-tag.pedagogico { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+            .obs-tag.saude { background: #ffe4e6; color: #9f1239; border: 1px solid #fecdd3; }
+            .obs-tag.geral { background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
+
+            .obs-author {
+              font-weight: 700;
+              color: #1e293b;
+            }
+            .obs-cargo {
+              font-size: 8pt;
+              color: #64748b;
+            }
+            .obs-date {
+              color: #64748b;
+              font-size: 8pt;
+              font-weight: 600;
+            }
+            .obs-text {
+              font-size: 9.5pt;
+              line-height: 1.5;
+              color: #1e293b;
+              white-space: pre-wrap;
+              text-align: justify;
+              margin: 0;
+            }
+            .footer-signatures {
+              margin-top: 36px;
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 40px;
+              text-align: center;
+              page-break-inside: avoid;
+            }
+            .signature-line {
+              border-top: 1px solid #334155;
+              padding-top: 6px;
+              font-size: 8.5pt;
+              color: #1e293b;
+              font-weight: 700;
+            }
+            .signature-sub {
+              font-size: 7.5pt;
+              color: #64748b;
+            }
+            .doc-legal-footer {
+              margin-top: 24px;
+              padding-top: 8px;
+              border-top: 1px solid #e2e8f0;
+              font-size: 7.5pt;
+              color: #94a3b8;
+              display: flex;
+              justify-content: space-between;
+              page-break-inside: avoid;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print-bar no-print">
+            <span style="font-weight: 600; font-size: 9.5pt; color: #1e293b;">
+              📄 Visualização de Impressão • Relatório de Observações
+            </span>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+              <button class="btn-close" onclick="window.close()">Fechar</button>
+            </div>
+          </div>
+
+          <div class="header-inst">
+            <div class="header-left">
+              ${escolaConfig?.logo_url ? `<img src="${escolaConfig.logo_url}" class="header-logo" alt="Logo" />` : ''}
+              <div>
+                <h1 class="header-school-name">${escapeHtml(escolaConfig?.nome_escola || 'Colégio Integrado PLUGUE')}</h1>
+                <p class="header-school-meta">
+                  INEP: ${escapeHtml(escolaConfig?.codigo_inep || 'Não informado')} • CNPJ: ${escapeHtml(escolaConfig?.cnpj || 'Não informado')}<br/>
+                  ${escapeHtml(escolaConfig?.endereco || '')} • Tel: ${escapeHtml(escolaConfig?.telefone || '')}
+                </p>
+              </div>
+            </div>
+            <div class="header-right">
+              <div class="header-doc-title">RELATÓRIO INSTITUCIONAL</div>
+              <div>Ano Letivo: ${escapeHtml(String(escolaConfig?.ano_letivo_ativo || new Date().getFullYear()))}</div>
+              <div style="margin-top: 3px; font-size: 7.5pt;">Emissão: ${dataEmissao}</div>
+            </div>
+          </div>
+
+          <div class="title-banner">
+            <h2>Relatório de Observações & Histórico do Estudante</h2>
+            <p>${escapeHtml(escopoDescricao)}</p>
+          </div>
+
+          <div class="student-box">
+            <p><strong>Estudante:</strong> ${escapeHtml(estudante.nome_completo.toUpperCase())}</p>
+            <p><strong>Turma / Turno:</strong> ${escapeHtml(turmaTexto)}</p>
+            <p><strong>Matrícula / ID:</strong> ${escapeHtml(estudante.id)}</p>
+            <p><strong>Data de Nascimento:</strong> ${escapeHtml(dataNascFormatada)} (${escapeHtml(idadeTexto)})</p>
+            <p><strong>Responsável:</strong> ${escapeHtml(estudante.nome_responsavel || 'Não informado')} ${estudante.telefone_responsavel ? `(${escapeHtml(estudante.telefone_responsavel)})` : ''}</p>
+            <p><strong>AEE / Inclusão:</strong> ${estudante.possui_aee ? `Sim - ${escapeHtml(estudante.diagnostico_aee || 'Atendimento Especializado')}` : 'Não se aplica'}</p>
+          </div>
+
+          <div class="metrics-box">
+            <div class="metric-badge">Total de Registros: <strong>${lista.length}</strong></div>
+            <div class="metric-badge">Pedagógico: <strong>${contagem.pedagogico}</strong></div>
+            <div class="metric-badge">Comportamental: <strong>${contagem.comportamental}</strong></div>
+            <div class="metric-badge">Saúde / Clínico: <strong>${contagem.saude}</strong></div>
+            <div class="metric-badge">Geral: <strong>${contagem.geral}</strong></div>
+          </div>
+
+          <div class="observations-list">
+            ${lista.map((obs) => {
+              const catKey = (obs.categoria || obs.tipo || 'geral').toLowerCase() as TipoObservacaoAluno;
+              const conf = CATEGORIAS_CONFIG[catKey] || CATEGORIAS_CONFIG.geral;
+              const dataObsFormatada = formatarDataHora(obs.created_at || obs.data_registro);
+
+              return `
+                <div class="obs-card ${catKey}">
+                  <div class="obs-header">
+                    <div>
+                      <span class="obs-tag ${catKey}">${escapeHtml(conf.label)}</span>
+                      <span class="obs-author">${escapeHtml(obs.autor_nome || (obs as any).usuario_nome || 'Equipe Escolar')}</span>
+                      <span class="obs-cargo"> • ${escapeHtml(obs.autor_cargo || 'Autor')}</span>
+                    </div>
+                    <div class="obs-date">${escapeHtml(dataObsFormatada)}</div>
+                  </div>
+                  <p class="obs-text">${escapeHtml(obs.texto_completo || obs.texto)}</p>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="footer-signatures">
+            <div>
+              <div class="signature-line">Coordenação Pedagógica / Direção</div>
+              <div class="signature-sub">${escapeHtml(escolaConfig?.nome_escola || 'Gestão Escolar')}</div>
+            </div>
+            <div>
+              <div class="signature-line">${escapeHtml(currentUser?.name || 'Equipe Escolar')}</div>
+              <div class="signature-sub">Responsável pela Emissão • ${escapeHtml(currentUser?.role === 'admin' ? 'Administração' : 'Docência')}</div>
+            </div>
+          </div>
+
+          <div class="doc-legal-footer">
+            <span>PLUGUE • Plataforma Unificada de Gestão Educacional</span>
+            <span>Documento Oficial Escolar emitido em ${dataEmissao}</span>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
+  // 2. IMPRIMIR UMA OBSERVAÇÃO INDIVIDUAL EM FORMATO DE DESPACHO / REGISTRO OFICIAL
+  const handleImprimirObservacaoIndividual = (obs: ObservacaoAluno) => {
+    const turmaAluno = turmas.find(t => t.id === estudante.turma_id);
+    const turnoNome = turmaAluno?.turno 
+      ? (turmaAluno.turno === 'manha' ? 'MANHÃ' : turmaAluno.turno === 'tarde' ? 'TARDE' : turmaAluno.turno.toUpperCase()) 
+      : 'MANHÃ';
+    const turmaTexto = `${turmaAluno?.nome || estudante.turma_nome || 'Turma Regular'} - ${turnoNome}`.toUpperCase();
+    const idadeTexto = calcularIdadeEmAnos(estudante.data_nascimento);
+    const dataNascFormatada = estudante.data_nascimento 
+      ? new Date(estudante.data_nascimento.includes('T') ? estudante.data_nascimento : `${estudante.data_nascimento}T12:00:00`).toLocaleDateString('pt-BR') 
+      : 'Não informada';
+    const dataEmissao = new Date().toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const catKey = (obs.categoria || obs.tipo || 'geral').toLowerCase() as TipoObservacaoAluno;
+    const conf = CATEGORIAS_CONFIG[catKey] || CATEGORIAS_CONFIG.geral;
+    const dataObsFormatada = formatarDataHora(obs.created_at || obs.data_registro);
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('Por favor, autorize pop-ups no seu navegador para imprimir a anotação.');
+      return;
+    }
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8">
+          <title>Registro Individual de Observação - ${escapeHtml(estudante.nome_completo)}</title>
+          <style>
+            @page {
+              size: A4;
+              margin: 20mm 20mm 20mm 20mm;
+            }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .no-print { display: none !important; }
+            }
+            * { box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              color: #0f172a;
+              margin: 0;
+              padding: 20px;
+              font-size: 10.5pt;
+              line-height: 1.5;
+              background: #ffffff;
+            }
+            .no-print-bar {
+              background: #f1f5f9;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 10px 16px;
+              margin-bottom: 24px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+            }
+            .btn-print {
+              background: #1e3a8a;
+              color: #ffffff;
+              border: none;
+              padding: 8px 18px;
+              border-radius: 6px;
+              font-weight: 700;
+              font-size: 11pt;
+              cursor: pointer;
+            }
+            .btn-close {
+              background: #e2e8f0;
+              color: #334155;
+              border: none;
+              padding: 8px 14px;
+              border-radius: 6px;
+              font-weight: 600;
+              font-size: 10pt;
+              cursor: pointer;
+            }
+            .header-inst {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              border-bottom: 2px solid #1e3a8a;
+              padding-bottom: 14px;
+              margin-bottom: 18px;
+            }
+            .header-left {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+            .header-logo {
+              max-height: 70px;
+              max-width: 130px;
+              object-fit: contain;
+            }
+            .header-school-name {
+              margin: 0;
+              font-size: 15pt;
+              font-weight: 900;
+              color: #1e3a8a;
+              text-transform: uppercase;
+              letter-spacing: -0.3px;
+            }
+            .header-school-meta {
+              margin: 3px 0 0 0;
+              font-size: 8.5pt;
+              color: #475569;
+              line-height: 1.35;
+            }
+            .header-right {
+              text-align: right;
+              font-size: 8.5pt;
+              color: #64748b;
+            }
+            .header-doc-title {
+              font-size: 9.5pt;
+              font-weight: 800;
+              color: #0f172a;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .title-banner {
+              text-align: center;
+              background: #f8fafc;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 10px 14px;
+              margin-bottom: 18px;
+            }
+            .title-banner h2 {
+              margin: 0;
+              font-size: 13pt;
+              font-weight: 800;
+              color: #0f172a;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .title-banner p {
+              margin: 4px 0 0 0;
+              font-size: 8.5pt;
+              color: #64748b;
+            }
+            .student-box {
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              padding: 12px 16px;
+              margin-bottom: 18px;
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 8px 16px;
+              font-size: 9.5pt;
+            }
+            .student-box p {
+              margin: 0;
+            }
+            .student-box strong {
+              color: #334155;
+              text-transform: uppercase;
+              font-size: 8pt;
+            }
+            .meta-box {
+              background: #ffffff;
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 12px 16px;
+              margin-bottom: 18px;
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 8px 14px;
+              font-size: 9pt;
+            }
+            .meta-box p {
+              margin: 0;
+            }
+            .meta-box strong {
+              display: block;
+              color: #64748b;
+              font-size: 7.5pt;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 2px;
+            }
+            .obs-tag {
+              display: inline-block;
+              padding: 3px 8px;
+              border-radius: 4px;
+              font-size: 8pt;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.3px;
+            }
+            .obs-tag.comportamental { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+            .obs-tag.pedagogico { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+            .obs-tag.saude { background: #ffe4e6; color: #9f1239; border: 1px solid #fecdd3; }
+            .obs-tag.geral { background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
+
+            .content-box {
+              border: 2px solid #e2e8f0;
+              border-radius: 10px;
+              padding: 20px;
+              margin-bottom: 28px;
+              background: #ffffff;
+            }
+            .content-box-title {
+              font-size: 8.5pt;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              color: #475569;
+              margin-bottom: 12px;
+              border-bottom: 1px solid #e2e8f0;
+              padding-bottom: 6px;
+            }
+            .content-text {
+              font-size: 11pt;
+              line-height: 1.6;
+              color: #0f172a;
+              white-space: pre-wrap;
+              text-align: justify;
+              margin: 0;
+            }
+            .footer-signatures {
+              margin-top: 50px;
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 48px;
+              text-align: center;
+              page-break-inside: avoid;
+            }
+            .signature-line {
+              border-top: 1px solid #334155;
+              padding-top: 6px;
+              font-size: 9pt;
+              color: #1e293b;
+              font-weight: 700;
+            }
+            .signature-sub {
+              font-size: 8pt;
+              color: #64748b;
+            }
+            .doc-legal-footer {
+              margin-top: 36px;
+              padding-top: 10px;
+              border-top: 1px solid #e2e8f0;
+              font-size: 7.5pt;
+              color: #94a3b8;
+              display: flex;
+              justify-content: space-between;
+              page-break-inside: avoid;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print-bar no-print">
+            <span style="font-weight: 600; font-size: 9.5pt; color: #1e293b;">
+              📄 Visualização de Impressão • Registro Individual de Observação
+            </span>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+              <button class="btn-close" onclick="window.close()">Fechar</button>
+            </div>
+          </div>
+
+          <div class="header-inst">
+            <div class="header-left">
+              ${escolaConfig?.logo_url ? `<img src="${escolaConfig.logo_url}" class="header-logo" alt="Logo" />` : ''}
+              <div>
+                <h1 class="header-school-name">${escapeHtml(escolaConfig?.nome_escola || 'Colégio Integrado PLUGUE')}</h1>
+                <p class="header-school-meta">
+                  INEP: ${escapeHtml(escolaConfig?.codigo_inep || 'Não informado')} • CNPJ: ${escapeHtml(escolaConfig?.cnpj || 'Não informado')}<br/>
+                  ${escapeHtml(escolaConfig?.endereco || '')} • Tel: ${escapeHtml(escolaConfig?.telefone || '')}
+                </p>
+              </div>
+            </div>
+            <div class="header-right">
+              <div class="header-doc-title">REGISTRO OFICIAL</div>
+              <div>Ano Letivo: ${escapeHtml(String(escolaConfig?.ano_letivo_ativo || new Date().getFullYear()))}</div>
+              <div style="margin-top: 3px; font-size: 7.5pt;">Emissão: ${dataEmissao}</div>
+            </div>
+          </div>
+
+          <div class="title-banner">
+            <h2>Registro Individual de Observação Escolar</h2>
+            <p>Histórico Pedagógico & Comportamental do Estudante</p>
+          </div>
+
+          <div class="student-box">
+            <p><strong>Estudante:</strong> ${escapeHtml(estudante.nome_completo.toUpperCase())}</p>
+            <p><strong>Turma / Turno:</strong> ${escapeHtml(turmaTexto)}</p>
+            <p><strong>Matrícula / ID:</strong> ${escapeHtml(estudante.id)}</p>
+            <p><strong>Data de Nascimento:</strong> ${escapeHtml(dataNascFormatada)} (${escapeHtml(idadeTexto)})</p>
+            <p><strong>Responsável:</strong> ${escapeHtml(estudante.nome_responsavel || 'Não informado')}</p>
+            <p><strong>AEE / Inclusão:</strong> ${estudante.possui_aee ? `Sim - ${escapeHtml(estudante.diagnostico_aee || 'Atendimento Especializado')}` : 'Não se aplica'}</p>
+          </div>
+
+          <div class="meta-box">
+            <div>
+              <strong>Categoria do Registro</strong>
+              <span class="obs-tag ${catKey}">${escapeHtml(conf.label)}</span>
+            </div>
+            <div>
+              <strong>Data e Hora do Registro</strong>
+              <span style="font-weight: 700; color: #1e293b;">${escapeHtml(dataObsFormatada)}</span>
+            </div>
+            <div>
+              <strong>Registrado Por</strong>
+              <span style="font-weight: 700; color: #1e293b;">${escapeHtml(obs.autor_nome || (obs as any).usuario_nome || 'Equipe Escolar')}</span>
+              <span style="color: #64748b; font-size: 8pt; display: block;">${escapeHtml(obs.autor_cargo || 'Autor')}</span>
+            </div>
+          </div>
+
+          <div class="content-box">
+            <div class="content-box-title">Descrição Circunstanciada dos Fatos e Observações</div>
+            <p class="content-text">${escapeHtml(obs.texto_completo || obs.texto)}</p>
+          </div>
+
+          <div class="footer-signatures">
+            <div>
+              <div class="signature-line">${escapeHtml(obs.autor_nome || (obs as any).usuario_nome || 'Profissional Emitente')}</div>
+              <div class="signature-sub">Responsável pelo Registro • ${escapeHtml(obs.autor_cargo || 'Docente')}</div>
+            </div>
+            <div>
+              <div class="signature-line">Coordenação Pedagógica / Direção</div>
+              <div class="signature-sub">Visto e Ciência da Gestão Escolar</div>
+            </div>
+          </div>
+
+          <div class="doc-legal-footer">
+            <span>PLUGUE • Plataforma Unificada de Gestão Educacional</span>
+            <span>Identificador Único: #${escapeHtml(obs.id.slice(0, 12))}</span>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
+  // Escuta evento customizado para disparar impressão do relatório geral quando acionado pela barra superior
+  useEffect(() => {
+    const handler = () => {
+      handleImprimirRelatorio(false);
+    };
+    window.addEventListener('imprimir-observacoes-estudante', handler);
+    return () => window.removeEventListener('imprimir-observacoes-estudante', handler);
+  }, [observacoesAtivasDesteEstudante, turmas, escolaConfig, estudante, currentUser]);
+
   const handleAdicionarObservacao = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoTexto.trim()) return;
@@ -266,11 +1054,23 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
     <div className="space-y-6">
       {/* Topo: Título e Filtro de Tags */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
-        <div>
+        <div className="flex items-center justify-between sm:justify-start gap-3 flex-wrap">
           <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
             Observações & Históricos
           </h4>
+
+          {/* Botão de Impressão do Relatório Completo */}
+          <button
+            type="button"
+            onClick={() => handleImprimirRelatorio(false)}
+            disabled={observacoesAtivasDesteEstudante.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-school-blue-800 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            title="Imprimir relatório completo com todas as observações do estudante"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            <span>Imprimir Relatório</span>
+          </button>
         </div>
 
         {/* Filtro por Categorias em 2 Linhas Balanceadas */}
@@ -452,6 +1252,26 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               <Clock className="h-3 w-3 text-slate-500" />
               <span>{ordemAsc ? 'Mais Antigas' : 'Mais Recentes'}</span>
             </button>
+
+            {/* Botão de Impressão Rápida no Cabeçalho do Histórico */}
+            {observacoes.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleImprimirRelatorio(filtroCategoria !== 'todos' || !!buscaHistorico.trim())}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors shadow-2xs cursor-pointer"
+                title={
+                  (filtroCategoria !== 'todos' || buscaHistorico.trim())
+                    ? `Imprimir relatório das ${observacoes.length} observações filtradas`
+                    : `Imprimir relatório de todas as ${observacoes.length} observações`
+                }
+              >
+                <Printer className="h-3 w-3 text-school-blue-600 dark:text-school-blue-400" />
+                <span className="hidden sm:inline">
+                  {(filtroCategoria !== 'todos' || buscaHistorico.trim()) ? 'Imprimir Filtradas' : 'Imprimir Lista'}
+                </span>
+                <span className="sm:hidden">Imprimir</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -537,6 +1357,19 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
                             </button>
                           )}
 
+                          {/* Botão de Impressão Individual da Observação */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleImprimirObservacaoIndividual(obs);
+                            }}
+                            className="p-1 text-slate-400 hover:text-school-blue-600 dark:hover:text-school-blue-400 transition-colors cursor-pointer"
+                            title="Imprimir esta observação individualmente"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                          </button>
+
                           <span className="text-slate-300 dark:text-slate-600 text-xs ml-1">|</span>
                           <span className="text-[10px] font-semibold text-school-blue-600 dark:text-school-blue-400 flex items-center gap-0.5">
                             <Eye className="h-3 w-3" /> Ler
@@ -620,12 +1453,22 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleImprimirObservacaoIndividual(observacaoLeitura)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 shadow-2xs transition-all cursor-pointer"
+                  title="Imprimir esta anotação em formato de despacho individual"
+                >
+                  <Printer className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-blue-400" />
+                  <span>Imprimir Esta Observação</span>
+                </button>
+
                 {currentUser.id === (observacaoLeitura.usuario_id || observacaoLeitura.autor_id) && (
                   <button
                     type="button"
                     onClick={() => abrirEdicao(observacaoLeitura)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-school-blue-300 bg-school-blue-50 px-3 py-1.5 text-xs font-bold text-school-blue-700 hover:bg-school-blue-100 dark:border-school-blue-800 dark:bg-school-blue-950/50 dark:text-school-blue-300"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-school-blue-300 bg-school-blue-50 px-3 py-1.5 text-xs font-bold text-school-blue-700 hover:bg-school-blue-100 dark:border-school-blue-800 dark:bg-school-blue-950/50 dark:text-school-blue-300 cursor-pointer"
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                     <span>Editar Anotação</span>
@@ -636,7 +1479,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               <button
                 type="button"
                 onClick={() => setObservacaoLeitura(null)}
-                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 cursor-pointer"
               >
                 Fechar
               </button>

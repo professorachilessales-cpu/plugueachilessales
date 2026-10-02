@@ -78,37 +78,25 @@ export async function POST(req: NextRequest) {
       sexo: sexo || genero || alunoGenero || genero_estudante,
     });
 
-    // Se não há pareceres e nem anotações pedagógicas válidas
-    if ((!pareceres || pareceres.length === 0) && (!anotacoesPedagogicas || anotacoesPedagogicas.length === 0)) {
+    // Se não há pareceres docentes válidos enviados
+    if (!pareceres || pareceres.length === 0) {
       return NextResponse.json(
-        { error: 'Não há pareceres docentes ou anotações pedagógicas enviadas para consolidação desta solicitação.' },
+        { error: 'Não há pareceres docentes enviados para consolidação desta solicitação.' },
         { status: 400 }
       );
     }
 
-    // Formatação da lista de pareceres e anotações para o prompt
+    // Formatação exclusiva da lista de pareceres dos professores para o prompt (sem registros contínuos)
     const blocosTextos: string[] = [];
 
-    // 1. Pareceres descritivos de professores e equipe de apoio
-    if (pareceres && pareceres.length > 0) {
-      pareceres.forEach((p, idx) => {
-        const disc = p.disciplinas && p.disciplinas.length > 0 ? ` - ${p.disciplinas.join(', ')}` : '';
-        const papel = p.ehApoio ? 'Equipe de Apoio & Inclusão' : 'Docente Regente';
-        blocosTextos.push(`[${papel} ${idx + 1}: ${p.professorNome}${disc}]\n${p.textoFinal.trim()}`);
-      });
-    }
+    // Pareceres descritivos de professores e equipe de apoio
+    pareceres.forEach((p, idx) => {
+      const disc = p.disciplinas && p.disciplinas.length > 0 ? ` - ${p.disciplinas.join(', ')}` : '';
+      const papel = p.ehApoio ? 'Equipe de Apoio & Inclusão' : 'Docente Regente';
+      blocosTextos.push(`[${papel} ${idx + 1}: ${p.professorNome}${disc}]\n${p.textoFinal.trim()}`);
+    });
 
-    // 2. Anotações pedagógicas válidas do estudante
-    if (anotacoesPedagogicas && anotacoesPedagogicas.length > 0) {
-      anotacoesPedagogicas.forEach((a, idx) => {
-        const cat = a.categoria ? ` (${a.categoria.toUpperCase()})` : '';
-        const autor = a.autorNome ? ` por ${a.autorNome}` : '';
-        const data = a.dataRegistro ? ` em ${a.dataRegistro}` : '';
-        blocosTextos.push(`[Registro Pedagógico ${idx + 1}${cat}${autor}${data}]\n${a.texto.trim()}`);
-      });
-    }
-
-    // 3. Observações da Secretaria Escolar
+    // Observações institucionais da Secretaria Escolar (se houver)
     if (observacoesSecretaria && observacoesSecretaria.trim()) {
       blocosTextos.push(`[Observações da Secretaria / Gestão Escolar]\n${sanitizeTextarea(observacoesSecretaria.trim())}`);
     }
@@ -149,7 +137,7 @@ export async function POST(req: NextRequest) {
                 systemInstruction: {
                   parts: [
                     {
-                      text: 'Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar, operando via Gemini. Sua missão é ler todos os relatórios e apontamentos individuais enviados pelos diferentes professores de um estudante e consolidá-los em um parecer único, abrangente, rico e pedagogicamente sofisticado. Siga rigorosamente as diretrizes e retorne EXCLUSIVAMENTE o texto pedagógico consolidado e contínuo, pronto para o documento oficial, sem qualquer saudação, preâmbulo, nota ou tópico final de encaminhamentos.'
+                      text: 'Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar, operando via Gemini. Sua missão é ler todos os relatórios e apontamentos individuais enviados pelos diferentes professores de um estudante e consolidá-los em um parecer único, abrangente, rico e pedagogicamente sofisticado. Siga rigorosamente as diretrizes e retorne EXCLUSIVAMENTE o texto pedagógico consolidado e contínuo, pronto para o documento oficial, sem qualquer saudação, preâmbulo, nota, menção a registros contínuos ou tópico final de encaminhamentos.'
                     }
                   ]
                 },
@@ -230,13 +218,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Fallback Heurístico Pedagógico de Alta Precisão (Sem metatexto, concordância de gênero estrita)
+    // 3. Fallback Heurístico Pedagógico de Alta Precisão (Sem metatexto, sem registros contínuos, concordância de gênero estrita)
     const consolidadoHeuristico = gerarConsolidadoHeuristico({
       nomeEstudante: nomeFinal,
       generoGramatical: dadosGenero.generoGramatical,
       turmaNome: turmaFinal,
       pareceres,
-      anotacoesPedagogicas,
       observacoesSecretaria,
     });
 

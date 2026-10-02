@@ -211,19 +211,8 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
       p => p.status === 'enviado' && (p.texto_final || p.texto_ia || p.rascunho_original)
     );
 
-    // 1.1 Coleta anotações pedagógicas válidas do estudante registradas por professores e apoio
-    const anotacoesEstudante = (observacoesAluno || [])
-      .filter(o => (o.estudante_id === estudante.id || o.aluno_id === estudante.id) && !o.deleted_at && o.is_deleted !== 1 && o.ativo !== 0)
-      .map(o => ({
-        autorNome: o.autor_nome || (o as any).usuario_nome || 'Equipe Escolar',
-        categoria: o.categoria || o.tipo || 'pedagogico',
-        texto: o.texto_completo || o.texto || '',
-        dataRegistro: o.created_at || o.data_registro ? new Date(o.created_at || o.data_registro!).toLocaleDateString('pt-BR') : undefined,
-      }))
-      .filter(a => a.texto.trim().length > 0);
-
-    if (pareceresEnviados.length === 0 && anotacoesEstudante.length === 0) {
-      alert('É necessário ter ao menos um parecer docente enviado ou anotação pedagógica registrada para consolidar o relatório com IA.');
+    if (pareceresEnviados.length === 0) {
+      alert('É necessário ter ao menos um parecer docente enviado para consolidar o relatório com IA.');
       return;
     }
 
@@ -265,7 +254,6 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
           turno: turmaAluno?.turno || 'Turno Regular',
           turma_turno: turmaAluno?.turno || 'Turno Regular',
           pareceres: payloadPareceres,
-          anotacoesPedagogicas: anotacoesEstudante,
           observacoesSecretaria: observacoesSecretaria,
         }),
       });
@@ -864,7 +852,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                   Sintetizando pareceres docentes com IA...
                 </h5>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Processando pareceres descritivos e anotações pedagógicas com rigor formal, concordância de gênero estrita e ausência de metatexto.
+                  Processando pareceres descritivos docentes com rigor formal, concordância de gênero estrita e ausência de metatexto.
                 </p>
                 <div className="w-full max-w-xs mx-auto bg-purple-200/60 dark:bg-purple-900/40 h-1.5 rounded-full overflow-hidden mt-3">
                   <div className="h-full bg-gradient-to-r from-purple-600 to-indigo-600 animate-pulse rounded-full w-4/5 mx-auto" />

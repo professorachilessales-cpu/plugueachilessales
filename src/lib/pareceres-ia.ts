@@ -114,6 +114,7 @@ DIRETRIZES OBRIGATÓRIAS DE CONSOLIDAÇÃO E REDAÇÃO:
 4. 🚫 Restrições Rígidas:
    - NÃO adicione saudações, preâmbulos ou notas (ex.: "Aqui está o parecer consolidado:").
    - NÃO adicione tópicos finais de sugestões para os pais, encaminhamentos ou conselhos.
+   - NÃO coloque registros contínuos no texto nem faça menção a eles (ex.: "registros contínuos", "anotações pedagógicas de acompanhamento", históricos pontuais).
    - Retorne EXCLUSIVAMENTE o texto pedagógico consolidado e contínuo, pronto para o documento oficial.`;
 }
 
@@ -128,7 +129,7 @@ DIRETRIZES OBRIGATÓRIAS DE CONSOLIDAÇÃO E REDAÇÃO:
 1. Saneamento Gramatical e Correção Ortográfica: Corrija rigorosamente qualquer desvio ortográfico, acentuação, pontuação ou concordância verbal/nominal.
 2. Vocabulário Técnico, Rico e Variado: Utilize variedade lexical culta adequada ao ambiente escolar (desenvolvimento cognitivo, competências socioemocionais, mediação pedagógica, autorregulação).
 3. Síntese e Unificação sem Redundâncias: Integre os pontos comuns dos professores e destaque especificidades organicamente, sem listar professor por professor.
-4. Restrições Rígidas: Retorne EXCLUSIVAMENTE o texto pedagógico consolidado, sem preâmbulos, saudações ou sugestões finais.`;
+4. Restrições Rígidas: Retorne EXCLUSIVAMENTE o texto pedagógico consolidado, sem preâmbulos, saudações, sugestões finais e sem qualquer menção ou inclusão de registros contínuos.`;
 }
 
 /**
@@ -174,6 +175,9 @@ export function limparMetatextoEEncerramentos(texto: string): string {
   // Remove notas de encerramento da IA
   limpo = limpo.replace(/\n+(?:espero ter ajudado|qualquer dúvida|atenciosamente|estou à disposição|caso precise)[\s\S]*$/i, '');
 
+  // Remove qualquer menção residual a registros contínuos
+  limpo = limpo.replace(/(?:os\s+registros\s+cont[íi]nuos\s+de\s+acompanhamento\s+pedag[óo]gico\s+corroboram\s+que|registros\s+cont[íi]nuos\s+de\s+acompanhamento\s+pedag[óo]gico|registros\s+cont[íi]nuos\s+de\s+acompanhamento|registros\s+cont[íi]nuos|registros\s+pedag[óo]gicos\s+cont[íi]nuos)\s*/gi, '');
+
   return limpo.trim();
 }
 
@@ -196,10 +200,6 @@ export function gerarConsolidadoHeuristico(params: {
     .map(p => p.textoFinal.trim())
     .filter(Boolean);
 
-  const textosAnotacoes = (params.anotacoesPedagogicas || [])
-    .map(a => a.texto.trim())
-    .filter(Boolean);
-
   const paragrafos: string[] = [];
 
   // Parágrafo 1: Contextualização Institucional e Postura
@@ -220,16 +220,9 @@ export function gerarConsolidadoHeuristico(params: {
     `No âmbito do desenvolvimento socioemocional, convivência coletiva e autonomia, ${nome} destaca-se pela relação respeitosa e empática com colegas e profissionais da educação. Demonstra maturidade na escuta atenta, capacidade de trabalho em equipe e equilíbrio na resolução participativa das situações cotidianas, exercendo sua cidadania escolar com responsabilidade e protagonismo.`
   );
 
-  // Parágrafo 4: Anotações Pedagógicas e Observações de Acompanhamento (se houver)
-  if (textosAnotacoes.length > 0 || params.observacoesSecretaria?.trim()) {
-    const complementares: string[] = [];
-    if (textosAnotacoes.length > 0) {
-      complementares.push(`Os registros contínuos de acompanhamento pedagógico corroboram que ${textosAnotacoes.join(' ')}`);
-    }
-    if (params.observacoesSecretaria?.trim()) {
-      complementares.push(params.observacoesSecretaria.trim());
-    }
-    paragrafos.push(complementares.join(' '));
+  // Parágrafo 4: Observações Institucionais da Secretaria (se houver)
+  if (params.observacoesSecretaria?.trim()) {
+    paragrafos.push(params.observacoesSecretaria.trim());
   }
 
   return paragrafos.join('\n\n');

@@ -324,34 +324,48 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
           <meta charset="utf-8">
           <title>Parecer Pedagógico Integrado - ${estudante.nome_completo}</title>
           <style>
-            @page { size: A4; margin: 25mm 20mm 20mm 20mm; }
-            body { font-family: Calibri, Arial, sans-serif; color: #0f172a; margin: 0; padding: 24px; font-size: 11pt; line-height: 1.5; }
-            .header-inst { text-align: center; border-bottom: 2px solid #1e40af; padding-bottom: 12px; margin-bottom: 20px; }
-            .header-inst h2 { margin: 0; font-size: 15pt; color: #1e40af; font-weight: 800; }
-            .header-inst p { margin: 3px 0; font-size: 9pt; color: #475569; }
-            .title { text-align: center; font-size: 14pt; font-weight: bold; margin: 24px 0 20px 0; color: #0f172a; }
-            .student-info { margin-bottom: 24px; font-size: 11pt; }
-            .student-info p { margin: 4px 0; }
-            .content { text-align: justify; text-indent: 32px; font-size: 11pt; line-height: 1.6; white-space: pre-line; color: #1e293b; }
-            .footer-sign { margin-top: 60px; text-align: center; }
-            .footer-line { width: 300px; border-top: 1px solid #334155; margin: 0 auto 8px auto; }
+            @page { size: A4 portrait; margin: 10mm 14mm 10mm 14mm; }
+            * { box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; margin: 0; padding: 0; font-size: 10pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .report-sheet { width: 100%; max-height: 275mm; overflow: hidden; page-break-inside: avoid; }
+            .header-inst { text-align: center; border-bottom: 2px solid #1e40af; padding-bottom: 6px; margin-bottom: 10px; }
+            .header-inst h2 { margin: 0; font-size: 13pt; color: #1e40af; font-weight: 800; text-transform: uppercase; }
+            .header-inst p { margin: 2px 0; font-size: 8.5pt; color: #475569; }
+            .title { text-align: center; font-size: 11.5pt; font-weight: 800; margin: 10px 0 8px 0; color: #0f172a; letter-spacing: 0.5px; text-transform: uppercase; }
+            .student-info { margin-bottom: 12px; font-size: 9pt; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; }
+            .student-info p { margin: 2px 0; }
+            .content { text-align: justify; text-indent: 24px; font-size: 9.5pt; line-height: 1.5; white-space: pre-line; color: #1e293b; }
+            .footer-signatures { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align: center; page-break-inside: avoid; }
+            .signature-box { border-top: 1px solid #334155; padding-top: 4px; font-size: 8.5pt; font-weight: 700; color: #1e293b; }
+            .signature-sub { font-size: 7.5pt; color: #64748b; font-weight: normal; }
+            .legal-note { margin-top: 14px; text-align: center; font-size: 7pt; color: #94a3b8; page-break-inside: avoid; }
           </style>
         </head>
         <body>
-          <div class="header-inst">
-            <h2>${escolaConfig.nome_escola || 'Colégio Integrado PLUGUE'}</h2>
-            <p>CNPJ: ${escolaConfig.cnpj || '12.345.678/0001-90'} • Ano Letivo: ${escolaConfig.ano_letivo_ativo || 2026}</p>
-          </div>
-          <div class="title">PARECER PEDAGÓGICO INTEGRADO</div>
-          <div class="student-info">
-            <p><strong>Nome Completo:</strong> ${estudante.nome_completo.toUpperCase()}  -  <strong>Turma:</strong> ${turmaTexto}</p>
-            <p><strong>Idade:</strong> ${idadeTexto}</p>
-            <p><strong>Período da Emissão:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
-          </div>
-          <div class="content">${texto}</div>
-          <div class="footer-sign">
-            <div class="footer-line"></div>
-            <strong>Direção Escolar</strong>
+          <div class="report-sheet">
+            <div class="header-inst">
+              <h2>${escolaConfig.nome_escola || 'Colégio Integrado PLUGUE'}</h2>
+              <p>INEP: ${escolaConfig.codigo_inep || 'Não informado'} • CNPJ: ${escolaConfig.cnpj || 'Não informado'} • Ano Letivo: ${escolaConfig.ano_letivo_ativo || 2026}</p>
+            </div>
+            <div class="title">PARECER PEDAGÓGICO INTEGRADO</div>
+            <div class="student-info">
+              <p><strong>Estudante:</strong> ${estudante.nome_completo.toUpperCase()} &nbsp;|&nbsp; <strong>Turma:</strong> ${turmaTexto}</p>
+              <p><strong>Idade:</strong> ${idadeTexto} &nbsp;|&nbsp; <strong>Data de Emissão:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
+            </div>
+            <div class="content">${texto}</div>
+            <div class="footer-signatures">
+              <div class="signature-box">
+                Coordenação Pedagógica / Docente
+                <div class="signature-sub">Elaboração e Acompanhamento</div>
+              </div>
+              <div class="signature-box">
+                Direção Escolar
+                <div class="signature-sub">Homologação Oficial</div>
+              </div>
+            </div>
+            <div class="legal-note">
+              Documento emitido eletronicamente pela Plataforma PLUGUE. Registrado nos arquivos pedagógicos escolares.
+            </div>
           </div>
           <script>
             window.onload = function() { window.print(); }

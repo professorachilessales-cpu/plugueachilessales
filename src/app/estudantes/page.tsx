@@ -591,11 +591,13 @@ export default function EstudantesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho Oficial de Impressão (Visível apenas em @media print) */}
-      <PrintHeader
-        documentTitle="FICHA CADASTRAL DO ESTUDANTE"
-        documentSubtitle="Registros Oficiais da Secretaria Escolar • PLUGUE"
-      />
+      {/* Cabeçalho Oficial de Impressão da Listagem (Visível apenas em @media print quando nenhum modal de ficha estiver aberto) */}
+      {!modalFichaAberto && (
+        <PrintHeader
+          documentTitle="RELAÇÃO GERAL DE ESTUDANTES"
+          documentSubtitle="Registros Oficiais da Secretaria Escolar • PLUGUE"
+        />
+      )}
 
       {/* Datalist com cidades já digitadas memorizadas */}
       <datalist id="lista-cidades-nascimento">
@@ -681,7 +683,7 @@ export default function EstudantesPage() {
       </div>
 
       {/* Tabela de Estudantes */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-school-dark-border dark:bg-school-dark-surface">
+      <div className={`rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-school-dark-border dark:bg-school-dark-surface ${modalFichaAberto ? 'print:hidden' : ''}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
             <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
@@ -1718,13 +1720,16 @@ export default function EstudantesPage() {
 
       {/* MODAL 3: Visualização Completa da Ficha e Impressão Timbrada */}
       {modalFichaAberto && estudanteSelecionado && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto card-print border border-slate-200 dark:border-slate-800">
-            {/* Cabeçalho da Ficha Timbrada */}
-            <PrintHeader
-              documentTitle="FICHA INDIVIDUAL DO ESTUDANTE"
-              documentSubtitle={`Registro Geral: ${estudanteSelecionado.id} • PLUGUE`}
-            />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm overflow-y-auto modal-print-backdrop">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto card-print border border-slate-200 dark:border-slate-800 modal-print-card">
+            {/* Cabeçalho da Ficha Timbrada (Compacto na impressão para caber estritamente em 1 folha A4) */}
+            {abaFicha === 'cadastro' && (
+              <PrintHeader
+                documentTitle="FICHA CADASTRAL INDIVIDUAL DO ESTUDANTE"
+                documentSubtitle={`Registro Geral: ${estudanteSelecionado.id} • Ano Letivo: ${escolaConfig.ano_letivo_ativo || 2026}`}
+                compact
+              />
+            )}
 
             {/* Barra Superior de Navegação da Ficha Escolar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800 print:hidden">
@@ -1813,186 +1818,201 @@ export default function EstudantesPage() {
               </div>
             </div>
 
-            {/* Conteúdo da Aba 1: Ficha Cadastral do Aluno */}
+            {/* Conteúdo da Aba 1: Ficha Cadastral do Aluno (Formatada com precisão para 1 página A4) */}
             {abaFicha === 'cadastro' && (
-              <div className="mt-6 space-y-6 text-xs text-slate-700 dark:text-slate-300">
-              {/* Seção 1: Identificação & Foto */}
-              <div className="flex flex-col sm:flex-row items-start gap-5">
-                {estudanteSelecionado.foto_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={estudanteSelecionado.foto_url}
-                    alt={estudanteSelecionado.nome_completo}
-                    className="h-32 w-28 rounded-2xl object-cover border-2 border-slate-300 dark:border-slate-700 shadow-sm"
-                  />
-                ) : (
-                  <div className="flex h-32 w-28 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 font-bold text-xl border-2 border-dashed border-slate-300 dark:bg-slate-800 dark:border-slate-700">
-                    SEM FOTO
-                  </div>
-                )}
+              <div className="mt-4 sm:mt-6 space-y-4 print:space-y-1.5 print:mt-0 text-xs print:text-[9px] text-slate-700 dark:text-slate-300 print:text-black ficha-a4-sheet">
+                {/* Seção 1: Identificação Civil & Foto 3x4 */}
+                <div className="flex flex-col sm:flex-row items-start gap-4 print:gap-2.5 border border-slate-200 print:border-slate-400 rounded-xl print:rounded-md p-3 print:p-1.5 bg-slate-50/50 print:bg-white dark:bg-slate-900/30">
+                  {estudanteSelecionado.foto_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={estudanteSelecionado.foto_url}
+                      alt={estudanteSelecionado.nome_completo}
+                      className="h-28 w-24 print:h-[82px] print:w-[64px] rounded-xl print:rounded object-cover border border-slate-300 print:border-slate-500 shadow-sm shrink-0"
+                    />
+                  ) : (
+                    <div className="flex h-28 w-24 print:h-[82px] print:w-[64px] items-center justify-center rounded-xl print:rounded bg-slate-100 print:bg-slate-50 text-slate-400 font-bold text-xs print:text-[8px] border border-dashed border-slate-300 print:border-slate-400 shrink-0 text-center p-1">
+                      FOTO 3x4
+                    </div>
+                  )}
 
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <h4 className="text-xl font-black text-slate-900 dark:text-white">
-                      {estudanteSelecionado.nome_completo}
-                    </h4>
-                    <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-school-blue-800 dark:bg-blue-950 dark:text-blue-300">
-                      Matrícula: {estudanteSelecionado.status_matricula}
-                    </span>
-                  </div>
-                  <p className="text-xs font-semibold text-school-blue-700 dark:text-school-gold-400">
-                    Turma: {estudanteSelecionado.turma_nome || 'Não atribuída'} • Histórico Escolar: {(estudanteSelecionado.tipo_historico_escolar || 'NÃO ENTREGUE').toUpperCase()}
-                  </p>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] pt-1">
-                    <div><strong>Data Nasc:</strong> {new Date(estudanteSelecionado.data_nascimento).toLocaleDateString('pt-BR')}</div>
-                    <div><strong>Nacionalidade:</strong> {estudanteSelecionado.nacionalidade || 'Brasileira'}</div>
-                    <div><strong>Naturalidade:</strong> {estudanteSelecionado.naturalidade_cidade || 'Não informada'}</div>
-                    <div><strong>CPF:</strong> {estudanteSelecionado.cpf || 'Não informado'}</div>
-                    <div><strong>RG:</strong> {estudanteSelecionado.rg_numero || 'Não informado'}</div>
-                    <div><strong>Expedição RG:</strong> {estudanteSelecionado.rg_data_expedicao ? new Date(estudanteSelecionado.rg_data_expedicao).toLocaleDateString('pt-BR') : 'Não informada'}</div>
-                    <div><strong>Cartão SUS:</strong> {estudanteSelecionado.numero_sus || 'Não informado'}</div>
-                    <div className="sm:col-span-2"><strong>Certidão Nasc:</strong> {estudanteSelecionado.certidao_nascimento || 'Não informada'}</div>
-                  </div>
-                </div>
-              </div>
+                  <div className="flex-1 min-w-0 space-y-1.5 print:space-y-0.5">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <h4 className="text-base sm:text-lg print:text-[11.5px] font-black uppercase text-slate-900 print:text-black leading-tight truncate max-w-full">
+                        {estudanteSelecionado.nome_completo}
+                      </h4>
+                      <span className="rounded-full print:rounded bg-blue-100 print:bg-slate-100 px-2 py-0.5 print:px-1.5 print:py-0 text-[10px] print:text-[8px] font-bold text-school-blue-800 print:text-black border print:border-slate-400 shrink-0">
+                        STATUS: {estudanteSelecionado.status_matricula?.toUpperCase()}
+                      </span>
+                    </div>
 
-              {/* Seção 2: Cotas & Benefício Social */}
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-2 dark:border-indigo-900/50 dark:bg-indigo-950/20">
-                <h5 className="font-bold uppercase tracking-wider text-indigo-950 dark:text-indigo-200 text-[11px] flex items-center gap-1.5">
-                  <Award className="h-3.5 w-3.5 text-indigo-600" />
-                  Política de Cotas & Benefícios Sociais
-                </h5>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <strong>Classificação de Cotista:</strong>{' '}
-                    <span className="font-bold text-indigo-700 dark:text-indigo-300 uppercase">
-                      {estudanteSelecionado.percentual_cota === '0%' || !estudanteSelecionado.percentual_cota ? ' ( 0% )' : estudanteSelecionado.percentual_cota === '50%' ? '50% (COTA PARCIAL)' : '100% (COTA INTEGRAL)'}
-                    </span>
-                  </div>
-                  <div>
-                    <strong>Número do Bolsa Família (NIS):</strong>{' '}
-                    <span className="font-bold text-slate-800 dark:text-white uppercase">
-                      {estudanteSelecionado.numero_bolsa_familia || 'NÃO PARTICIPANTE / NÃO INFORMADO'}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-1 rounded-lg bg-indigo-100/70 p-2 text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-200 text-[11px] font-semibold border border-indigo-200 dark:border-indigo-800">
-                  Esta escolha será utilizada para a inscrição nas <strong>Escolas Técnicas Estaduais (ETE)</strong> e no <strong>Instituto Federal de Pernambuco (IFPE)</strong>.
-                </div>
-              </div>
+                    <div className="flex flex-wrap items-center gap-x-2 text-[11px] print:text-[8.5px] font-semibold text-school-blue-700 print:text-slate-800">
+                      <span>Turma: <strong>{estudanteSelecionado.turma_nome || 'Não atribuída'}</strong></span>
+                      <span>•</span>
+                      <span>Histórico Escolar: <strong>{(estudanteSelecionado.tipo_historico_escolar || 'NÃO ENTREGUE').toUpperCase()}</strong></span>
+                    </div>
 
-              {/* Seção 3: Filiação e Responsável */}
-              <div className="rounded-xl border border-slate-200 p-4 space-y-2 dark:border-slate-700">
-                <h5 className="font-bold uppercase tracking-wider text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
-                  <UserCheck className="h-3.5 w-3.5 text-school-blue-600" />
-                  Dados de Filiação & Responsável Legal
-                </h5>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs uppercase">
-                  <div><strong>Mãe:</strong> {estudanteSelecionado.filiacao_materna || 'NÃO DECLARADA'}</div>
-                  <div><strong>Pai:</strong> {estudanteSelecionado.filiacao_paterna || 'NÃO DECLARADO'}</div>
-                  <div><strong>Responsável Ativo:</strong> {estudanteSelecionado.nome_responsavel} ({estudanteSelecionado.parentesco_responsavel})</div>
-                  <div><strong>CPF do Responsável:</strong> {estudanteSelecionado.cpf_responsavel || 'NÃO CADASTRADO'}</div>
-                </div>
-              </div>
-
-              {/* Seção 4: Telefones de Contato (4 números) & Endereço */}
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-4 space-y-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-                <h5 className="font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-200 text-[11px] flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5 text-emerald-600" />
-                  Telefones de Contato & Endereço Residencial
-                </h5>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-                  <div className="rounded-lg bg-white p-2 border border-emerald-100 dark:bg-slate-900 dark:border-emerald-900/40">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Tel 1 (Principal/WhatsApp)</span>
-                    <strong className="font-mono text-emerald-700 dark:text-emerald-400">
-                      {estudanteSelecionado.telefone_responsavel || 'Não cadastrado'}
-                    </strong>
-                  </div>
-
-                  <div className="rounded-lg bg-white p-2 border border-emerald-100 dark:bg-slate-900 dark:border-emerald-900/40">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Tel 2 (Responsável)</span>
-                    <strong className="font-mono text-slate-800 dark:text-slate-200">
-                      {estudanteSelecionado.telefone_2 || 'Não informado'}
-                    </strong>
-                  </div>
-
-                  <div className="rounded-lg bg-white p-2 border border-emerald-100 dark:bg-slate-900 dark:border-emerald-900/40">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Tel 3 (Responsável)</span>
-                    <strong className="font-mono text-slate-800 dark:text-slate-200">
-                      {estudanteSelecionado.telefone_3 || 'Não informado'}
-                    </strong>
-                  </div>
-
-                  <div className="rounded-lg bg-white p-2 border border-emerald-100 dark:bg-slate-900 dark:border-emerald-900/40">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Tel 4 (Recado)</span>
-                    <strong className="font-mono text-slate-800 dark:text-slate-200">
-                      {estudanteSelecionado.telefone_4 || 'Não informado'}
-                    </strong>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-4 gap-x-2 gap-y-1 print:gap-y-0.5 text-[10.5px] print:text-[8px] pt-1 print:pt-0.5 border-t border-slate-200 print:border-slate-300">
+                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Data Nasc:</span> <strong>{new Date(estudanteSelecionado.data_nascimento).toLocaleDateString('pt-BR')}</strong></div>
+                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Nacionalidade:</span> <strong>{estudanteSelecionado.nacionalidade || 'Brasileira'}</strong></div>
+                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Naturalidade:</span> <strong>{estudanteSelecionado.naturalidade_cidade || 'Não informada'}</strong></div>
+                      <div><span className="text-slate-500 print:text-slate-700 font-medium">CPF:</span> <strong>{estudanteSelecionado.cpf || 'Não informado'}</strong></div>
+                      <div><span className="text-slate-500 print:text-slate-700 font-medium">RG:</span> <strong>{estudanteSelecionado.rg_numero || 'Não informado'}</strong></div>
+                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Exp. RG:</span> <strong>{estudanteSelecionado.rg_data_expedicao ? new Date(estudanteSelecionado.rg_data_expedicao).toLocaleDateString('pt-BR') : 'Não informada'}</strong></div>
+                      <div><span className="text-slate-500 print:text-slate-700 font-medium">Cartão SUS:</span> <strong>{estudanteSelecionado.numero_sus || 'Não informado'}</strong></div>
+                      <div className="truncate"><span className="text-slate-500 print:text-slate-700 font-medium">Certidão:</span> <strong title={estudanteSelecionado.certidao_nascimento || ''}>{estudanteSelecionado.certidao_nascimento || 'Não informada'}</strong></div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1 uppercase">
-                  <div><strong>E-mail:</strong> {estudanteSelecionado.email || 'NÃO CADASTRADO'}</div>
-                  <div>
-                    <strong>Endereço Completo:</strong>{' '}
-                    {estudanteSelecionado.endereco_logradouro
-                      ? `${estudanteSelecionado.endereco_logradouro}, Nº ${estudanteSelecionado.endereco_numero || 'S/N'} - Bairro: ${estudanteSelecionado.endereco_bairro || 'NÃO INFORMADO'}`
-                      : estudanteSelecionado.endereco || 'NÃO INFORMADO'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção 5: Inclusão e AEE */}
-              <div className="rounded-xl border border-slate-200 p-4 space-y-2 dark:border-slate-700">
-                <h5 className="font-bold uppercase tracking-wider text-slate-900 dark:text-white text-[11px] flex items-center gap-1.5">
-                  <HeartHandshake className="h-3.5 w-3.5 text-emerald-600" />
-                  Indicadores de Inclusão & Saúde Escolar (AEE)
-                </h5>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  <div>
-                    <strong>Possui Laudo Homologado:</strong> {estudanteSelecionado.possui_laudo ? 'SIM' : 'NÃO'}
-                  </div>
-                  <div>
-                    <strong>Elegível AEE:</strong> {estudanteSelecionado.aee ? 'SIM' : 'NÃO'}
-                  </div>
-                  <div>
-                    <strong>Nome do Apoio:</strong>{' '}
-                    <span className="font-bold text-emerald-700 dark:text-emerald-400 uppercase">
-                      {estudanteSelecionado.apoio_nome || 'NÃO DESIGNADO'}
-                    </span>
-                  </div>
-                </div>
-                {estudanteSelecionado.laudo_descricao && (
-                  <div className="rounded-lg bg-emerald-50 p-2.5 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-200 text-xs uppercase">
-                    <strong>Parecer / CID:</strong> {estudanteSelecionado.laudo_descricao}
-                  </div>
-                )}
-              </div>
-
-              {/* Seção 6: Observações */}
-              {estudanteSelecionado.observacoes && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-1.5 dark:border-slate-700 dark:bg-slate-900/40">
-                  <h5 className="font-bold uppercase tracking-wider text-slate-900 dark:text-white text-[11px]">
-                    Observações Pedagógicas, Médicas ou Administrativas
+                {/* Seção 2: Filiação e Responsável Legal */}
+                <div className="rounded-xl print:rounded-md border border-slate-200 print:border-slate-400 p-3 print:p-1.5 space-y-1.5 print:space-y-0.5 bg-white">
+                  <h5 className="font-bold uppercase tracking-wider text-slate-900 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
+                    <UserCheck className="h-3.5 w-3.5 print:h-3 print:w-3 text-school-blue-600 print:text-black shrink-0" />
+                    <span>Dados de Filiação & Responsável Legal</span>
                   </h5>
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap uppercase">
-                    {estudanteSelecionado.observacoes}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-x-2 gap-y-1 print:gap-y-0 text-xs print:text-[8px] uppercase">
+                    <div><span className="text-slate-500 print:text-slate-700 font-semibold">Mãe:</span> <strong>{estudanteSelecionado.filiacao_materna || 'NÃO DECLARADA'}</strong></div>
+                    <div><span className="text-slate-500 print:text-slate-700 font-semibold">Pai:</span> <strong>{estudanteSelecionado.filiacao_paterna || 'NÃO DECLARADO'}</strong></div>
+                    <div><span className="text-slate-500 print:text-slate-700 font-semibold">Responsável Ativo:</span> <strong>{estudanteSelecionado.nome_responsavel} ({estudanteSelecionado.parentesco_responsavel})</strong></div>
+                    <div><span className="text-slate-500 print:text-slate-700 font-semibold">CPF do Responsável:</span> <strong>{estudanteSelecionado.cpf_responsavel || 'NÃO CADASTRADO'}</strong></div>
+                  </div>
+                </div>
+
+                {/* Seção 3: Telefones de Contato (4 números) & Endereço */}
+                <div className="rounded-xl print:rounded-md border border-emerald-200 print:border-slate-400 bg-emerald-50/20 print:bg-white p-3 print:p-1.5 space-y-2 print:space-y-1">
+                  <h5 className="font-bold uppercase tracking-wider text-emerald-950 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
+                    <Phone className="h-3.5 w-3.5 print:h-3 print:w-3 text-emerald-600 print:text-black shrink-0" />
+                    <span>Telefones de Contato & Endereço Residencial</span>
+                  </h5>
+                  
+                  {/* Telefones em 4 colunas compactas */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-2 print:gap-1 text-xs print:text-[7.5px]">
+                    <div className="rounded-lg print:rounded bg-white p-2 print:p-1 border border-emerald-100 print:border-slate-300 dark:bg-slate-900">
+                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 print:text-slate-600 block leading-tight">Tel 1 (WhatsApp)</span>
+                      <strong className="font-mono text-emerald-700 print:text-black text-xs print:text-[8px]">
+                        {estudanteSelecionado.telefone_responsavel || 'Não cadastrado'}
+                      </strong>
+                    </div>
+
+                    <div className="rounded-lg print:rounded bg-white p-2 print:p-1 border border-emerald-100 print:border-slate-300 dark:bg-slate-900">
+                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 print:text-slate-600 block leading-tight">Tel 2 (Responsável)</span>
+                      <strong className="font-mono text-slate-800 print:text-black text-xs print:text-[8px]">
+                        {estudanteSelecionado.telefone_2 || 'Não informado'}
+                      </strong>
+                    </div>
+
+                    <div className="rounded-lg print:rounded bg-white p-2 print:p-1 border border-emerald-100 print:border-slate-300 dark:bg-slate-900">
+                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 print:text-slate-600 block leading-tight">Tel 3 (Responsável)</span>
+                      <strong className="font-mono text-slate-800 print:text-black text-xs print:text-[8px]">
+                        {estudanteSelecionado.telefone_3 || 'Não informado'}
+                      </strong>
+                    </div>
+
+                    <div className="rounded-lg print:rounded bg-white p-2 print:p-1 border border-emerald-100 print:border-slate-300 dark:bg-slate-900">
+                      <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 print:text-slate-600 block leading-tight">Tel 4 (Recado)</span>
+                      <strong className="font-mono text-slate-800 print:text-black text-xs print:text-[8px]">
+                        {estudanteSelecionado.telefone_4 || 'Não informado'}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-x-2 gap-y-0.5 text-xs print:text-[8px] pt-1 print:pt-0 uppercase border-t border-emerald-100 print:border-slate-300">
+                    <div className="truncate"><span className="text-slate-500 print:text-slate-700 font-semibold">E-mail:</span> <strong>{estudanteSelecionado.email || 'NÃO CADASTRADO'}</strong></div>
+                    <div className="sm:col-span-2 print:col-span-2 truncate">
+                      <span className="text-slate-500 print:text-slate-700 font-semibold">Endereço:</span>{' '}
+                      <strong>
+                        {estudanteSelecionado.endereco_logradouro
+                          ? `${estudanteSelecionado.endereco_logradouro}, Nº ${estudanteSelecionado.endereco_numero || 'S/N'} - Bairro: ${estudanteSelecionado.endereco_bairro || 'NÃO INFORMADO'}`
+                          : estudanteSelecionado.endereco || 'NÃO INFORMADO'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 4 & 5: Cotas & Benefícios + Inclusão & AEE (Lado a lado na impressão para poupar altura) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-3 print:gap-1.5">
+                  {/* Cotas & Benefício Social */}
+                  <div className="rounded-xl print:rounded-md border border-indigo-200 print:border-slate-400 bg-indigo-50/30 print:bg-white p-3 print:p-1.5 space-y-1.5 print:space-y-0.5">
+                    <h5 className="font-bold uppercase tracking-wider text-indigo-950 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
+                      <Award className="h-3.5 w-3.5 print:h-3 print:w-3 text-indigo-600 print:text-black shrink-0" />
+                      <span>Política de Cotas & Benefício Social</span>
+                    </h5>
+                    <div className="space-y-1 print:space-y-0 text-xs print:text-[8px]">
+                      <div>
+                        <span className="text-slate-600 print:text-slate-700 font-medium">Classificação Cotista:</span>{' '}
+                        <span className="font-bold text-indigo-800 print:text-black uppercase">
+                          {estudanteSelecionado.percentual_cota === '0%' || !estudanteSelecionado.percentual_cota ? '0% (AMPLA CONCORRÊNCIA)' : estudanteSelecionado.percentual_cota === '50%' ? '50% (COTA PARCIAL)' : '100% (COTA INTEGRAL)'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 print:text-slate-700 font-medium">Bolsa Família (NIS):</span>{' '}
+                        <span className="font-bold text-slate-800 print:text-black uppercase">
+                          {estudanteSelecionado.numero_bolsa_familia || 'NÃO INFORMADO'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[10px] print:text-[7px] text-indigo-900 print:text-slate-600 font-medium leading-tight">
+                      * Critério oficial para inscrições ETE e IFPE.
+                    </div>
+                  </div>
+
+                  {/* Inclusão e AEE */}
+                  <div className="rounded-xl print:rounded-md border border-slate-200 print:border-slate-400 bg-white p-3 print:p-1.5 space-y-1.5 print:space-y-0.5">
+                    <h5 className="font-bold uppercase tracking-wider text-slate-900 print:text-black text-[11px] print:text-[8.5px] flex items-center gap-1.5 leading-none">
+                      <HeartHandshake className="h-3.5 w-3.5 print:h-3 print:w-3 text-emerald-600 print:text-black shrink-0" />
+                      <span>Saúde Escolar & Inclusão (AEE)</span>
+                    </h5>
+                    <div className="space-y-1 print:space-y-0 text-xs print:text-[8px]">
+                      <div className="flex items-center gap-3">
+                        <div><span className="text-slate-600 print:text-slate-700 font-medium">Laudo:</span> <strong className="uppercase">{estudanteSelecionado.possui_laudo ? 'SIM' : 'NÃO'}</strong></div>
+                        <div><span className="text-slate-600 print:text-slate-700 font-medium">Elegível AEE:</span> <strong className="uppercase">{estudanteSelecionado.aee ? 'SIM' : 'NÃO'}</strong></div>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 print:text-slate-700 font-medium">Profissional de Apoio:</span>{' '}
+                        <strong className="text-emerald-700 print:text-black uppercase">
+                          {estudanteSelecionado.apoio_nome || 'NÃO DESIGNADO'}
+                        </strong>
+                      </div>
+                      {estudanteSelecionado.laudo_descricao && (
+                        <div className="text-[10.5px] print:text-[7.5px] text-slate-700 print:text-black leading-tight uppercase truncate">
+                          <span className="font-semibold text-slate-500 print:text-slate-700">CID/Parecer:</span> {estudanteSelecionado.laudo_descricao}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção 6: Observações (se houver) */}
+                {estudanteSelecionado.observacoes && (
+                  <div className="rounded-xl print:rounded-md border border-slate-200 print:border-slate-400 bg-slate-50 print:bg-white p-2.5 print:p-1.5 space-y-0.5">
+                    <h5 className="font-bold uppercase tracking-wider text-slate-800 print:text-black text-[10px] print:text-[8px] leading-tight">
+                      Observações Pedagógicas / Administrativas
+                    </h5>
+                    <p className="text-[11px] print:text-[7.5px] text-slate-700 print:text-black leading-snug whitespace-pre-wrap uppercase print:line-clamp-2 max-h-16 print:max-h-8 overflow-hidden">
+                      {estudanteSelecionado.observacoes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Seção 7: Assinaturas Oficiais da Ficha Cadastral & Fé Pública */}
+                <div className="pt-6 print:pt-2 space-y-2 print:space-y-1">
+                  <div className="grid grid-cols-2 gap-8 print:gap-10 text-center text-[11px] print:text-[8px]">
+                    <div className="border-t border-slate-400 print:border-slate-600 pt-1 text-slate-700 print:text-black font-semibold">
+                      Secretaria Escolar
+                      <span className="block text-[9px] print:text-[6.5px] text-slate-500 print:text-slate-600 font-normal">Responsável pela Emissão</span>
+                    </div>
+                    <div className="border-t border-slate-400 print:border-slate-600 pt-1 text-slate-700 print:text-black font-semibold">
+                      Direção Pedagógica
+                      <span className="block text-[9px] print:text-[6.5px] text-slate-500 print:text-slate-600 font-normal">Assinatura & Carimbo</span>
+                    </div>
+                  </div>
+
+                  <p className="hidden print:block text-center text-[6.5px] text-slate-500 leading-tight">
+                    Documento oficial emitido pela Secretaria Escolar através da plataforma PLUGUE. Válido sem emendas ou rasuras.
                   </p>
                 </div>
-              )}
-
-              {/* Assinatura da Ficha Cadastral */}
-              <div className="pt-8 grid grid-cols-2 gap-8 text-center text-[10px]">
-                <div className="border-t border-slate-400 pt-1 text-slate-600 dark:text-slate-400">
-                  Secretaria Escolar
-                </div>
-                <div className="border-t border-slate-400 pt-1 text-slate-600 dark:text-slate-400">
-                  Direção Pedagógica
-                </div>
               </div>
-            </div>
             )}
 
             {/* Conteúdo da Aba 2: Relatórios Pedagógicos & Pareceres com IA */}

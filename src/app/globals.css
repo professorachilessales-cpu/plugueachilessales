@@ -604,13 +604,27 @@ table tbody tr:hover {
    REGRAS DE IMPRESSÃO PROFISSIONAL (OFICIAL ESCOLAR)
    ========================================================================== */
 
+@page {
+  size: A4 portrait;
+  margin: 7mm 9mm;
+}
+
 @media print {
-  body {
+  html, body {
     background: #ffffff !important;
     color: #000000 !important;
-    font-size: 10.5pt;
+    font-size: 9.5pt !important;
+    line-height: 1.35 !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
+  /* Ocultar elementos desnecessários na impressão */
   header,
   aside,
   button,
@@ -622,15 +636,66 @@ table tbody tr:hover {
     display: block !important;
   }
 
+  /* Reset de layout do AppLayout para evitar recuo lateral */
   main {
     padding: 0 !important;
     margin: 0 !important;
     max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  div[class*="lg:pl-"] {
+    padding-left: 0 !important;
+  }
+
+  /* Reset de modais para que atuem como folhas estáticas em impressão */
+  .modal-print-backdrop {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    backdrop-filter: none !important;
+    z-index: auto !important;
+    display: block !important;
+  }
+
+  .modal-print-card {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+  }
+
+  /* Ficha Cadastral: Garantia estrita de 1 folha A4 */
+  .ficha-a4-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 278mm !important;
+    page-break-inside: avoid !important;
+    page-break-after: avoid !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
   }
 
   .card-print {
-    border: 1px solid #cbd5e1 !important;
+    border: 1px solid #94a3b8 !important;
     box-shadow: none !important;
-    page-break-inside: avoid;
+    page-break-inside: avoid !important;
   }
 }

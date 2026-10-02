@@ -36,7 +36,7 @@ for (let i = 0; i < 256; i++) {
   CRC_TABLE[i] = c >>> 0;
 }
 
-function computeCrc32(buf: Buffer): number {
+export function computeCrc32(buf: Buffer): number {
   if (typeof (zlib as any).crc32 === 'function') {
     return (zlib as any).crc32(buf);
   }
@@ -47,7 +47,7 @@ function computeCrc32(buf: Buffer): number {
   return (crc ^ (-1)) >>> 0;
 }
 
-function escapeXml(unsafe: string): string {
+export function escapeXml(unsafe: string): string {
   if (!unsafe) return '';
   return unsafe
     .replace(/&/g, '&amp;')
@@ -57,7 +57,7 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function buildZipArchive(files: { name: string; data: Buffer | string }[]): Buffer {
+export function buildZipArchive(files: { name: string; data: Buffer | string }[]): Buffer {
   const localHeaders: Buffer[] = [];
   const centralHeaders: Buffer[] = [];
   let offset = 0;

@@ -26,7 +26,11 @@ import {
   AlertTriangle,
   Power,
   GraduationCap,
-  HeartHandshake
+  HeartHandshake,
+  Printer,
+  FileText,
+  FileSpreadsheet,
+  Loader2
 } from 'lucide-react';
 import { Turno, HorarioAula, Turma, GrupoTurma, GRUPOS_TURMAS_LISTA, Professor } from '@/lib/types';
 import { analisarFaixaEtariaTurma, AnaliseTurmaFaixaEtaria } from '@/lib/faixa-etaria';
@@ -309,6 +313,7 @@ export default function TurmasPage() {
   const [buscaEstudanteMigracao, setBuscaEstudanteMigracao] = useState('');
   const [migracaoLoading, setMigracaoLoading] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ tipo: 'sucesso' | 'erro' | 'aviso'; texto: string } | null>(null);
+  const [gerandoDocx, setGerandoDocx] = useState<string | null>(null);
 
   // Form Nova Turma (com Professores Principais e Equipe de Apoio)
   const [formTurma, setFormTurma] = useState({
@@ -469,6 +474,65 @@ export default function TurmasPage() {
       });
     } finally {
       setMigracaoLoading(false);
+    }
+  };
+
+  const handleExportarDocx = async (turma: Turma, tipo: 'assinatura' | 'cadastro') => {
+    const chave = `${turma.id}-${tipo}`;
+    setGerandoDocx(chave);
+    try {
+      // Filtrar estudantes da turma (matriculados: exclui transferidos e evadidos)
+      const alunosTurma = estudantes.filter(
+        (e) => e.turma_id === turma.id && e.status_matricula !== 'Transferido' && e.status_matricula !== 'Evadido'
+      );
+
+      const res = await fetch('/api/turmas/docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          turma,
+          estudantes: alunosTurma,
+          tipo,
+          escolaConfig,
+        }),
+      });
+
+      if (!res.ok) {
+        const erroJson = await res.json().catch(() => ({}));
+        throw new Error(erroJson.error || 'Erro ao gerar arquivo DOCX da turma.');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeNomeTurma = (turma.nome || 'Turma')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .replace(/_+/g, '_');
+      const sufixo = tipo === 'assinatura' ? 'Lista_Assinatura' : 'Lista_Cadastral_AEE_CPF';
+      a.download = `${safeNomeTurma}_${sufixo}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      const descTipo = tipo === 'assinatura' ? 'com espaço para assinatura' : 'cadastral com AEE e CPF';
+      setFeedbackMsg({
+        tipo: 'sucesso',
+        texto: `Listagem DOCX (${descTipo}) da turma "${turma.nome}" gerada com sucesso! (${alunosTurma.length} estudantes).`,
+      });
+      setTimeout(() => setFeedbackMsg(null), 6000);
+    } catch (err: any) {
+      console.error('Erro na exportação DOCX:', err);
+      setFeedbackMsg({
+        tipo: 'erro',
+        texto: err?.message || 'Falha ao gerar o arquivo DOCX. Tente novamente.',
+      });
+      setTimeout(() => setFeedbackMsg(null), 6000);
+    } finally {
+      setGerandoDocx(null);
     }
   };
 
@@ -846,6 +910,56 @@ export default function TurmasPage() {
                   </div>
                 );
               })()}
+
+              {/* Botões de Impressão DOCX da Turma */}
+              <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="flex items-center justify-between gap-1 mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <Printer className="h-3 w-3 text-school-blue-600 dark:text-school-gold-400" />
+                    Imprimir (DOCX):
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {alunosMatriculados} aluno(s)
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={gerandoDocx === `${turma.id}-assinatura`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExportarDocx(turma, 'assinatura');
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 px-2 py-1.5 text-[11px] font-bold text-school-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs group disabled:opacity-60"
+                    title="Imprimir listagem com estudantes em ordem alfabética, data de nascimento e espaço para assinatura (DOCX)"
+                  >
+                    {gerandoDocx === `${turma.id}-assinatura` ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-school-blue-600 dark:text-school-gold-400 shrink-0" />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 shrink-0 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span className="truncate">Lista Assinatura</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={gerandoDocx === `${turma.id}-cadastro`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExportarDocx(turma, 'cadastro');
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 hover:bg-purple-100 px-2 py-1.5 text-[11px] font-bold text-purple-900 dark:border-purple-900/60 dark:bg-purple-950/40 dark:text-purple-200 dark:hover:bg-purple-900/60 transition-all shadow-2xs group disabled:opacity-60"
+                    title="Imprimir listagem com estudantes em ordem alfabética, data de nascimento, se AEE ou não e CPF (DOCX)"
+                  >
+                    {gerandoDocx === `${turma.id}-cadastro` ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
+                    ) : (
+                      <FileSpreadsheet className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span className="truncate">Lista AEE &amp; CPF</span>
+                  </button>
+                </div>
+              </div>
             </div>
           );
         })}
@@ -897,6 +1011,37 @@ export default function TurmasPage() {
                   </button>
                 );
               })()}
+
+              {/* Botões de Emissão DOCX para Turma Selecionada */}
+              <button
+                type="button"
+                disabled={gerandoDocx === `${turmaSelecionada.id}-assinatura`}
+                onClick={() => handleExportarDocx(turmaSelecionada, 'assinatura')}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-1.5 text-xs font-bold text-school-blue-900 hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs disabled:opacity-60"
+                title="Imprimir listagem com estudantes em ordem alfabética, data de nascimento e espaço para assinatura (DOCX)"
+              >
+                {gerandoDocx === `${turmaSelecionada.id}-assinatura` ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-school-blue-600 dark:text-school-gold-400 shrink-0" />
+                ) : (
+                  <FileText className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 shrink-0" />
+                )}
+                <span>Lista Assinatura (DOCX)</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={gerandoDocx === `${turmaSelecionada.id}-cadastro`}
+                onClick={() => handleExportarDocx(turmaSelecionada, 'cadastro')}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 px-3 py-1.5 text-xs font-bold text-purple-900 hover:bg-purple-100 dark:border-purple-900/60 dark:bg-purple-950/40 dark:text-purple-200 dark:hover:bg-purple-900/60 transition-all shadow-2xs disabled:opacity-60"
+                title="Imprimir listagem com estudantes em ordem alfabética, data de nascimento, se AEE ou não e CPF (DOCX)"
+              >
+                {gerandoDocx === `${turmaSelecionada.id}-cadastro` ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
+                ) : (
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                )}
+                <span>Lista AEE &amp; CPF (DOCX)</span>
+              </button>
 
               {role === 'admin' && (
                 <>

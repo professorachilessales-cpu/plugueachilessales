@@ -18,6 +18,8 @@ import {
   Info
 } from 'lucide-react';
 import { RelatorioProfessor, SolicitacaoRelatorio, Estudante, Turma } from '@/lib/types';
+import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
+import { Copy, Check, ArrowDownToLine } from 'lucide-react';
 
 interface ModalRedacaoParecerIAProps {
   isOpen: boolean;
@@ -44,7 +46,17 @@ export function ModalRedacaoParecerIA({
   const [polindo, setPolindo] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [sucessoEnviado, setSucessoEnviado] = useState(false);
+  const [copiado, setCopiado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  // Identificação precisa do gênero gramatical para exibição e conferência
+  const dadosGenero = React.useMemo(() => {
+    return determinarGeneroEstudante({
+      nome_completo: estudante.nome_completo,
+      genero: estudante.genero || (estudante as any).sexo,
+      sexo: (estudante as any).sexo || estudante.genero,
+    });
+  }, [estudante]);
 
   if (!isOpen) return null;
 
@@ -144,6 +156,13 @@ export function ModalRedacaoParecerIA({
                 <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-bold text-school-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
                   {turma?.nome || 'Turma Atribuída'}
                 </span>
+                <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${
+                  dadosGenero.generoGramatical === 'feminino'
+                    ? 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200 dark:bg-fuchsia-950/70 dark:text-fuchsia-300 dark:border-fuchsia-900'
+                    : 'bg-indigo-50 text-indigo-800 border-indigo-200 dark:bg-indigo-950/70 dark:text-indigo-300 dark:border-indigo-900'
+                }`}>
+                  {dadosGenero.generoGramatical === 'feminino' ? 'Aluna (Feminino)' : 'Aluno (Masculino)'}
+                </span>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 <span>Idade: <strong className="text-slate-700 dark:text-slate-200">{idade}</strong></span>
@@ -167,17 +186,22 @@ export function ModalRedacaoParecerIA({
         {/* CORPO MODAL COM SCROLL */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
-          {/* AVISO EXPLICATIVO OBRIGATÓRIO (Seção 3) */}
+          {/* AVISO EXPLICATIVO: 4 PILARES DO POLIMENTO DE RELATO */}
           <div className="rounded-2xl border border-blue-200/80 bg-blue-50/70 p-4 dark:border-blue-900/60 dark:bg-blue-950/30 flex items-start gap-3 shadow-sm">
             <div className="rounded-xl bg-school-blue-100 p-2 text-school-blue-700 dark:bg-school-blue-900/60 dark:text-school-gold-400 flex-shrink-0 mt-0.5">
               <Sparkles className="h-5 w-5" />
             </div>
-            <div>
-              <h4 className="text-xs font-bold text-school-blue-900 dark:text-blue-200 uppercase tracking-wider">
-                Assistência de Redação Pedagógica com IA
-              </h4>
-              <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5 leading-relaxed">
-                Aprimora o texto bruto inserido, transformando anotações rápidas ou rascunhos em um registro pedagógico claro, culto e descritivo dos fatos observados, sem distorcer o conteúdo original nem adicionar conclusões ou encaminhamentos.
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-xs font-bold text-school-blue-900 dark:text-blue-200 uppercase tracking-wider">
+                  Assistência de Redação Pedagógica com Google IA
+                </h4>
+                <span className="rounded-md bg-school-blue-100 dark:bg-school-blue-900/80 px-2 py-0.5 text-[10px] font-bold text-school-blue-800 dark:text-blue-200">
+                  Concordância Ativa: {dadosGenero.termo}
+                </span>
+              </div>
+              <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-1 leading-relaxed">
+                A Google IA pega o seu relato livre e lapida o texto: aplica <strong>linguagem formal culta</strong>, corrige todos os <strong>erros de português e ortografia</strong>, assegura rigorosa <strong>concordância em gênero ({dadosGenero.generoGramatical})</strong> com {estudante.nome_completo} e melhora a narrativa sem inventar fatos novos.
               </p>
             </div>
           </div>
@@ -213,12 +237,17 @@ export function ModalRedacaoParecerIA({
               value={rascunho}
               onChange={(e) => setRascunho(e.target.value)}
               onBlur={handleSalvarRascunho}
-              placeholder="Ex: O aluno tem demonstrado facilidade em matemática e raciocínio lógico, porém conversa bastante nos momentos de explicação teórica. Nos trabalhos em equipe tem liderado positivamente..."
+              placeholder="Digite suas observações concretas sobre o estudante. Ex: O aluno conversa bastante nas aulas mas quando estimulado faz as tarefas e ajuda os colegas..."
               className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-slate-700 dark:bg-slate-800/50 dark:text-white dark:focus:border-school-gold-400 transition-all resize-y min-h-[110px]"
             />
 
             {/* CTA POLIMENTO GEMINI */}
-            <div className="flex justify-end pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5 text-school-gold-500" />
+                <span>A IA polirá a formalidade, corrigirá erros de português e concordará em gênero.</span>
+              </span>
+
               <button
                 type="button"
                 onClick={handlePolirComIA}
@@ -228,12 +257,12 @@ export function ModalRedacaoParecerIA({
                 {polindo ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
-                    <span>Refinando Relato com IA...</span>
+                    <span>Polindo e Refinando Relato com IA...</span>
                   </>
                 ) : (
                   <>
                     <Wand2 className="h-4 w-4 text-school-gold-400 group-hover:rotate-12 transition-transform" />
-                    <span>Aprimorar Relato com Inteligência Artificial</span>
+                    <span>Polir com Google IA (Linguagem Formal & Concordância)</span>
                   </>
                 )}
               </button>
@@ -243,14 +272,19 @@ export function ModalRedacaoParecerIA({
           {/* VERSÃO GERADA PELA IA EM CAMPO EDITÁVEL */}
           {(textoIa || relatorio.texto_ia) && (
             <div className="space-y-2 pt-2 animate-in fade-in-0 duration-300">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-xs font-bold text-school-blue-900 dark:text-blue-300 flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-school-gold-500" />
                   <span>2. Versão Pedagógica Refinada (Revisável pelo Professor)</span>
                 </label>
-                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  Pronto para Revisão
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    ✓ Português Corrigido
+                  </span>
+                  <span className="text-[10px] font-semibold text-school-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                    ✓ Concordância {dadosGenero.termo}
+                  </span>
+                </div>
               </div>
 
               <textarea
@@ -260,12 +294,54 @@ export function ModalRedacaoParecerIA({
                 placeholder="Aqui você pode ajustar qualquer detalhe antes de encaminhar à secretaria..."
                 className="w-full rounded-2xl border-2 border-school-blue-200 bg-white p-4 text-sm leading-relaxed text-slate-900 focus:border-school-blue-600 focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-blue-900/80 dark:bg-slate-800 dark:text-white transition-all resize-y min-h-[140px]"
               />
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Info className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                <span>
-                  Você tem total liberdade para realizar ajustes, adicionar complementos ou aceitar a sugestão integral da IA.
-                </span>
-              </p>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 flex-shrink-0" />
+                  <span>
+                    Você tem total liberdade para realizar ajustes ou aceitar o texto refinado integralmente.
+                  </span>
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRascunho(textoFinal);
+                      salvarRascunhoProfessor(relatorio.id, textoFinal);
+                    }}
+                    title="Substituir o relato original pelo texto refinado pela IA"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <ArrowDownToLine className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                    <span>Substituir no Relato Livre</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (navigator?.clipboard) {
+                        navigator.clipboard.writeText(textoFinal);
+                        setCopiado(true);
+                        setTimeout(() => setCopiado(false), 2000);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    {copiado ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-emerald-600 dark:text-emerald-400">Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5 text-slate-500" />
+                        <span>Copiar Texto</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

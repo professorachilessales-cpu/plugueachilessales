@@ -51,27 +51,38 @@ export async function POST(req: NextRequest) {
     });
 
     // 1. Provedor Primário: Google Gemini API (modelos da família Gemini com fallback em cascata)
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+    const geminiApiKey = rawKey.replace(/^["']|["']$/g, '').trim();
 
-    if (geminiApiKey && geminiApiKey.trim() !== '' && !geminiApiKey.includes('your-key')) {
+    if (geminiApiKey && !geminiApiKey.includes('your-key')) {
       const modelosGemini = [
         process.env.GEMINI_MODEL,
-        'gemini-2.5-flash',
-        'gemini-1.5-flash',
-        'gemini-2.0-flash',
-        'gemini-2.5-pro',
         'gemini-3.8-flash',
-        'gemini-flash-latest'
+        'gemini-3.7-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-flash-latest',
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
       ].filter(Boolean) as string[];
 
       for (const modelo of modelosGemini) {
         try {
+          // Tentativa A: generateContent com systemInstruction
           const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey.trim()}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                systemInstruction: {
+                  parts: [
+                    {
+                      text: `Você é um consultor pedagógico institucional sênior. Sua função é polir relatos livres de professores escolares: aplicar linguagem formal culta, corrigir 100% dos erros de português, garantir concordância rigorosa de gênero com o estudante (${dadosGenero.generoGramatical}) e melhorar a narrativa pedagógica sem distorcer fatos. Retorne EXCLUSIVAMENTE o texto polido, sem saudações nem metatexto.`
+                    }
+                  ]
+                },
                 contents: [
                   {
                     role: 'user',
@@ -79,10 +90,10 @@ export async function POST(req: NextRequest) {
                   },
                 ],
                 generationConfig: {
-                  temperature: 0.7,
+                  temperature: 0.3,
                   topP: 0.95,
                   topK: 40,
-                  maxOutputTokens: 1200,
+                  maxOutputTokens: 1500,
                 },
               }),
             }
@@ -96,36 +107,79 @@ export async function POST(req: NextRequest) {
               return NextResponse.json({
                 success: true,
                 texto_ia: textoFinal,
-                provider: modelo,
+                provider: `google-gemini-${modelo}`,
+                genero_aplicado: dadosGenero.generoGramatical,
+                nome_estudante: nomeFinal,
               });
             }
           } else {
-            console.warn(`Tentativa Gemini com modelo ${modelo} retornou status ${response.status}.`);
+            // Se generateContent não funcionou, tenta o endpoint de Interactions API para modelos compatíveis
+            try {
+              const interactionsResponse = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/interactions?key=${geminiApiKey}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    model: modelo,
+                    system_instruction: `Você é um consultor pedagógico institucional sênior. Sua função é polir relatos livres de professores escolares: aplicar linguagem formal culta, corrigir 100% dos erros de português, garantir concordância rigorosa de gênero com o estudante (${dadosGenero.generoGramatical}) e melhorar a narrativa pedagógica sem distorcer fatos. Retorne EXCLUSIVAMENTE o texto polido, sem saudações nem metatexto.`,
+                    input: promptPipeline,
+                    generation_config: {
+                      temperature: 0.3,
+                      max_output_tokens: 1500,
+                    }
+                  }),
+                }
+              );
+
+              if (interactionsResponse.ok) {
+                const interJson = await interactionsResponse.json();
+                const interText = interJson.output_text || 
+                  interJson.steps?.find((s: any) => s.type === 'model_output')?.content?.find((c: any) => c.type === 'text')?.text;
+                if (interText && interText.trim().length > 0) {
+                  const textoFinal = limparMetatextoEEncerramentosRelato(interText);
+                  return NextResponse.json({
+                    success: true,
+                    texto_ia: textoFinal,
+                    provider: `google-gemini-interactions-${modelo}`,
+                    genero_aplicado: dadosGenero.generoGramatical,
+                    nome_estudante: nomeFinal,
+                  });
+                }
+              }
+            } catch (interError) {
+              // segue para o próximo modelo ou fallback
+            }
           }
         } catch (geminiError) {
-          console.error(`Erro ao chamar modelo ${modelo} da Gemini:`, geminiError);
+          console.warn(`[Google Gemini API] Tentativa com ${modelo} falhou:`, geminiError);
         }
       }
     }
 
     // 2. Provedor Secundário: OpenAI API (se configurado no ambiente)
-    const openAiApiKey = process.env.OPENAI_API_KEY;
-    if (openAiApiKey && openAiApiKey.trim() !== '') {
+    const rawOpenAiKey = process.env.OPENAI_API_KEY || '';
+    const openAiApiKey = rawOpenAiKey.replace(/^["']|["']$/g, '').trim();
+    if (openAiApiKey && openAiApiKey !== '' && !openAiApiKey.includes('your-key')) {
       try {
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openAiApiKey.trim()}`,
+            'Authorization': `Bearer ${openAiApiKey}`,
           },
           body: JSON.stringify({
             model: 'gpt-4o-mini',
             messages: [
+              {
+                role: 'system',
+                content: `Você é um consultor pedagógico institucional sênior. Sua função é polir relatos livres de professores escolares: aplicar linguagem formal culta, corrigir 100% dos erros de português, garantir concordância rigorosa de gênero com o estudante (${dadosGenero.generoGramatical}) e melhorar a narrativa pedagógica sem distorcer fatos. Retorne EXCLUSIVAMENTE o texto polido, sem saudações nem metatexto.`
+              },
               { role: 'user', content: promptPipeline },
             ],
-            temperature: 0.7,
+            temperature: 0.3,
             top_p: 0.95,
-            max_tokens: 1200,
+            max_tokens: 1500,
           }),
         });
 
@@ -137,7 +191,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({
               success: true,
               texto_ia: textoFinal,
-              provider: 'gpt-4o-mini',
+              provider: 'openai-gpt-4o-mini',
+              genero_aplicado: dadosGenero.generoGramatical,
+              nome_estudante: nomeFinal,
             });
           }
         }
@@ -146,7 +202,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Fallback Pedagógico Resiliente (Garante funcionamento offline sem quebrar restrições)
+    // 3. Fallback Pedagógico Resiliente de Alta Precisão (Garante funcionamento ininterrupto)
     const textoPolido = simularPolimentoPedagogicoRelato(
       rascunhoLimpo, 
       nomeFinal, 
@@ -158,6 +214,8 @@ export async function POST(req: NextRequest) {
       success: true,
       texto_ia: textoFinal,
       provider: 'polidor-pedagogico-plugue',
+      genero_aplicado: dadosGenero.generoGramatical,
+      nome_estudante: nomeFinal,
     });
   } catch (error: any) {
     console.error('Erro no endpoint de polimento de relato:', error);

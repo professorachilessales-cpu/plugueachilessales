@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
     // 1. Provedor Primário: Google Gemini API (modelos da família Gemini com fallback em cascata)
     const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
     const geminiApiKey = rawKey.replace(/^["']|["']$/g, '').trim();
+    let statusGoogleErro: string | null = null;
+    let motivoGoogleErro: string | null = null;
 
     if (geminiApiKey && !geminiApiKey.includes('your-key')) {
       const modelosGemini = [
@@ -113,7 +115,28 @@ export async function POST(req: NextRequest) {
               });
             }
           } else {
-            // Se generateContent não funcionou, tenta o endpoint de Interactions API para modelos compatíveis
+            let erroInfoGoogle: any = null;
+            try {
+              erroInfoGoogle = await response.json();
+            } catch (_) {}
+
+            // Interrupção imediata se a chave ou o projeto estiver bloqueado pelo Google (403 PERMISSION_DENIED)
+            if (response.status === 403 || erroInfoGoogle?.error?.status === 'PERMISSION_DENIED') {
+              const motivo = erroInfoGoogle?.error?.details?.[0]?.reason || erroInfoGoogle?.error?.message || 'API_KEY_SERVICE_BLOCKED';
+              console.warn(`[Google Gemini API] Chave restrita/bloqueada no Google Cloud (${response.status}: ${motivo}). Evitando chamadas redundantes.`);
+              statusGoogleErro = 'bloqueada_403';
+              motivoGoogleErro = motivo;
+              break;
+            }
+
+            // Se for 400 por chave inválida, também interrompe imediatamente
+            if (response.status === 400 && erroInfoGoogle?.error?.message?.includes('API key not valid')) {
+              statusGoogleErro = 'chave_invalida';
+              motivoGoogleErro = 'API key not valid';
+              break;
+            }
+
+            // Se generateContent não funcionou (ex: modelo precisa de interactions), tenta endpoint interactions
             try {
               const interactionsResponse = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/interactions?key=${geminiApiKey}`,
@@ -214,6 +237,11 @@ export async function POST(req: NextRequest) {
       success: true,
       texto_ia: textoFinal,
       provider: 'polidor-pedagogico-plugue',
+      status_google: statusGoogleErro || 'indisponivel',
+      motivo_google: motivoGoogleErro || undefined,
+      aviso_chave: statusGoogleErro === 'bloqueada_403'
+        ? 'A chave do Google Gemini no servidor foi rejeitada pelo Google Cloud (403 PERMISSION_DENIED / API_KEY_SERVICE_BLOCKED). O relato foi aprimorado pelo motor pedagógico interno Plugue.'
+        : undefined,
       genero_aplicado: dadosGenero.generoGramatical,
       nome_estudante: nomeFinal,
     });

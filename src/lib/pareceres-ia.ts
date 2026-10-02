@@ -339,6 +339,18 @@ export function limparMetatextoEEncerramentosRelato(texto: string): string {
  * Polidor pedagógico avançado de contingência:
  * Aplica linguagem formal, correção integral de português e concordância estrita de gênero.
  */
+/**
+ * Cria RegExp com limites Unicode de palavras (\p{L}\p{N}),
+ * permitindo correta correspondência de palavras acentuadas (ex: até, só, já, lição, é)
+ */
+function palavraRegex(padrao: string, flags = 'giu'): RegExp {
+  return new RegExp(`(?<=^|[^\\p{L}\\p{N}])${padrao}(?=$|[^\\p{L}\\p{N}])`, flags);
+}
+
+/**
+ * Polidor pedagógico avançado de contingência:
+ * Aplica linguagem formal, correção integral de português e concordância estrita de gênero.
+ */
 export function simularPolimentoPedagogicoRelato(
   textoOriginal: string, 
   alunoNome?: string,
@@ -351,96 +363,208 @@ export function simularPolimentoPedagogicoRelato(
   let texto = (textoOriginal || '').trim();
   if (!texto) return '';
 
-  // 1. Saneamento de abreviações e gírias
+  // 1. Saneamento de internetês, abreviações e digitação rápida
   const abreviacoes: [RegExp, string][] = [
-    [/\bvc\b/gi, 'você'],
-    [/\bvcs\b/gi, 'vocês'],
-    [/\bpq\b/gi, 'porque'],
-    [/\btbm?\b/gi, 'também'],
-    [/\btb\b/gi, 'também'],
-    [/\bpra\s+a\b/gi, 'para a'],
-    [/\bpra\s+o\b/gi, 'para o'],
-    [/\bpra\b/gi, isFeminino ? 'para a' : 'para o'],
-    [/\bpro\b/gi, 'para o'],
-    [/\bd\+(?:\s|$)/gi, 'demais '],
-    [/\btá\b/gi, 'está'],
-    [/\btô\b/gi, 'estou'],
-    [/\bné\b/gi, ''],
-    [/\baí\b/gi, 'posteriormente'],
-    [/\bdaí\b/gi, 'em seguida'],
-    [/\bentão\b/gi, 'portanto'],
-    [/\bcmg\b/gi, 'comigo'],
-    [/\btds?\b/gi, 'todos'],
-    [/\btd\b/gi, 'tudo'],
-    [/\bhj\b/gi, 'hoje'],
-    [/\bnd\b/gi, 'nada'],
-    [/\boq\b/gi, 'o que'],
-    [/\bblz\b/gi, 'satisfatório'],
-    [/\bqndo\b/gi, 'quando'],
-    [/\bmt[oa]s?\b/gi, 'muito'],
+    [palavraRegex('vc'), 'você'],
+    [palavraRegex('vcs'), 'vocês'],
+    [palavraRegex('pq'), 'porque'],
+    [palavraRegex('tbm?|tb'), 'também'],
+    [palavraRegex('pra\\s+a'), 'para a'],
+    [palavraRegex('pra\\s+o'), 'para o'],
+    [palavraRegex('pras'), 'para as'],
+    [palavraRegex('pros'), 'para os'],
+    [palavraRegex('pra'), 'para'],
+    [palavraRegex('pro'), 'para o'],
+    [palavraRegex('d\\+'), 'demais'],
+    [palavraRegex('de\\s+mais'), 'demais'],
+    [palavraRegex('tá'), 'está'],
+    [palavraRegex('tava'), 'estava'],
+    [palavraRegex('tô'), 'estou'],
+    [palavraRegex('né'), ''],
+    [palavraRegex('aí'), 'posteriormente'],
+    [palavraRegex('daí'), 'em seguida'],
+    [palavraRegex('então'), 'portanto'],
+    [palavraRegex('cmg'), 'comigo'],
+    [palavraRegex('tds?'), 'todos'],
+    [palavraRegex('td'), 'tudo'],
+    [palavraRegex('hj'), 'hoje'],
+    [palavraRegex('nd'), 'nada'],
+    [palavraRegex('oq'), 'o que'],
+    [palavraRegex('blz'), 'satisfatório'],
+    [palavraRegex('qndo'), 'quando'],
+    [palavraRegex('mt[oa]s?'), 'muito'],
+    [palavraRegex('msm'), 'mesmo'],
+    [palavraRegex('ngm'), 'ninguém'],
+    [palavraRegex('q'), 'que'],
   ];
 
   for (const [re, sub] of abreviacoes) {
     texto = texto.replace(re, sub);
   }
 
-  // 2. Saneamento ortográfico e sintático do Português
+  // 2. Erros fonéticos, ortografia, pontuação e termos comuns
   const correcoesOrtograficas: [RegExp, string][] = [
-    [/\bnao\b/gi, 'não'],
-    [/\bcomvers(?:a|ar|am|ou|ando)\b/gi, 'conversa'],
-    [/\bescrevel\b/gi, 'escreveu'],
-    [/\bdesenvolvel\b/gi, 'desenvolveu'],
-    [/\bresolvel\b/gi, 'resolveu'],
-    [/\bentendeo\b/gi, 'entendeu'],
-    [/\baprendeo\b/gi, 'aprendeu'],
-    [/\bfas\b/gi, 'faz'],
-    [/\bfazemdo\b/gi, 'fazendo'],
-    [/\bconcerteza\b/gi, 'com certeza'],
-    [/\bderrepente\b/gi, 'de repente'],
-    [/\bdevagar\b/gi, 'em ritmo gradativo'],
-    [/\bfars?es?\s+desconec[aã]o\b/gi, 'falas desconexas'],
-    [/\bfrases?\s+desconexas?\b/gi, 'falas desconexas'],
-    [/\bfalta\s+de\s+atencao\b/gi, 'dificuldade na manutenção da atenção sustentada'],
-    [/\bsem\s+atencao\b/gi, 'com dispersão atencional'],
-    [/\bdesatent[oa]s?\b/gi, 'disperso'],
-    [/\bpreguicos[oa]s?\b/gi, 'resistente à rotina de estudos'],
-    [/\bpreguiços[oa]s?\b/gi, 'resistente à rotina de estudos'],
-    [/\bdificuldade\s+pra\s+ler\b/gi, 'dificuldade no processo de leitura'],
-    [/\bnao\s+sabe\s+ler\b/gi, 'encontra-se em fase inicial de alfabetização e decodificação textual'],
+    // Negações e afirmativas
+    [palavraRegex('(?:naum|nau|nao|ñ)'), 'não'],
+    [palavraRegex('(?:tamem|tanbem|tambem)'), 'também'],
+    [palavraRegex('(?:simm|sii)'), 'sim'],
+    
+    // Troca de M/N e conjugações truncadas do verbo FAZER / DIZER / LER / ESCREVER
+    [palavraRegex('ten'), 'tem'],
+    [palavraRegex('fasen'), 'fazem'],
+    [palavraRegex('dizen'), 'dizem'],
+    [palavraRegex('(?:fais|fas|fazze)'), 'faz'],
+    [palavraRegex('(?:faser|fasser|fazé|fasé|faze)'), 'fazer'],
+    [palavraRegex('(?:faseu|fazeu|feis|fez|fiz)'), 'fez'],
+    [palavraRegex('(?:fazemdo|fasendo)'), 'fazendo'],
+    [palavraRegex('(?:fisesse|fizesse|fisassem)'), 'fizesse'],
+    [palavraRegex('traze'), 'trazer'],
+    [palavraRegex('diser'), 'dizer'],
+    [palavraRegex('(?:escrevel|escrevew)'), 'escreveu'],
+    [palavraRegex('(?:desenvolvel|desenvolvew)'), 'desenvolveu'],
+    [palavraRegex('(?:resolvel|resolvew)'), 'resolveu'],
+    [palavraRegex('(?:entendeo|entendew)'), 'entendeu'],
+    [palavraRegex('(?:aprendeo|aprendew)'), 'aprendeu'],
+    
+    // Conversa / Aprender
+    [palavraRegex('(?:concersa|comversa|comsersa)'), 'conversa'],
+    [palavraRegex('comvers(?:a|ar|am|ou|ando)'), 'conversa'],
+    [palavraRegex('apremdeu'), 'aprendeu'],
+    [palavraRegex('apremdizado'), 'aprendizado'],
+    [palavraRegex('apredizado'), 'aprendizado'],
+    [palavraRegex('apredizagem'), 'aprendizagem'],
+    [palavraRegex('aprendisado'), 'aprendizado'],
+    [palavraRegex('aprendisagem'), 'aprendizagem'],
+    
+    // Dificuldade
+    [palavraRegex('(?:deficuldade|deficudade|dificudade)'), 'dificuldade'],
+    [palavraRegex('(?:deficuldades|deficudades|dificudades)'), 'dificuldades'],
+    
+    // Atenção / Concentração / Sufixos -ção
+    [palavraRegex('(?:atensao|atencao|atenssao|atençao|atenssão)'), 'atenção'],
+    [palavraRegex('(?:desatencao|desatensao|desatencão)'), 'desatenção'],
+    [palavraRegex('(?:conssentracao|consentracao|concentracao|concentrasao)'), 'concentração'],
+    [palavraRegex('(?:espressao|esprecao|espressão)'), 'expressão'],
+    [palavraRegex('(?:producao|produsao|produssao)'), 'produção'],
+    [palavraRegex('(?:redacao|redasao)'), 'redação'],
+    [palavraRegex('(?:pontuacao|pontuasao)'), 'pontuação'],
+    [palavraRegex('(?:explicacao|esplicacao|esplicasao)'), 'explicação'],
+    [palavraRegex('(?:participacao|partisipacao|participasao)'), 'participação'],
+    [palavraRegex('(?:organizacao|organisacao|organizasao)'), 'organização'],
+    [palavraRegex('(?:comunicacao|comunicasao)'), 'comunicação'],
+    [palavraRegex('(?:avaliacao|avaliassao|avaliacão)'), 'avaliação'],
+    [palavraRegex('(?:resolucao|resolusao)'), 'resolução'],
+    [palavraRegex('(?:licao|licaum|licoes|liçoes)'), 'lição'],
+
+    // Disciplinas escolares
+    [palavraRegex('(?:portugues|portugueis|portugês)'), 'Língua Portuguesa'],
+    [palavraRegex('(?:matematica|matemátca)'), 'Matemática'],
+    [palavraRegex('geografia'), 'Geografia'],
+    [palavraRegex('historia'), 'História'],
+    [palavraRegex('ciencias'), 'Ciências'],
+    
+    // Cotidiano e ambiente escolar
+    [palavraRegex('(?:diciplina|desciplina)'), 'disciplina'],
+    [palavraRegex('(?:indiciplina|indesciplina)'), 'indisciplina'],
+    [palavraRegex('(?:esforsado|esforcado)'), isFeminino ? 'esforçada' : 'esforçado'],
+    [palavraRegex('(?:paciencia|paciensia)'), 'paciência'],
+    [palavraRegex('(?:inteligensia|inteligencia)'), 'inteligência'],
+    [palavraRegex('(?:preguisa|preguiça|preguissa)'), 'resistência à rotina de estudos'],
+    [palavraRegex('preguicos[oa]s?'), 'resistente à rotina de estudos'],
+    [palavraRegex('preguiços[oa]s?'), 'resistente à rotina de estudos'],
+    [palavraRegex('(?:timido|timida)'), isFeminino ? 'tímida' : 'tímido'],
+    [palavraRegex('(?:rapido|rapida)'), isFeminino ? 'rápida' : 'rápido'],
+    [palavraRegex('facil'), 'fácil'],
+    [palavraRegex('dificil'), 'difícil'],
+    [palavraRegex('(?:lingoagem|linguajem)'), 'linguagem'],
+    [palavraRegex('(?:professsor|profesora)'), 'professora'],
+    [palavraRegex('profesor'), 'professor'],
+    [palavraRegex('(?:cumpanheiro|conpanheiro)'), 'companheiro'],
+    [palavraRegex('(?:desenvolvimeto|desenvolvimentu)'), 'desenvolvimento'],
+    [palavraRegex('(?:relasionamento|relacionamento)'), 'relacionamento'],
+    [palavraRegex('(?:comportameto|comportamentu)'), 'comportamento'],
+    [palavraRegex('(?:agrecivo|agreciva|agresivo|agresiva)'), isFeminino ? 'agressiva' : 'agressivo'],
+    [palavraRegex('(?:ansioso|ansiosa|ancioco|ancioca)'), isFeminino ? 'ansiosa' : 'ansioso'],
+    [palavraRegex('(?:hiperativo|hiperativa|iperativo|iperativa)'), isFeminino ? 'hiperativa' : 'hiperativo'],
+    [palavraRegex('(?:frequencia|frequensia)'), 'frequência'],
+    [palavraRegex('(?:presenca|presensa)'), 'presença'],
+    [palavraRegex('(?:enrrolado|enrrolada)'), 'disperso'],
+    [palavraRegex('(?:desobedece|desobedese)'), 'desobedece'],
+    [palavraRegex('pontualidade'), 'pontualidade'],
+    [palavraRegex('(?:conteudo|conteudos)'), 'conteúdo'],
+    [palavraRegex('(?:pedagogico|pedagogica)'), isFeminino ? 'pedagógica' : 'pedagógico'],
+    [palavraRegex('(?:proprio|propria)'), isFeminino ? 'própria' : 'próprio'],
+    [palavraRegex('(?:necessario|necessaria)'), isFeminino ? 'necessária' : 'necessário'],
+    [palavraRegex('(?:sozinho|sozinha)'), isFeminino ? 'sozinha' : 'sozinho'],
+    [palavraRegex('ate'), 'até'],
+    [palavraRegex('ja'), 'já'],
+    [palavraRegex('so'), 'só'],
+    [palavraRegex('concerteza'), 'com certeza'],
+    [palavraRegex('derrepente'), 'de repente'],
+    [palavraRegex('porisso'), 'por isso'],
+    [palavraRegex('devagar'), 'em ritmo gradativo'],
+    [palavraRegex('(?:fala|falar)\\s+com\\s+a\\s+professora'), 'estabelecer comunicação direta com a docente'],
+    [palavraRegex('(?:vergonha\\s+de\\s+falar|vergonha\\s+de\\s+fala)'), 'timidez e inibição na comunicação oral'],
   ];
 
   for (const [re, sub] of correcoesOrtograficas) {
     texto = texto.replace(re, sub);
   }
 
-  // Diferenciação inteligente: 'e' (conjunção) vs 'é' (verbo ser)
-  texto = texto.replace(/\be\s+(muito|bastante|pouco|atent[oa]|dedicad[oa]|caprichos[oa]|respons[aá]vel|pontual|agitad[oa]|focad[oa]|interessad[oa]|uma?|capaz|exemplar|participativ[oa]|calad[oa]|quiet[oa]|t[ií]mid[oa])\b/gi, 'é $1');
+  // 3. Regra fonética: M antes de P e B; N antes das demais
+  texto = texto.replace(/\b([a-záéíóúâêôãõç]+)m([tcdfgjklmnqrsvxz])/gi, '$1n$2');
+  texto = texto.replace(/\b([a-záéíóúâêôãõç]+)n([pb])/gi, '$1m$2');
 
-  // Diferenciação inteligente: 'mais' (intensidade/adição) vs 'mas' (adversativa)
-  texto = texto.replace(/\bmais\s+(quando|porém|contudo|todavia|entretanto|não|nem|conversa|briga|apresenta|demanda|precisa|tem|está|fica|mostra)\b/gi, 'mas $1');
+  // 4. Plurais coloquiais desajustados
+  texto = texto
+    .replace(/\b(os|aos|dos|pelos|muitos|poucos|nossos|seus)\s+(colega|aluno|professor|amigo|menino|estudante|exercício|conteúdo|dia|momento|trabalho|texto|dever|livro)\b/gi, '$1 $2s')
+    .replace(/\b(as|às|das|pelas|muitas|poucas|nossas|suas)\s+(colega|aluna|professora|amiga|menina|estudante|atividade|tarefa|aula|avaliação|reunião|vez|conversa|regra|pergunta|resposta)\b/gi, '$1 $2s')
+    .replace(/\b(as|às|das|pelas|muitas|poucas|nossas|suas)\s+lição\b/gi, '$1 lições')
+    .replace(/\bmuitas\s+vez\b/gi, 'muitas vezes')
+    .replace(/\bmuita\s+vez\b/gi, 'muitas vezes')
+    .replace(/\btoda\s+hora\b/gi, 'com frequência constante');
 
-  // 3. Elevação para linguagem formal e padrão técnico institucional
+  // 5. Diferenciação precisa de 'é' (verbo) vs 'e' (conjunção) & 'mas' vs 'mais'
+  texto = texto
+    .replace(/\b(ele|ela|o\s+aluno|a\s+aluna|o\s+estudante|a\s+estudante|que|n[aã]o|tamb[eé]m|ainda)\s+e\s+(muito|bastante|pouco|atent[oa]|dedicad[oa]|caprichos[oa]|respons[aá]vel|pontual|agitad[oa]|focad[oa]|interessad[oa]|uma?|capaz|exemplar|participativ[oa]|calad[oa]|quiet[oa]|t[ií]mid[oa]|inteligente|perspicaz|teimos[oa]|resistente)\b/gi, '$1 é $2')
+    .replace(/\b(ele|ela|o\s+aluno|a\s+aluna|o\s+estudante|a\s+estudante)\s+e\b/gi, '$1 é')
+    .replace(/\be\s+é\b/gi, 'e é')
+    .replace(/\bmais\s+(quando|porém|contudo|todavia|entretanto|não|nem|conversa|briga|apresenta|demanda|precisa|tem|está|fica|mostra|demonstra|costuma|às\s+vezes)\b/gi, 'mas $1');
+
+  // 6. Transposição para Linguagem Formal Institucional
   const conversoesPedagogicas: [RegExp, string][] = [
-    [/\b(?:n[aã]o\s+para\s+quiet[oa]|n[aã]o\s+fica\s+quiet[oa])\b/gi, 'apresenta momentos de agitação psicomotora e constantes deslocamentos em sala'],
-    [/\b(?:n[aã]o\s+faz\s+nada|n[aã]o\s+quer\s+fazer\s+nada)\b/gi, 'manifesta resistência transitória e oscilações no engajamento durante a execução das atividades pedagógicas propostas'],
-    [/\b(?:briga\s+muito\s+com\s+(?:os|as)?\s*colegas?|briga\s+com\s+(?:os|as)?\s*colegas?|vive\s+brigando)\b/gi, 'apresenta pontuais desafios na mediação de conflitos e na convivência harmoniosa com os pares'],
-    [/\b(?:s[oó]\s+conversa|conversa\s+muito|conversa\s+demais)\b/gi, 'estabelece diálogos paralelos com frequência durante os momentos de explicação coletiva'],
-    [/\b(?:n[aã]o\s+aprende|n[aã]o\s+sabe\s+nada)\b/gi, 'encontra-se em processo contínuo de apropriação dos conteúdos curriculares em ritmo próprio e singular'],
-    [/\b(?:muito\s+inteligent[es]?|super\s+inteligent[es]?)\b/gi, 'demonstra perspicácia analítica notável, boa capacidade reflexiva e rapidez na apreensão dos conteúdos curriculares'],
-    [/\b(?:ajuda\s+todo\s+mundo|ajuda\s+os\s+colegas|muito\s+prestativo)\b/gi, 'manifesta postura colaborativa, empatia e prontidão para cooperar nas dinâmicas de grupo'],
-    [/\b(?:faz\s+tudo\s+certinho|muito\s+caprichos[oa])\b/gi, 'cumpre com esmero, organização e pontualidade as metas pedagógicas orientadas'],
-    [/\b(?:fala\s+muitos?\s+palavr[oõ]es?|usa\s+palavr[oõ]es?)\b/gi, 'apresenta episódios ocasionais de uso de linguagem inadequada no ambiente escolar'],
-    [/\b(?:sintomas?\s+de\s+maus[\s-]tratos)\b/gi, 'situações que sugerem necessidade de acolhimento e escuta atenta'],
-    [/\b(?:bagunceir[oa]s?)\b/gi, 'evidencia agitação psicomotora e momentos de dispersão'],
-    [/\b(?:teimos[oa]s?)\b/gi, 'mostra-se relutante no acolhimento imediato das orientações docentes'],
-    [/\b(?:chat[oa]s?)\b/gi, 'apresenta pontuais desafios na autorregulação socioemocional'],
+    [palavraRegex('(?:n[aã]o\\s+para\\s+quiet[oa]|n[aã]o\\s+fica\\s+quiet[oa])'), 'apresenta momentos de agitação psicomotora e constantes deslocamentos em sala'],
+    [palavraRegex('(?:n[aã]o\\s+faz\\s+nada|n[aã]o\\s+quer\\s+fazer\\s+nada|n[aã]o\\s+faz\\s+as\\s+atividades?|n[aã]o\\s+faz\\s+as\\s+lições)'), 'manifesta resistência transitória e oscilações no engajamento durante a execução das atividades pedagógicas propostas'],
+    [palavraRegex('(?:briga\\s+muito\\s+com\\s+(?:os|as)?\\s*colegas?|briga\\s+com\\s+(?:os|as)?\\s*colegas?|vive\\s+brigando)'), 'apresenta pontuais desafios na mediação de conflitos e na convivência harmoniosa com os pares'],
+    [palavraRegex('(?:s[oó]\\s+conversa|conversa\\s+muito|conversa\\s+demais|fas\\s+muita\\s+conversa|faz\\s+muita\\s+conversa)'), 'estabelece diálogos paralelos com frequência durante as instruções coletivas'],
+    [palavraRegex('(?:n[aã]o\\s+presta\\s+atenção|n[aã]o\\s+presta\\s+atencao|n[aã]o\\s+presta\\s+atensao)'), 'apresenta dispersão e desafios na manutenção do foco e da atenção sustentada'],
+    [palavraRegex('(?:n[aã]o\\s+aprende|n[aã]o\\s+sabe\\s+nada)'), 'encontra-se em processo contínuo de apropriação dos conteúdos curriculares em ritmo próprio e singular'],
+    [palavraRegex('(?:muito\\s+inteligent[es]?|super\\s+inteligent[es]?)'), 'demonstra perspicácia analítica notável, boa capacidade reflexiva e rapidez na apreensão dos conteúdos curriculares'],
+    [palavraRegex('(?:ajuda\\s+todo\\s+mundo|ajuda\\s+os\\s+colegas|muito\\s+prestativo)'), 'manifesta postura colaborativa, empatia e prontidão para cooperar nas dinâmicas de grupo'],
+    [palavraRegex('(?:faz\\s+tudo\\s+certinho|muito\\s+caprichos[oa])'), 'cumpre com esmero, organização e pontualidade as metas pedagógicas orientadas'],
+    [palavraRegex('(?:fala\\s+muitos?\\s+palavr[oõ]es?|usa\\s+palavr[oõ]es?)'), 'apresenta episódios ocasionais de uso de linguagem inadequada no ambiente escolar'],
+    [palavraRegex('(?:bagunceir[oa]s?)'), 'evidencia agitação psicomotora e momentos de dispersão'],
+    [palavraRegex('(?:é\\s+muito\\s+teimos[oa]|muito\\s+teimos[oa]|é\\s+teimos[oa]|teimos[oa])'), 'mostra-se relutante no acolhimento imediato das orientações docentes'],
+    [palavraRegex('(?:chat[oa]s?)'), 'apresenta pontuais desafios na autorregulação socioemocional'],
+    [palavraRegex('(?:tem\\s+muita\\s+deficuldade\\s+de\\s+escrita|tem\\s+muita\\s+dificuldade\\s+na\\s+escrita|tem\\s+dificuldade\\s+na\\s+escrita|dificuldade\\s+de\\s+escrita)'), 'encontra-se em processo de apropriação e consolidação das habilidades de produção escrita'],
+    [palavraRegex('(?:frases?\\s+desconexas?|falas?\\s+desconexas?)'), 'construções frasais ainda em fase de estruturação e coesão'],
+    [palavraRegex('(?:aluno\\s+quieto\\s+demais|aluno\\s+muito\\s+quieto|muito\\s+quiet[oa]|quieto\\s+demais)'), 'postura excessivamente introspectiva e reservada no ambiente escolar'],
+    [palavraRegex('(?:n[aã]o\\s+participa|n[aã]o\\s+partisipa)'), 'baixa participação espontânea nas dinâmicas coletivas'],
+    [palavraRegex('(?:chora\\s+muito|chora\\s+por\\s+tudo)'), 'manifesta acentuada sensibilidade emocional diante de situações de frustração'],
+    [palavraRegex('(?:falta\\s+muito|falta\\s+demais|muitas\\s+faltas)'), 'apresenta frequência escolar irregular, com impacto direto na assimilação contínua dos conteúdos'],
+    [palavraRegex('(?:letra\\s+feia|letra\\s+ileg[ií]vel)'), 'apresenta grafia em desenvolvimento que demanda aprimoramento na legibilidade'],
   ];
 
   for (const [re, sub] of conversoesPedagogicas) {
     texto = texto.replace(re, sub);
   }
 
-  // 4. Concordância estrita de gênero gramatical (Feminino vs Masculino)
+  // Desfazer reduplicação verbal indesejada ("é mostra-se" / "e é mostra-se")
+  texto = texto
+    .replace(/\be\s+é\s+(mostra-se|apresenta|evidencia|manifesta|encontra-se|demonstra|cumpre)/gi, 'e $1')
+    .replace(/\bé\s+(mostra-se|apresenta|evidencia|manifesta|encontra-se|demonstra|cumpre)/gi, '$1');
+
+  // 7. Concordância estrita de gênero gramatical (Feminino vs Masculino)
   if (isFeminino) {
     texto = texto
       .replace(/\bo\s+aluno\b/gi, 'a aluna')
@@ -473,7 +597,6 @@ export function simularPolimentoPedagogicoRelato(
       .replace(/\bcalado\b/gi, 'calada')
       .replace(/\bquieto\b/gi, 'quieta')
       .replace(/\btímido\b/gi, 'tímida')
-      .replace(/\btimido\b/gi, 'tímida')
       .replace(/\besforçado\b/gi, 'esforçada')
       .replace(/\bcomprometido\b/gi, 'comprometida')
       .replace(/\bestimulado\b/gi, 'estimulada')
@@ -512,7 +635,6 @@ export function simularPolimentoPedagogicoRelato(
       .replace(/\bcalada\b/gi, 'calado')
       .replace(/\bquieta\b/gi, 'quieto')
       .replace(/\btímida\b/gi, 'tímido')
-      .replace(/\btimida\b/gi, 'tímido')
       .replace(/\besforçada\b/gi, 'esforçado')
       .replace(/\bcomprometida\b/gi, 'comprometido')
       .replace(/\bestimulada\b/gi, 'estimulado')
@@ -525,23 +647,34 @@ export function simularPolimentoPedagogicoRelato(
       .replace(/\bmatriculada\b/gi, 'matriculado');
   }
 
-  // 5. Estruturação gramatical e narrativa limpa
-  texto = texto.replace(/\s+/g, ' ').trim();
+  // 8. Limpeza de repetições e pontuação formal
+  texto = texto
+    .replace(/\be\s+e\b/gi, 'e')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   if (!texto.endsWith('.')) texto += '.';
   texto = texto.charAt(0).toUpperCase() + texto.slice(1);
   texto = texto.replace(/([.!?]\s+)([a-z])/g, (_, p1, p2) => p1 + p2.toUpperCase());
 
-  // Se o texto não menciona o estudante, insere uma introdução institucional sutil
+  // Inserção orgânica do sujeito se ausente
   const jaMenciona = nome && new RegExp(`\\b${nome.split(' ')[0]}\\b`, 'i').test(texto);
-  const comecaComArtigo = /^(a|o)\s+(alun[oa]|estudante|educand[oa])/i.test(texto);
+  const jaTemSujeito = /^(a\s+aluna|o\s+aluno|a\s+estudante|o\s+estudante|ela|ele|durante|no|na|em|quanto)/i.test(texto);
 
-  if (!comecaComArtigo && !jaMenciona) {
+  if (!jaTemSujeito && !jaMenciona) {
     const abertura = nome 
       ? `No acompanhamento pedagógico de ${nome}, constata-se que ${artigoEstudante} `
       : `Durante as atividades e rotinas pedagógicas observadas, constata-se que ${artigoEstudante} `;
     
     const primeiraLetra = texto.charAt(0).toLowerCase();
     return (abertura + primeiraLetra + texto.slice(1)).replace(/\s+/g, ' ').trim();
+  }
+
+  // Se inicia com "Ela é" ou "Ele é", substitui suavemente pelo nome ou artigo formal para evitar texto telegráfico
+  if (/^ela\s+é(?:\s|$)/i.test(texto)) {
+    texto = texto.replace(/^ela\s+é(?:\s|$)/i, nome ? `${nome} é ` : 'A estudante é ');
+  } else if (/^ele\s+é(?:\s|$)/i.test(texto)) {
+    texto = texto.replace(/^ele\s+é(?:\s|$)/i, nome ? `${nome} é ` : 'O estudante é ');
   }
 
   return texto;

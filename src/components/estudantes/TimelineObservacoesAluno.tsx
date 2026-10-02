@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Estudante, ObservacaoAluno, TipoObservacaoAluno } from '@/lib/types';
 import { 
@@ -955,15 +955,6 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
     `);
     win.document.close();
   };
-
-  // Escuta evento customizado para disparar impressão do relatório geral quando acionado pela barra superior
-  useEffect(() => {
-    const handler = () => {
-      handleImprimirRelatorio(false);
-    };
-    window.addEventListener('imprimir-observacoes-estudante', handler);
-    return () => window.removeEventListener('imprimir-observacoes-estudante', handler);
-  }, [observacoesAtivasDesteEstudante, turmas, escolaConfig, estudante, currentUser]);
 
   const handleAdicionarObservacao = async (e: React.FormEvent) => {
     e.preventDefault();

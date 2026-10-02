@@ -185,3 +185,135 @@ export function gerarConsolidadoHeuristico(params: {
 
   return paragrafos.join('\n\n');
 }
+
+/**
+ * Constrói o System Prompt oficial para o bloco "Seu Relato Livre & Observações Concretas"
+ * Rigor técnico, norma-padrão da língua portuguesa, tom descritivo e restrições absolutas de saída
+ */
+export function montarSystemPromptPolimentoRelato(): string {
+  return `Você é um revisor textual especializado em documentação pedagógica e relatórios escolares formativos.
+Sua função é reescrever o relato do professor garantindo clareza, norma-padrão da língua portuguesa e rigor descritivo.
+
+DIRETRIZES OBRIGATÓRIAS DE REDAÇÃO:
+1. Tom e Registro:
+   - Linguagem estritamente formal, impessoal, culta e objetiva.
+   - Vocabulário técnico-pedagógico adequado ao contexto escolar.
+2. Correção Gramatical Rigorosa:
+   - Corrija quaisquer desvios de ortografia, acentuação e pontuação.
+   - Ajuste a concordância nominal e verbal com precisão.
+   - Mantenha estrita coerência temporal nos verbos (ex: preferência pelo pretérito perfeito/imperfeito para fatos ocorridos, ou presente do indicativo para comportamentos recorrentes/atitudes habituais).
+3. Clareza e Objetividade:
+   - Elimine ambiguidades, repetições excessivas, gírias ou expressões coloquiais.
+   - Reorganize o fluxo das frases para que a leitura seja fluida e direta ao ponto.
+
+RESTRIÇÕES MÁXIMAS (O QUE NÃO FAZER):
+- NÃO adicione conclusões, julgamentos de valor ou diagnósticos clínicos/psicológicos que não estejam no texto original.
+- NÃO crie encaminhamentos, intervenções futuras, tarefas para a coordenação ou recomendações à família.
+- NÃO insira saudações, introduções ou notas de encerramento (ex: "Segue o texto revisado:", "Aqui está:", "Em síntese").
+- Entregue APENAS o parágrafo ou texto revisado pronto para ser gravado no prontuário/ficha pedagógica.`;
+}
+
+/**
+ * Constrói o User Prompt contextualizado para revisão do relato livre
+ */
+export function montarUserPromptPolimentoRelato(params: {
+  alunoNome?: string;
+  turmaNome?: string;
+  disciplina?: string;
+  professorNome?: string;
+  rascunho: string;
+}): string {
+  const metadados: string[] = [];
+  if (params.alunoNome) metadados.push(`- Estudante: ${params.alunoNome}`);
+  if (params.turmaNome) metadados.push(`- Turma: ${params.turmaNome}`);
+  if (params.disciplina) metadados.push(`- Componente Curricular: ${params.disciplina}`);
+  if (params.professorNome) metadados.push(`- Docente: ${params.professorNome}`);
+
+  const blocoMetadados = metadados.length > 0 ? `DADOS DE CONTEXTO ESCOLAR:\n${metadados.join('\n')}\n\n` : '';
+
+  return `${blocoMetadados}TEXTO BRUTO / RELATO DO DOCENTE (BLOCO "SEU RELATO LIVRE & OBSERVAÇÕES CONCRETAS"):
+"""
+${params.rascunho.trim()}
+"""
+
+Reescreva o texto do relato aplicando estritamente as diretrizes de norma-padrão, objetividade e clareza. Não inclua saudações, conclusões extras nem recomendações:`;
+}
+
+/**
+ * Remove qualquer metatexto, saudações de IA, aspas externas ou notas de encerramento
+ */
+export function limparMetatextoEEncerramentosRelato(texto: string): string {
+  if (!texto) return '';
+
+  let limpo = texto.trim();
+
+  // Remove blocos de código markdown (```texto```)
+  limpo = limpo.replace(/^```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+
+  // Remove aspas duplas ou simples envolventes se a IA tiver encapsulado toda a resposta entre aspas
+  if ((limpo.startsWith('"') && limpo.endsWith('"')) || (limpo.startsWith('“') && limpo.endsWith('”'))) {
+    limpo = limpo.slice(1, -1).trim();
+  }
+
+  // Remove saudações ou metatexto introdutório da IA
+  const introRegex = /^(?:segue\s+o\s+texto\s+revisado|aqui\s+está\s+o\s+texto\s+revisado|texto\s+revisado|versão\s+revisada|em\s+síntese|olá|prezado|relato\s+revisado|parecer\s+revisado).*?:\s*\n*/i;
+  limpo = limpo.replace(introRegex, '');
+
+  // Remove notas de encerramento da IA
+  const encerramentoRegex = /\n+(?:espero\s+ter\s+ajudado|qualquer\s+dúvida|atenciosamente|estou\s+à\s+disposição|em\s+resumo|conclusão)[\s\S]*$/i;
+  limpo = limpo.replace(encerramentoRegex, '');
+
+  return limpo.trim();
+}
+
+/**
+ * Heurística de contingência resiliente que refina o texto bruto sem inferir diagnósticos nem criar encaminhamentos
+ */
+export function simularPolimentoPedagogicoRelato(textoOriginal: string, alunoNome?: string): string {
+  const nome = alunoNome || 'O(A) estudante';
+  let texto = textoOriginal.trim();
+
+  // Garante terminação com ponto
+  if (!texto.endsWith('.')) texto += '.';
+
+  // Dicionário de conversão de termos coloquiais/estigmatizantes para registro técnico formal e descritivo
+  const conversoes: [RegExp, string][] = [
+    [/\bnao faz nada\b/gi, 'apresenta resistência e baixa adesão no cumprimento das tarefas propostas'],
+    [/\bnão faz nada\b/gi, 'apresenta resistência e baixa adesão no cumprimento das tarefas propostas'],
+    [/\bbagunceiro\b/gi, 'evidencia agitação motora e frequentes momentos de dispersão'],
+    [/\bbagunceira\b/gi, 'evidencia agitação motora e frequentes momentos de dispersão'],
+    [/\bpreguicoso\b/gi, 'demanda intervenções constantes e incentivo sistemático para engajar-se'],
+    [/\bpreguiçoso\b/gi, 'demanda intervenções constantes e incentivo sistemático para engajar-se'],
+    [/\bpreguicosa\b/gi, 'demanda intervenções constantes e incentivo sistemático para engajar-se'],
+    [/\bpreguiçosa\b/gi, 'demanda intervenções constantes e incentivo sistemático para engajar-se'],
+    [/\bnao aprende\b/gi, 'encontra-se em processo de assimilação dos conteúdos em ritmo individual'],
+    [/\bnão aprende\b/gi, 'encontra-se em processo de assimilação dos conteúdos em ritmo individual'],
+    [/\binteligente\b/gi, 'demonstra facilidade analítica e raciocínio lógico bem desenvolvido'],
+    [/\blegal\b/gi, 'manifesta boa convivência e cooperação com os pares'],
+    [/\bchato\b/gi, 'apresenta pontuais dificuldades na autorregulação durante as atividades coletivas'],
+    [/\bchata\b/gi, 'apresenta pontuais dificuldades na autorregulação durante as atividades coletivas'],
+    [/\bso conversa\b/gi, 'mantém diálogos paralelos frequentes durante os períodos de instrução coletiva'],
+    [/\bsó conversa\b/gi, 'mantém diálogos paralelos frequentes durante os períodos de instrução coletiva'],
+    [/\bmuito bom\b/gi, 'apresenta desempenho consistente e dedicação satisfatória'],
+    [/\bmuito boa\b/gi, 'apresenta desempenho consistente e dedicação satisfatória'],
+    [/\bfraco\b/gi, 'apresenta defasagens pontuais nas habilidades curriculares avaliadas'],
+    [/\bfraca\b/gi, 'apresenta defasagens pontuais nas habilidades curriculares avaliadas'],
+    [/\bteimoso\b/gi, 'demonstra relutância em acolher as orientações pedagógicas ministradas'],
+    [/\bteimosa\b/gi, 'demonstra relutância em acolher as orientações pedagógicas ministradas'],
+    [/\bnao para quieto\b/gi, 'apresenta inquietação psicomotora e constantes deslocamentos pela sala'],
+    [/\bnão para quieto\b/gi, 'apresenta inquietação psicomotora e constantes deslocamentos pela sala'],
+    [/\bnao para quieta\b/gi, 'apresenta inquietação psicomotora e constantes deslocamentos pela sala'],
+    [/\bnão para quieta\b/gi, 'apresenta inquietação psicomotora e constantes deslocamentos pela sala'],
+  ];
+
+  conversoes.forEach(([regex, substituto]) => {
+    texto = texto.replace(regex, substituto);
+  });
+
+  // Ajusta maiúscula inicial do texto
+  const textoFormatado = texto.charAt(0).toUpperCase() + texto.slice(1);
+
+  // Mantém descrição direta e factual dos fatos observados, sem adiantar conclusões ou tarefas futuras
+  return `No decorrer das atividades pedagógicas observadas, constatou-se que ${nome} ${textoFormatado.charAt(0).toLowerCase() + textoFormatado.slice(1)}`;
+}
+

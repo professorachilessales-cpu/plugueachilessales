@@ -191,11 +191,10 @@ export function ModalRedacaoParecerIA({
             </div>
             <div>
               <h4 className="text-xs font-bold text-school-blue-900 dark:text-blue-200 uppercase tracking-wider">
-                Refinamento Inteligente com IA
+                Assistência de Redação Pedagógica com IA
               </h4>
               <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5 leading-relaxed">
-                Este texto será polido por Inteligência Artificial antes do envio final à coordenação/secretaria. 
-                Escreva livremente suas impressões, fatos ocorridos, facilidades e desafios do aluno; nosso modelo pedagógico adaptará o relato para o tom formal, técnico e humanizado exigido pela instituição.
+                Aprimora o texto bruto inserido, transformando anotações rápidas ou rascunhos em um registro pedagógico claro, culto e descritivo dos fatos observados, sem distorcer o conteúdo original nem adicionar conclusões ou encaminhamentos.
               </p>
             </div>
           </div>
@@ -252,12 +251,12 @@ export function ModalRedacaoParecerIA({
                   {polindo ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
-                      <span>Gemini Refinando Relato...</span>
+                      <span>Refinando Relato com IA...</span>
                     </>
                   ) : (
                     <>
                       <Wand2 className="h-4 w-4 text-school-gold-400 group-hover:rotate-12 transition-transform" />
-                      <span>Polir Parecer com Inteligência Artificial</span>
+                      <span>Aprimorar Relato com Inteligência Artificial</span>
                     </>
                   )}
                 </button>

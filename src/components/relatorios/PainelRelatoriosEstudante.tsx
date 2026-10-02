@@ -1022,7 +1022,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                     </button>
                     <button
                       type="button"
-                      onClick={handleConsolidarComIA}
+                      onClick={handleIniciarConsolidacaoIA}
                       disabled={consolidandoComIA}
                       className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 px-3.5 py-2 text-xs font-bold text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
                       title="Gerar nova versão consolidada refinada com IA"

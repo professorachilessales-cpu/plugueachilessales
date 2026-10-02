@@ -1043,9 +1043,9 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
 
   return (
     <div className="space-y-6">
-      {/* Topo: Título e Filtro de Tags */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-slate-800">
-        <div className="flex items-center justify-between sm:justify-start gap-3 flex-wrap">
+      {/* Topo: Título, Ações e Filtro de Tags */}
+      <div className="space-y-3 border-b border-slate-200 pb-3.5 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
             Observações & Históricos
@@ -1056,7 +1056,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
             type="button"
             onClick={() => handleImprimirRelatorio(false)}
             disabled={observacoesAtivasDesteEstudante.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-school-blue-800 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-700 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-school-blue-800 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer self-start sm:self-auto shrink-0"
             title="Imprimir relatório completo com todas as observações do estudante"
           >
             <Printer className="h-3.5 w-3.5" />
@@ -1064,17 +1064,17 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
           </button>
         </div>
 
-        {/* Filtro por Categorias em 2 Linhas Balanceadas */}
-        <div className="grid grid-rows-2 grid-flow-col auto-cols-max gap-2 overflow-x-auto py-1 max-w-full">
+        {/* Filtro por Categorias: ocupando o espaço à esquerda e com fonte compacta para encaixar na tela */}
+        <div className="flex items-center gap-1.5 flex-wrap w-full">
           <button
             onClick={() => setFiltroCategoria('todos')}
-            className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-xs whitespace-nowrap cursor-pointer ${
+            className={`inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-1 text-[10.5px] font-bold transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
               filtroCategoria === 'todos'
                 ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 ring-2 ring-slate-900 dark:ring-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-slate-700/60'
             }`}
           >
-            <Tag className="h-3.5 w-3.5" />
+            <Tag className="h-3 w-3" />
             <span>
               Todas ({observacoesAtivasDesteEstudante.length})
             </span>
@@ -1090,13 +1090,13 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
               <button
                 key={cat}
                 onClick={() => setFiltroCategoria(cat)}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-xs whitespace-nowrap cursor-pointer ${
+                className={`inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-1 text-[10.5px] font-bold transition-all shadow-2xs whitespace-nowrap cursor-pointer ${
                   ativo
                     ? `${conf.bg} ${conf.cor} ring-2 ring-current border ${conf.border}`
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-slate-700/60'
                 }`}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-3 w-3" />
                 <span>{conf.label} ({qtd})</span>
               </button>
             );
@@ -1106,10 +1106,10 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
           <button
             type="button"
             onClick={() => setModalAuditoriaAberto(true)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 transition-all shadow-xs whitespace-nowrap cursor-pointer"
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50/80 px-2.5 py-1 text-[10.5px] font-bold text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 transition-all shadow-2xs whitespace-nowrap cursor-pointer"
             title="Abrir Trilha de Auditoria & Histórico de Alterações deste Estudante"
           >
-            <ShieldCheck className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+            <ShieldCheck className="h-3 w-3 text-rose-600 dark:text-rose-400" />
             <span>Auditoria ({auditoriasDesteEstudante.length})</span>
           </button>
         </div>

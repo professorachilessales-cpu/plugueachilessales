@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { RelatorioProfessor, SolicitacaoRelatorio, Estudante, Turma } from '@/lib/types';
 import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
-import { Copy, Check, ArrowDownToLine } from 'lucide-react';
+import { Copy, Check, ArrowDownToLine, RotateCcw, Key } from 'lucide-react';
 
 interface ModalRedacaoParecerIAProps {
   isOpen: boolean;
@@ -48,6 +48,33 @@ export function ModalRedacaoParecerIA({
   const [sucessoEnviado, setSucessoEnviado] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(1);
+  const [mostrarConfigChave, setMostrarConfigChave] = useState(false);
+  const [chaveManual, setChaveManual] = useState('');
+  const [chaveSalvaMsg, setChaveSalvaMsg] = useState(false);
+
+  // Carrega chave personalizada do localStorage, se existente
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const salva = localStorage.getItem('gemini_user_api_key') || '';
+      setChaveManual(salva);
+    }
+  }, []);
+
+  const handleSalvarChaveManual = () => {
+    if (typeof window !== 'undefined') {
+      const k = chaveManual.trim();
+      if (k) {
+        localStorage.setItem('gemini_user_api_key', k);
+        setChaveSalvaMsg(true);
+        setErro(null);
+        setTimeout(() => setChaveSalvaMsg(false), 2500);
+      } else {
+        localStorage.removeItem('gemini_user_api_key');
+        setChaveManual('');
+      }
+    }
+  };
 
   // Identificação precisa do gênero gramatical para exibição e conferência
   const dadosGenero = React.useMemo(() => {
@@ -84,22 +111,30 @@ export function ModalRedacaoParecerIA({
   };
 
   const handlePolirComIA = async () => {
-    if (!rascunho || rascunho.trim().length < 10) {
+    if (!rascunho || rascunho.trim().length < 5) {
       setErro('Por favor, digite suas observações sobre o estudante antes de acionar a Inteligência Artificial.');
       return;
     }
 
     setErro(null);
     setPolindo(true);
+    const proxTentativa = tentativa + 1;
+    setTentativa(proxTentativa);
+
     try {
       const resultado = await polirRelatorioComIA(relatorio.id, rascunho, {
         estudante,
         turma,
+        tentativa: proxTentativa,
+        apiKey: chaveManual.trim() || undefined,
       });
       setTextoIa(resultado);
       setTextoFinal(resultado);
     } catch (e: any) {
       setErro(e.message || 'Falha ao processar com a IA.');
+      if (e.message?.includes('403') || e.message?.includes('PERMISSION_DENIED') || e.message?.includes('chave')) {
+        setMostrarConfigChave(true);
+      }
     } finally {
       setPolindo(false);
     }
@@ -243,10 +278,21 @@ export function ModalRedacaoParecerIA({
 
             {/* CTA POLIMENTO GEMINI */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                <Sparkles className="h-3.5 w-3.5 text-school-gold-500" />
-                <span>A IA polirá a formalidade, corrigirá erros de português e concordará em gênero.</span>
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5 text-school-gold-500" />
+                  <span>A IA reescreverá o texto com fluidez natural, correção integral e concordância.</span>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setMostrarConfigChave(!mostrarConfigChave)}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-school-blue-700 hover:text-school-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline underline-offset-2 transition-colors cursor-pointer"
+                >
+                  <Key className="h-3 w-3" />
+                  <span>{chaveManual ? 'Chave Google Gemini Configurada' : 'Configurar Chave Google Gemini API'}</span>
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -257,7 +303,12 @@ export function ModalRedacaoParecerIA({
                 {polindo ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
-                    <span>Polindo e Refinando Relato com IA...</span>
+                    <span>Reescrevendo Relato com Google Gemini...</span>
+                  </>
+                ) : (textoIa || relatorio.texto_ia) ? (
+                  <>
+                    <RotateCcw className="h-4 w-4 text-school-gold-400 group-hover:-rotate-90 transition-transform" />
+                    <span>Reescrever com Google IA (Gerar Novo Texto)</span>
                   </>
                 ) : (
                   <>
@@ -267,6 +318,63 @@ export function ModalRedacaoParecerIA({
                 )}
               </button>
             </div>
+
+            {/* PAINEL OPCIONAL: CONFIGURAÇÃO DE CHAVE GOOGLE GEMINI API */}
+            {mostrarConfigChave && (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/50 dark:bg-blue-950/20 space-y-3 animate-in fade-in-0 duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Chave da Google Gemini API Oficial
+                    </span>
+                  </div>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-bold text-school-blue-600 hover:underline dark:text-school-gold-400"
+                  >
+                    Obter Chave Gratuita no Google AI Studio ↗
+                  </a>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={chaveManual}
+                    onChange={(e) => setChaveManual(e.target.value)}
+                    placeholder="Cole sua chave aqui (ex: AIzaSy...)"
+                    className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-school-blue-600 focus:outline-none focus:ring-1 focus:ring-school-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSalvarChaveManual}
+                    className="rounded-xl bg-school-blue-800 px-4 py-2 text-xs font-bold text-white hover:bg-school-blue-700 transition-colors cursor-pointer"
+                  >
+                    Salvar Chave
+                  </button>
+                  {chaveManual && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChaveManual('');
+                        if (typeof window !== 'undefined') localStorage.removeItem('gemini_user_api_key');
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    >
+                      Remover
+                    </button>
+                  )}
+                </div>
+
+                {chaveSalvaMsg && (
+                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <Check className="h-3.5 w-3.5" /> Chave salva com sucesso! Ela será utilizada para as reescritas com Google Gemini.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* VERSÃO GERADA PELA IA EM CAMPO EDITÁVEL */}
@@ -275,15 +383,20 @@ export function ModalRedacaoParecerIA({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-xs font-bold text-school-blue-900 dark:text-blue-300 flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-school-gold-500" />
-                  <span>2. Versão Pedagógica Refinada (Revisável pelo Professor)</span>
+                  <span>2. Versão Pedagógica Reescrita com Google IA</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                    ✓ Português Corrigido
+                    ✓ Português Polido
                   </span>
                   <span className="text-[10px] font-semibold text-school-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
                     ✓ Concordância {dadosGenero.termo}
                   </span>
+                  {tentativa > 1 && (
+                    <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                      Nova Versão #{tentativa}
+                    </span>
+                  )}
                 </div>
               </div>
 

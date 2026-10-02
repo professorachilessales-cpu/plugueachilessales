@@ -249,60 +249,30 @@ export function montarPromptPipelinePolimentoRelato(params: {
   estudanteNome: string;
   generoGramatical: 'masculino' | 'feminino';
   textoRelatoLivre: string;
+  tentativa?: number;
 }): string {
   const isFeminino = params.generoGramatical === 'feminino';
   const generoFormatado = isFeminino
-    ? 'FEMININO (utilize estritamente artigos, pronomes e adjetivos femininos: a estudante, a aluna, a educanda, ela, dedicada, atenta, participativa, estimulada, motivada, segura)'
-    : 'MASCULINO (utilize estritamente artigos, pronomes e adjetivos masculinos: o estudante, o aluno, o educando, ele, dedicado, atento, participativo, estimulado, motivado, seguro)';
+    ? 'feminino (a estudante, a aluna, ela, dedicada, atenta, participativa)'
+    : 'masculino (o estudante, o aluno, ele, dedicado, atento, participativo)';
 
-  return `Você é um consultor pedagógico institucional sênior e especialista em redação avaliativa escolar oficial operando via Google Gemini.
-Sua missão é pegar o texto bruto de "Relato Livre & Observações Concretas" digitado pelo professor e lapidá-lo com perfeição segundo as diretrizes a seguir:
+  const variacaoInstrucao = params.tentativa && params.tentativa > 1
+    ? `Esta é uma nova tentativa (#${params.tentativa}). Formule uma construção textual diferente da anterior, variando o vocabulário e a ordem das orações para oferecer um texto inédito.`
+    : 'Escreva um texto fluente, novo e autêntico.';
 
----
-DADOS DO ESTUDANTE AVALIADO:
-- Nome Completo: ${params.estudanteNome}
-- Gênero Gramatical: ${generoFormatado}
+  return `Você é um redator pedagógico especialista em língua portuguesa e avaliação escolar oficial.
+Sua missão é reescrever o relato livre a seguir com linguagem formal culta, elegância e naturalidade.
 
----
-DIRETRIZES OBRIGATÓRIAS DE POLIMENTO PEDAGÓGICO:
+REQUISITOS DA REESCRITA:
+1. Reescreva todo o texto com excelente fluidez e padrão formal em português brasileiro.
+2. Corrija integralmente todos os erros ortográficos, gramaticais, de pontuação e vícios de oralidade/digitação.
+3. Assegure concordância de gênero estrita com o(a) estudante: ${generoFormatado}.
+4. Mantenha com total fidelidade todos os fatos, avanços e desafios reais observados pelo professor, sem inventar informações não relatadas.
+5. NÃO utilize diretrizes preestabelecidas engessadas, jargões artificiais nem frases prontas clichês.
+6. ${variacaoInstrucao}
+7. Retorne EXCLUSIVAMENTE o texto final reescrito, sem aspas, títulos ou introduções explicativas.
 
-1. 🏛️ Linguagem Formal, Culta e Institucional:
-   - Eleve o texto original para uma prosa avaliativa nobre, elegante, respeitosa e técnica.
-   - Utilize repertório pedagógico culto (ex.: desenvolvimento cognitivo, apropriação dos conteúdos curriculares, mediação contextualizada, autorregulação socioemocional, interação com os pares, manutenção da atenção sustentada).
-
-2. ✍️ Correção Integral de Todos os Erros de Português:
-   - Corrija 100% dos desvios ortográficos, acentuação gráfica, pontuação, sintaxe, concordância nominal e concordância verbal.
-   - Elimine abreviações da internet (vc, pq, tbm, pra, etc.) e vícios de oralidade.
-
-3. ⚖️ Concordância Rigorosa de Gênero com o Estudante:
-   - Aplique estritamente o gênero ${isFeminino ? 'FEMININO' : 'MASCULINO'} em todos os artigos, pronomes e adjetivos atribuídos a ${params.estudanteNome}.
-   ${isFeminino 
-     ? '- Ex.: "a estudante", "a aluna", "a educanda", "ela", "dedicada", "atenta", "participativa", "acolhida", "estimulada". NUNCA utilize termos masculinos para a estudante.' 
-     : '- Ex.: "o estudante", "o aluno", "o educando", "ele", "dedicado", "atento", "participativo", "acolhido", "estimulado". NUNCA utilize termos femininos para o estudante.'}
-
-4. 📖 Melhoria Textual e Fluidez Narrativa:
-   - Estruture as observações em uma narrativa contínua, clara e pedagogicamente coerente.
-   - Conserve com total fidelidade todos os fatos, conquistas e dificuldades observados pelo professor, valorizando o processo de desenvolvimento e sem inventar dados, ocorrências ou diagnósticos clínicos não relatados.
-
----
-EXEMPLOS DE TRANSFORMAÇÃO ESPERADA:
-
-[Exemplo 1 - Aluna (Gênero Feminino)]:
-Entrada: "a aluna e dedicada mais conversa d+ e as vezes nao presta atencao na aula de portugues"
-Saída: "A estudante demonstra dedicação aos estudos e bom potencial formativo. Observa-se, contudo, que estabelece conversas paralelas com frequência durante as explanações teóricas de Língua Portuguesa, demandando intervenções pontuais para a manutenção do foco e da atenção contínua."
-
-[Exemplo 2 - Aluno (Gênero Masculino)]:
-Entrada: "ele aprende rapido e ajuda os colega mas briga no recreio e nao para quieto"
-Saída: "O educando evidencia rápida apropriação dos conteúdos curriculares e postura cooperativa ao auxiliar os colegas nas tarefas. No ambiente do recreio e em momentos coletivos, contudo, apresenta agitação psicomotora e pontuais desafios na mediação pacífica de conflitos com os pares, necessitando de mediação docente para a consolidação de sua autorregulação socioemocional."
-
----
-RESTRIÇÕES E LIMITES RÍGIDOS:
-- Retorne EXCLUSIVAMENTE o texto pedagógico polido final, pronto para inclusão no relatório.
-- NÃO inclua introduções, saudações (como "Aqui está o texto..."), preâmbulos ou aspas envolventes.
-- NÃO adicione seções de "Dicas para a coordenação", encaminhamentos ou sugestões finais.
-
----
-TEXTO DO RELATO LIVRE DIGITADO PELO PROFESSOR:
+RELATO LIVRE ORIGINAL:
 """
 ${params.textoRelatoLivre.trim()}
 """`;
@@ -531,38 +501,33 @@ export function simularPolimentoPedagogicoRelato(
     .replace(/\be\s+é\b/gi, 'e é')
     .replace(/\bmais\s+(quando|porém|contudo|todavia|entretanto|não|nem|conversa|briga|apresenta|demanda|precisa|tem|está|fica|mostra|demonstra|costuma|às\s+vezes)\b/gi, 'mas $1');
 
-  // 6. Transposição para Linguagem Formal Institucional
-  const conversoesPedagogicas: [RegExp, string][] = [
-    [palavraRegex('(?:n[aã]o\\s+para\\s+quiet[oa]|n[aã]o\\s+fica\\s+quiet[oa])'), 'apresenta momentos de agitação psicomotora e constantes deslocamentos em sala'],
-    [palavraRegex('(?:n[aã]o\\s+faz\\s+nada|n[aã]o\\s+quer\\s+fazer\\s+nada|n[aã]o\\s+faz\\s+as\\s+atividades?|n[aã]o\\s+faz\\s+as\\s+lições)'), 'manifesta resistência transitória e oscilações no engajamento durante a execução das atividades pedagógicas propostas'],
-    [palavraRegex('(?:briga\\s+muito\\s+com\\s+(?:os|as)?\\s*colegas?|briga\\s+com\\s+(?:os|as)?\\s*colegas?|vive\\s+brigando)'), 'apresenta pontuais desafios na mediação de conflitos e na convivência harmoniosa com os pares'],
-    [palavraRegex('(?:s[oó]\\s+conversa|conversa\\s+muito|conversa\\s+demais|fas\\s+muita\\s+conversa|faz\\s+muita\\s+conversa)'), 'estabelece diálogos paralelos com frequência durante as instruções coletivas'],
-    [palavraRegex('(?:n[aã]o\\s+presta\\s+atenção|n[aã]o\\s+presta\\s+atencao|n[aã]o\\s+presta\\s+atensao)'), 'apresenta dispersão e desafios na manutenção do foco e da atenção sustentada'],
-    [palavraRegex('(?:n[aã]o\\s+aprende|n[aã]o\\s+sabe\\s+nada)'), 'encontra-se em processo contínuo de apropriação dos conteúdos curriculares em ritmo próprio e singular'],
-    [palavraRegex('(?:muito\\s+inteligent[es]?|super\\s+inteligent[es]?)'), 'demonstra perspicácia analítica notável, boa capacidade reflexiva e rapidez na apreensão dos conteúdos curriculares'],
-    [palavraRegex('(?:ajuda\\s+todo\\s+mundo|ajuda\\s+os\\s+colegas|muito\\s+prestativo)'), 'manifesta postura colaborativa, empatia e prontidão para cooperar nas dinâmicas de grupo'],
-    [palavraRegex('(?:faz\\s+tudo\\s+certinho|muito\\s+caprichos[oa])'), 'cumpre com esmero, organização e pontualidade as metas pedagógicas orientadas'],
-    [palavraRegex('(?:fala\\s+muitos?\\s+palavr[oõ]es?|usa\\s+palavr[oõ]es?)'), 'apresenta episódios ocasionais de uso de linguagem inadequada no ambiente escolar'],
-    [palavraRegex('(?:bagunceir[oa]s?)'), 'evidencia agitação psicomotora e momentos de dispersão'],
-    [palavraRegex('(?:é\\s+muito\\s+teimos[oa]|muito\\s+teimos[oa]|é\\s+teimos[oa]|teimos[oa])'), 'mostra-se relutante no acolhimento imediato das orientações docentes'],
-    [palavraRegex('(?:chat[oa]s?)'), 'apresenta pontuais desafios na autorregulação socioemocional'],
-    [palavraRegex('(?:tem\\s+muita\\s+deficuldade\\s+de\\s+escrita|tem\\s+muita\\s+dificuldade\\s+na\\s+escrita|tem\\s+dificuldade\\s+na\\s+escrita|dificuldade\\s+de\\s+escrita)'), 'encontra-se em processo de apropriação e consolidação das habilidades de produção escrita'],
-    [palavraRegex('(?:frases?\\s+desconexas?|falas?\\s+desconexas?)'), 'construções frasais ainda em fase de estruturação e coesão'],
-    [palavraRegex('(?:aluno\\s+quieto\\s+demais|aluno\\s+muito\\s+quieto|muito\\s+quiet[oa]|quieto\\s+demais)'), 'postura excessivamente introspectiva e reservada no ambiente escolar'],
-    [palavraRegex('(?:n[aã]o\\s+participa|n[aã]o\\s+partisipa)'), 'baixa participação espontânea nas dinâmicas coletivas'],
-    [palavraRegex('(?:chora\\s+muito|chora\\s+por\\s+tudo)'), 'manifesta acentuada sensibilidade emocional diante de situações de frustração'],
-    [palavraRegex('(?:falta\\s+muito|falta\\s+demais|muitas\\s+faltas)'), 'apresenta frequência escolar irregular, com impacto direto na assimilação contínua dos conteúdos'],
-    [palavraRegex('(?:letra\\s+feia|letra\\s+ileg[ií]vel)'), 'apresenta grafia em desenvolvimento que demanda aprimoramento na legibilidade'],
+  // 6. Transposição Natural para Linguagem Formal (sem fórmulas pré-moldadas nem jargões clínicos)
+  const conversoesNaturais: [RegExp, string][] = [
+    [palavraRegex('(?:n[aã]o\\s+para\\s+quiet[oa]|n[aã]o\\s+fica\\s+quiet[oa])'), 'demonstra inquietação e constante movimentação pela sala'],
+    [palavraRegex('(?:n[aã]o\\s+faz\\s+nada|n[aã]o\\s+quer\\s+fazer\\s+nada|n[aã]o\\s+faz\\s+as\\s+atividades?|n[aã]o\\s+faz\\s+as\\s+lições)'), 'apresenta resistência e pouco engajamento na realização das tarefas escolares propostas'],
+    [palavraRegex('(?:briga\\s+muito\\s+com\\s+(?:os|as)?\\s*colegas?|briga\\s+com\\s+(?:os|as)?\\s*colegas?|vive\\s+brigando)'), 'apresenta atritos e desentendimentos frequentes com os pares'],
+    [palavraRegex('(?:s[oó]\\s+conversa|conversa\\s+muito|conversa\\s+demais|fas\\s+muita\\s+conversa|faz\\s+muita\\s+conversa)'), 'mantém conversas paralelas durante as explicações em sala'],
+    [palavraRegex('(?:n[aã]o\\s+presta\\s+atenção|n[aã]o\\s+presta\\s+atencao|n[aã]o\\s+presta\\s+atensao)'), 'demonstra dispersão e desatenção durante as aulas'],
+    [palavraRegex('(?:n[aã]o\\s+aprende|n[aã]o\\s+sabe\\s+nada)'), 'apresenta ritmo próprio e requer maior tempo na apreensão dos conteúdos curriculares'],
+    [palavraRegex('(?:muito\\s+inteligent[es]?|super\\s+inteligent[es]?)'), 'demonstra notável facilidade de raciocínio e apreensão rápida dos conteúdos'],
+    [palavraRegex('(?:ajuda\\s+todo\\s+mundo|ajuda\\s+os\\s+colegas|muito\\s+prestativo)'), 'costuma demonstrar presteza e cooperação ao ajudar os colegas'],
+    [palavraRegex('(?:faz\\s+tudo\\s+certinho|muito\\s+caprichos[oa])'), 'realiza todas as atividades com organização, empenho e capricho'],
+    [palavraRegex('(?:fala\\s+muitos?\\s+palavr[oõ]es?|usa\\s+palavr[oõ]es?)'), 'costuma utilizar linguagem inapropriada para o ambiente escolar'],
+    [palavraRegex('(?:bagunceir[oa]s?)'), 'apresenta momentos de agitação e indisciplina em sala'],
+    [palavraRegex('(?:é\\s+muito\\s+teimos[oa]|muito\\s+teimos[oa]|é\\s+teimos[oa]|teimos[oa])'), 'mostra-se resistente em acolher as orientações da docência'],
+    [palavraRegex('(?:chat[oa]s?)'), 'encontra desafios em manter uma convivência equilibrada com o grupo'],
+    [palavraRegex('(?:tem\\s+muita\\s+deficuldade\\s+de\\s+escrita|tem\\s+muita\\s+dificuldade\\s+na\\s+escrita|tem\\s+dificuldade\\s+na\\s+escrita|dificuldade\\s+de\\s+escrita)'), 'apresenta desafios acentuados na estruturação da escrita'],
+    [palavraRegex('(?:frases?\\s+desconexas?|falas?\\s+desconexas?)'), 'frases que demandam maior clareza e encadeamento lógico'],
+    [palavraRegex('(?:aluno\\s+quieto\\s+demais|aluno\\s+muito\\s+quieto|muito\\s+quiet[oa]|quieto\\s+demais)'), 'postura acentuadamente tímida e reservada no cotidiano escolar'],
+    [palavraRegex('(?:n[aã]o\\s+participa|n[aã]o\\s+partisipa)'), 'pouca participação espontânea nas atividades coletivas'],
+    [palavraRegex('(?:chora\\s+muito|chora\\s+por\\s+tudo)'), 'demonstra sensibilidade emocional e choro frequente diante de frustrações'],
+    [palavraRegex('(?:falta\\s+muito|falta\\s+demais|muitas\\s+faltas)'), 'recorrência de ausências às aulas, prejudicando o fluxo do aprendizado'],
+    [palavraRegex('(?:letra\\s+feia|letra\\s+ileg[ií]vel)'), 'grafia que requer aprimoramento e treino para melhor legibilidade'],
   ];
 
-  for (const [re, sub] of conversoesPedagogicas) {
+  for (const [re, sub] of conversoesNaturais) {
     texto = texto.replace(re, sub);
   }
-
-  // Desfazer reduplicação verbal indesejada ("é mostra-se" / "e é mostra-se")
-  texto = texto
-    .replace(/\be\s+é\s+(mostra-se|apresenta|evidencia|manifesta|encontra-se|demonstra|cumpre)/gi, 'e $1')
-    .replace(/\bé\s+(mostra-se|apresenta|evidencia|manifesta|encontra-se|demonstra|cumpre)/gi, '$1');
 
   // 7. Concordância estrita de gênero gramatical (Feminino vs Masculino)
   if (isFeminino) {
@@ -657,27 +622,21 @@ export function simularPolimentoPedagogicoRelato(
   texto = texto.charAt(0).toUpperCase() + texto.slice(1);
   texto = texto.replace(/([.!?]\s+)([a-z])/g, (_, p1, p2) => p1 + p2.toUpperCase());
 
-  // Inserção orgânica do sujeito se ausente
+  // Inserção orgânica do sujeito se ausente (sem fórmulas pré-moldadas)
   const jaMenciona = nome && new RegExp(`\\b${nome.split(' ')[0]}\\b`, 'i').test(texto);
   const jaTemSujeito = /^(a\s+aluna|o\s+aluno|a\s+estudante|o\s+estudante|ela|ele|durante|no|na|em|quanto)/i.test(texto);
 
   if (!jaTemSujeito && !jaMenciona) {
-    const abertura = nome 
-      ? `No acompanhamento pedagógico de ${nome}, constata-se que ${artigoEstudante} `
-      : `Durante as atividades e rotinas pedagógicas observadas, constata-se que ${artigoEstudante} `;
-    
+    const sujeito = nome ? `${artigoEstudante} ${nome}` : artigoEstudante;
     const primeiraLetra = texto.charAt(0).toLowerCase();
-    return (abertura + primeiraLetra + texto.slice(1)).replace(/\s+/g, ' ').trim();
-  }
-
-  // Se inicia com "Ela é" ou "Ele é", substitui suavemente pelo nome ou artigo formal para evitar texto telegráfico
-  if (/^ela\s+é(?:\s|$)/i.test(texto)) {
+    texto = `${sujeito} ${primeiraLetra}${texto.slice(1)}`;
+  } else if (/^ela\s+é(?:\s|$)/i.test(texto)) {
     texto = texto.replace(/^ela\s+é(?:\s|$)/i, nome ? `${nome} é ` : 'A estudante é ');
   } else if (/^ele\s+é(?:\s|$)/i.test(texto)) {
     texto = texto.replace(/^ele\s+é(?:\s|$)/i, nome ? `${nome} é ` : 'O estudante é ');
   }
 
-  return texto;
+  return texto.replace(/\s+/g, ' ').trim();
 }
 
 

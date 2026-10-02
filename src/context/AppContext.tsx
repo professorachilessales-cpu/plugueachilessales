@@ -97,7 +97,11 @@ interface AppContextType {
   salvarRascunhoProfessor: (relatorioId: string, rascunho: string) => void;
   updateRelatorioProfessor: (relatorioId: string, updates: Partial<RelatorioProfessor>) => void;
   deleteRelatorioProfessor: (relatorioId: string) => void;
-  polirRelatorioComIA: (relatorioId: string, rascunho: string, dadosExtras?: { estudante?: Estudante; turma?: Turma }) => Promise<string>;
+  polirRelatorioComIA: (
+    relatorioId: string, 
+    rascunho: string, 
+    dadosExtras?: { estudante?: Estudante; turma?: Turma; tentativa?: number; apiKey?: string }
+  ) => Promise<string>;
   enviarRelatorioProfessor: (relatorioId: string, textoFinal: string) => Promise<void>;
   marcarNotificacaoLida: (notificacaoId: string) => void;
   marcarNotificacaoComoLida: (notificacaoId: string) => void;
@@ -1509,7 +1513,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const polirRelatorioComIA = async (
     relatorioId: string, 
     rascunho: string,
-    dadosExtras?: { estudante?: Estudante; turma?: Turma }
+    dadosExtras?: { estudante?: Estudante; turma?: Turma; tentativa?: number; apiKey?: string }
   ): Promise<string> => {
     const rel = relatoriosProfessores.find(r => r.id === relatorioId);
     const sol = solicitacoesRelatorio.find(s => s.id === rel?.solicitacao_id);
@@ -1519,6 +1523,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const nomeEstudante = aluno?.nome_completo || 'Estudante';
     const generoEstudante = aluno?.genero || (aluno as any)?.sexo || '';
+    const userApiKey = dadosExtras?.apiKey || (typeof window !== 'undefined' ? localStorage.getItem('gemini_user_api_key') : null) || undefined;
+    const tentativa = dadosExtras?.tentativa || 1;
 
     const res = await fetch('/api/ia/polir-relatorio', {
       method: 'POST',
@@ -1533,6 +1539,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         turmaNome: turma?.nome || '',
         disciplina: prof?.disciplinas?.join(', ') || '',
         professorNome: prof?.nome_completo || currentUser.name,
+        tentativa,
+        apiKey: userApiKey,
       }),
     });
 

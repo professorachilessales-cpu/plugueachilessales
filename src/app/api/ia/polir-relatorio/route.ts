@@ -23,7 +23,10 @@ export async function POST(req: NextRequest) {
       sexo,
       turmaNome, 
       disciplina, 
-      professorNome 
+      professorNome,
+      tentativa = 1,
+      apiKey: customApiKey,
+      geminiApiKey: customGeminiApiKey,
     } = body;
 
     const rascunhoLimpo = sanitizeTextarea(rascunho);
@@ -44,14 +47,16 @@ export async function POST(req: NextRequest) {
       sexo: generoInformado,
     });
 
+    const numTentativa = Number(tentativa) || 1;
     const promptPipeline = montarPromptPipelinePolimentoRelato({
       estudanteNome: nomeFinal,
       generoGramatical: dadosGenero.generoGramatical,
       textoRelatoLivre: rascunhoLimpo,
+      tentativa: numTentativa,
     });
 
-    // 1. Provedor Primário: Google Gemini API (modelos da família Gemini com fallback em cascata)
-    const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+    // 1. Provedor Primário: Google Gemini API Oficial
+    const rawKey = (customApiKey || customGeminiApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
     const geminiApiKey = rawKey.replace(/^["']|["']$/g, '').trim();
     let statusGoogleErro: string | null = null;
     let motivoGoogleErro: string | null = null;
@@ -69,9 +74,11 @@ export async function POST(req: NextRequest) {
         'gemini-1.5-flash',
       ].filter(Boolean) as string[];
 
+      const systemInstructionText = `Você é um redator e consultor pedagógico especialista em língua portuguesa. Sua função é reescrever o relato do professor com padrão formal culto, excelente fluidez, elegância e naturalidade, corrigindo 100% dos erros ortográficos e garantindo concordância gramatical estrita com o(a) estudante (${dadosGenero.generoGramatical}). Não utilize fórmulas prontas, jargões artificiais nem diretrizes preestabelecidas; a cada chamada, explore uma nova reescrita autêntica e fresca. Retorne EXCLUSIVAMENTE o texto polido, sem saudações nem metatexto.`;
+
       for (const modelo of modelosGemini) {
         try {
-          // Tentativa A: generateContent com systemInstruction
+          // Tentativa A: generateContent com systemInstruction e temperatura dinâmica
           const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
             {
@@ -79,11 +86,7 @@ export async function POST(req: NextRequest) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 systemInstruction: {
-                  parts: [
-                    {
-                      text: `Você é um consultor pedagógico institucional sênior. Sua função é polir relatos livres de professores escolares: aplicar linguagem formal culta, corrigir 100% dos erros de português, garantir concordância rigorosa de gênero com o estudante (${dadosGenero.generoGramatical}) e melhorar a narrativa pedagógica sem distorcer fatos. Retorne EXCLUSIVAMENTE o texto polido, sem saudações nem metatexto.`
-                    }
-                  ]
+                  parts: [{ text: systemInstructionText }]
                 },
                 contents: [
                   {
@@ -92,7 +95,7 @@ export async function POST(req: NextRequest) {
                   },
                 ],
                 generationConfig: {
-                  temperature: 0.3,
+                  temperature: 0.85, // Temperatura dinâmica para sempre tentar um novo texto
                   topP: 0.95,
                   topK: 40,
                   maxOutputTokens: 1500,
@@ -112,6 +115,7 @@ export async function POST(req: NextRequest) {
                 provider: `google-gemini-${modelo}`,
                 genero_aplicado: dadosGenero.generoGramatical,
                 nome_estudante: nomeFinal,
+                tentativa: numTentativa,
               });
             }
           } else {
@@ -136,7 +140,7 @@ export async function POST(req: NextRequest) {
               break;
             }
 
-            // Se generateContent não funcionou (ex: modelo precisa de interactions), tenta endpoint interactions
+            // Se generateContent não funcionou, tenta endpoint interactions
             try {
               const interactionsResponse = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/interactions?key=${geminiApiKey}`,
@@ -145,10 +149,10 @@ export async function POST(req: NextRequest) {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     model: modelo,
-                    system_instruction: `Você é um consultor pedagógico institucional sênior. Sua função é polir relatos livres de professores escolares: aplicar linguagem formal culta, corrigir 100% dos erros de português, garantir concordância rigorosa de gênero com o estudante (${dadosGenero.generoGramatical}) e melhorar a narrativa pedagógica sem distorcer fatos. Retorne EXCLUSIVAMENTE o texto polido, sem saudações nem metatexto.`,
+                    system_instruction: systemInstructionText,
                     input: promptPipeline,
                     generation_config: {
-                      temperature: 0.3,
+                      temperature: 0.85,
                       max_output_tokens: 1500,
                     }
                   }),
@@ -167,6 +171,7 @@ export async function POST(req: NextRequest) {
                     provider: `google-gemini-interactions-${modelo}`,
                     genero_aplicado: dadosGenero.generoGramatical,
                     nome_estudante: nomeFinal,
+                    tentativa: numTentativa,
                   });
                 }
               }

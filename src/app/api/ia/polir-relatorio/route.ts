@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeTextarea } from '@/lib/security';
 import { 
   determinarGeneroEstudante,
-  montarSystemPromptPolimentoRelato, 
-  montarUserPromptPolimentoRelato, 
+  montarPromptPipelinePolimentoRelato, 
   limparMetatextoEEncerramentosRelato, 
   simularPolimentoPedagogicoRelato 
 } from '@/lib/pareceres-ia';
@@ -45,18 +44,10 @@ export async function POST(req: NextRequest) {
       sexo: generoInformado,
     });
 
-    const systemPrompt = montarSystemPromptPolimentoRelato({
+    const promptPipeline = montarPromptPipelinePolimentoRelato({
       estudanteNome: nomeFinal,
       generoGramatical: dadosGenero.generoGramatical,
-    });
-
-    const userPrompt = montarUserPromptPolimentoRelato({
-      alunoNome: nomeFinal,
-      generoGramatical: dadosGenero.generoGramatical,
-      turmaNome,
-      disciplina,
-      professorNome,
-      rascunho: rascunhoLimpo,
+      textoRelatoLivre: rascunhoLimpo,
     });
 
     // 1. Provedor Primário: Google Gemini API (modelos oficiais com fallback em cascata)
@@ -73,17 +64,14 @@ export async function POST(req: NextRequest) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                systemInstruction: {
-                  parts: [{ text: systemPrompt }],
-                },
                 contents: [
                   {
                     role: 'user',
-                    parts: [{ text: userPrompt }],
+                    parts: [{ text: promptPipeline }],
                   },
                 ],
                 generationConfig: {
-                  temperature: 0.3,
+                  temperature: 0.2,
                   maxOutputTokens: 2048,
                 },
               }),
@@ -123,8 +111,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             model: 'gpt-4o-mini',
             messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
+              { role: 'user', content: promptPipeline },
             ],
             temperature: 0.2,
           }),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeTextarea } from '@/lib/security';
 import { 
+  determinarGeneroEstudante,
   montarSystemPromptPolimentoRelato, 
   montarUserPromptPolimentoRelato, 
   limparMetatextoEEncerramentosRelato, 
@@ -12,7 +13,16 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { rascunho, alunoNome, turmaNome, disciplina, professorNome } = body;
+    const { 
+      rascunho, 
+      alunoNome, 
+      alunoGenero,
+      genero,
+      sexo,
+      turmaNome, 
+      disciplina, 
+      professorNome 
+    } = body;
 
     const rascunhoLimpo = sanitizeTextarea(rascunho);
     if (!rascunhoLimpo || rascunhoLimpo.trim().length < 5) {
@@ -22,9 +32,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Identificação de gênero para concordância gramatical estrita em gênero e número
+    const dadosGenero = determinarGeneroEstudante({
+      nome_completo: alunoNome,
+      genero: alunoGenero || genero || sexo,
+      sexo: sexo || genero || alunoGenero,
+    });
+
     const systemPrompt = montarSystemPromptPolimentoRelato();
     const userPrompt = montarUserPromptPolimentoRelato({
       alunoNome,
+      generoGramatical: dadosGenero.generoGramatical,
+      instrucaoGenero: dadosGenero.instrucaoGramatical,
       turmaNome,
       disciplina,
       professorNome,
@@ -120,7 +139,11 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Fallback Pedagógico Resiliente (Garante funcionamento offline sem quebrar restrições)
-    const textoPolido = simularPolimentoPedagogicoRelato(rascunhoLimpo, alunoNome);
+    const textoPolido = simularPolimentoPedagogicoRelato(
+      rascunhoLimpo, 
+      alunoNome, 
+      dadosGenero.generoGramatical
+    );
     const textoFinal = limparMetatextoEEncerramentosRelato(textoPolido);
 
     return NextResponse.json({

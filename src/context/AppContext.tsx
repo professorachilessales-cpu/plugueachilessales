@@ -1527,6 +1527,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({
         rascunho,
         alunoNome: aluno?.nome_completo || 'Estudante',
+        alunoGenero: aluno?.genero || (aluno as any)?.sexo || '',
         turmaNome: turma?.nome || '',
         disciplina: prof?.disciplinas?.join(', ') || '',
         professorNome: prof?.nome_completo || currentUser.name,

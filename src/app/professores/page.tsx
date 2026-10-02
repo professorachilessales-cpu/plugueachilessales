@@ -137,8 +137,7 @@ export default function ProfessoresPage() {
     faltasProfessores, 
     addProfessor, 
     updateProfessor, 
-    toggleProfessorApoio, 
-    toggleProfessorAdministrativo,
+    toggleProfessorApoio,
     addFaltaProfessor, 
     toggleHomologarFalta, 
     turmas,
@@ -852,37 +851,6 @@ export default function ProfessoresPage() {
                                   </span>
                                 )}
                               </div>
-                            </div>
-
-                            {/* Toggle Funcionário Administrativo */}
-                            <div className="mt-3.5 flex items-center justify-between rounded-xl bg-slate-50 dark:bg-slate-800/80 p-2.5 border border-slate-200/70 dark:border-slate-700">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm">📂</span>
-                                <div>
-                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
-                                    Funcionário Administrativo?
-                                  </span>
-                                  <span className="text-[10px] text-slate-500 dark:text-slate-300">
-                                    {prof.eh_administrativo ? 'Sim (Atua na administração)' : 'Não (Apenas docente)'}
-                                  </span>
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                role="switch"
-                                aria-checked={Boolean(prof.eh_administrativo)}
-                                onClick={() => toggleProfessorAdministrativo(prof.id)}
-                                className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                  prof.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
-                                }`}
-                                title={prof.eh_administrativo ? 'Docente é funcionário administrativo (Clique para alternar)' : 'Docente não é administrativo (Clique para alternar)'}
-                              >
-                                <span
-                                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                    prof.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
-                                  }`}
-                                />
-                              </button>
                             </div>
                           </>
                         )}

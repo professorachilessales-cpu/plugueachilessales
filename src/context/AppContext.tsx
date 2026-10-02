@@ -47,7 +47,7 @@ import {
   initialAtestadosProfessor,
   initialReposicoesAulas
 } from '@/lib/mock-data';
-import { obterProfessoresDocentesDaTurma } from '@/lib/pareceres-ia';
+import { obterProfessoresDocentesDaTurma, isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
 
 interface AppContextType {
   theme: 'light' | 'dark';
@@ -539,14 +539,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               setRoleState(cleanUsers[0].role);
             }
           }
+          let cleanProf: Professor[] = [];
           if (tProf && tProf.length > 0) {
-            const cleanProf = tProf.filter((p: Professor) => !p.id.startsWith('prof-'));
+            cleanProf = tProf
+              .filter((p: Professor) => !p.id.startsWith('prof-'))
+              .map((p: Professor) => {
+                if (isProfessorAdministrativo(p, tUsers)) {
+                  return { ...p, eh_administrativo: true, turmas_atribuidas_ids: [] };
+                }
+                return p;
+              });
             setProfessores(cleanProf);
             localStorage.setItem('school_os_professores', JSON.stringify(cleanProf));
           }
           if (tTurmas && tTurmas.length > 0) {
-            setTurmas(tTurmas);
-            localStorage.setItem('school_os_turmas', JSON.stringify(tTurmas));
+            const cleanTurmas = tTurmas.map((t: Turma) => {
+              const rawProfs = t.professores_ids || (t.professor_regente_id ? [t.professor_regente_id] : []);
+              const pIds = rawProfs.filter((pid: string) => {
+                const prof = cleanProf.find((p) => p.id === pid);
+                return prof && !isProfessorAdministrativo(prof, tUsers) && !isProfessorApoio(prof);
+              });
+              let regId = t.professor_regente_id;
+              let regNome = t.professor_regente_nome;
+              const regProf = cleanProf.find((p) => p.id === regId);
+              if (regProf && (isProfessorAdministrativo(regProf, tUsers) || isProfessorApoio(regProf))) {
+                regId = pIds[0] || undefined;
+                regNome = regId ? cleanProf.find((p) => p.id === regId)?.nome_completo : undefined;
+              }
+              const cleanApoio = (t.equipe_apoio_ids || []).filter((pid: string) => {
+                const prof = cleanProf.find((p) => p.id === pid);
+                return prof && !isProfessorAdministrativo(prof, tUsers);
+              });
+              return {
+                ...t,
+                professores_ids: pIds,
+                professor_regente_id: regId,
+                professor_regente_nome: regNome,
+                equipe_apoio_ids: cleanApoio,
+              };
+            });
+            setTurmas(cleanTurmas);
+            localStorage.setItem('school_os_turmas', JSON.stringify(cleanTurmas));
           }
           if (tEst && tEst.length > 0) {
             const cleanEst = tEst.map((e: Estudante) => ({
@@ -1118,15 +1151,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addTurma = (novaTurma: Omit<Turma, 'id' | 'created_at' | 'grade_horaria'>) => {
-    const regenteId = novaTurma.professores_ids?.[0] || novaTurma.professor_regente_id;
-    const regente = professores.find((p) => p.id === regenteId);
+    const rawProfs = novaTurma.professores_ids || (novaTurma.professor_regente_id ? [novaTurma.professor_regente_id] : []);
+    const profsLimpos = rawProfs.filter((pid) => {
+      const p = professores.find((prof) => prof.id === pid);
+      return p && !isProfessorAdministrativo(p, users) && !isProfessorApoio(p);
+    });
+    const regenteId = profsLimpos[0] || undefined;
+    const regente = regenteId ? professores.find((p) => p.id === regenteId) : undefined;
+    const cleanApoio = (novaTurma.equipe_apoio_ids || []).filter((pid) => {
+      const p = professores.find((prof) => prof.id === pid);
+      return p && !isProfessorAdministrativo(p, users);
+    });
+
     const turmaCriada: Turma = {
       ...novaTurma,
       id: `turma-${Date.now()}`,
       professor_regente_id: regenteId,
       professor_regente_nome: regente?.nome_completo,
-      professores_ids: novaTurma.professores_ids || (regenteId ? [regenteId] : []),
-      equipe_apoio_ids: novaTurma.equipe_apoio_ids || [],
+      professores_ids: profsLimpos,
+      equipe_apoio_ids: cleanApoio,
       grade_horaria: [],
       ativa: novaTurma.ativa !== false,
       created_at: new Date().toISOString(),
@@ -1146,15 +1189,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (t.id === id) {
           const mod = { ...t, ...updates };
           if (updates.professores_ids !== undefined) {
-            mod.professores_ids = updates.professores_ids;
-            if (updates.professores_ids.length > 0) {
-              const regente = professores.find((p) => p.id === updates.professores_ids![0]);
-              mod.professor_regente_id = updates.professores_ids[0];
+            const profsLimpos = updates.professores_ids.filter((pid) => {
+              const p = professores.find((prof) => prof.id === pid);
+              return p && !isProfessorAdministrativo(p, users) && !isProfessorApoio(p);
+            });
+            mod.professores_ids = profsLimpos;
+            if (profsLimpos.length > 0) {
+              const regente = professores.find((p) => p.id === profsLimpos[0]);
+              mod.professor_regente_id = profsLimpos[0];
               mod.professor_regente_nome = regente?.nome_completo;
             } else {
               mod.professor_regente_id = undefined;
               mod.professor_regente_nome = undefined;
             }
+          }
+          if (updates.equipe_apoio_ids !== undefined) {
+            mod.equipe_apoio_ids = updates.equipe_apoio_ids.filter((pid) => {
+              const p = professores.find((prof) => prof.id === pid);
+              return p && !isProfessorAdministrativo(p, users);
+            });
           }
           updatedTurma = mod;
           return mod;
@@ -1202,6 +1255,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updated = prev.map((p) => {
         if (p.id === id) {
           const mod = { ...p, ...updates };
+          if (isProfessorAdministrativo(mod, users)) {
+            mod.eh_administrativo = true;
+            mod.turmas_atribuidas_ids = [];
+          }
           updatedProf = mod;
           return mod;
         }
@@ -1210,8 +1267,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('school_os_professores', JSON.stringify(updated));
       return updated;
     });
+
     if (updatedProf) {
       syncWithTurso('save_professor', updatedProf);
+
+      // Se o professor passou a ser administrativo ou apoio, limpa vínculos com a regência das turmas
+      if (isProfessorAdministrativo(updatedProf, users) || isProfessorApoio(updatedProf)) {
+        const profId = updatedProf.id;
+        const isAdm = isProfessorAdministrativo(updatedProf, users);
+        setTurmas((prevTurmas) => {
+          let anyTurmaChanged = false;
+          const updatedTurmas = prevTurmas.map((t) => {
+            const rawProfs = t.professores_ids || [];
+            const rawApoio = t.equipe_apoio_ids || [];
+            const hasInRegencia = rawProfs.includes(profId) || t.professor_regente_id === profId;
+            const hasInApoio = rawApoio.includes(profId);
+
+            if (isAdm && (hasInRegencia || hasInApoio)) {
+              anyTurmaChanged = true;
+              const newProfs = rawProfs.filter((pid) => pid !== profId);
+              const newApoio = rawApoio.filter((pid) => pid !== profId);
+              let newRegId = t.professor_regente_id;
+              let newRegNome = t.professor_regente_nome;
+              if (newRegId === profId) {
+                newRegId = newProfs[0] || undefined;
+                newRegNome = newRegId ? professores.find((p) => p.id === newRegId)?.nome_completo : undefined;
+              }
+              const modTurma = {
+                ...t,
+                professores_ids: newProfs,
+                professor_regente_id: newRegId,
+                professor_regente_nome: newRegNome,
+                equipe_apoio_ids: newApoio,
+              };
+              syncWithTurso('save_turma', modTurma);
+              return modTurma;
+            }
+
+            if (!isAdm && isProfessorApoio(updatedProf) && hasInRegencia) {
+              anyTurmaChanged = true;
+              const newProfs = rawProfs.filter((pid) => pid !== profId);
+              let newRegId = t.professor_regente_id;
+              let newRegNome = t.professor_regente_nome;
+              if (newRegId === profId) {
+                newRegId = newProfs[0] || undefined;
+                newRegNome = newRegId ? professores.find((p) => p.id === newRegId)?.nome_completo : undefined;
+              }
+              const modTurma = {
+                ...t,
+                professores_ids: newProfs,
+                professor_regente_id: newRegId,
+                professor_regente_nome: newRegNome,
+              };
+              syncWithTurso('save_turma', modTurma);
+              return modTurma;
+            }
+
+            return t;
+          });
+          if (anyTurmaChanged) {
+            localStorage.setItem('school_os_turmas', JSON.stringify(updatedTurmas));
+          }
+          return updatedTurmas;
+        });
+      }
     }
   };
 
@@ -1229,8 +1348,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('school_os_professores', JSON.stringify(updated));
       return updated;
     });
+
     if (updatedProf) {
       syncWithTurso('save_professor', updatedProf);
+
+      if (updatedProf.eh_apoio) {
+        const profId = updatedProf.id;
+        setTurmas((prevTurmas) => {
+          let anyTurmaChanged = false;
+          const updatedTurmas = prevTurmas.map((t) => {
+            const rawProfs = t.professores_ids || [];
+            if (rawProfs.includes(profId) || t.professor_regente_id === profId) {
+              anyTurmaChanged = true;
+              const newProfs = rawProfs.filter((pid) => pid !== profId);
+              let newRegId = t.professor_regente_id;
+              let newRegNome = t.professor_regente_nome;
+              if (newRegId === profId) {
+                newRegId = newProfs[0] || undefined;
+                newRegNome = newRegId ? professores.find((p) => p.id === newRegId)?.nome_completo : undefined;
+              }
+              const modTurma = {
+                ...t,
+                professores_ids: newProfs,
+                professor_regente_id: newRegId,
+                professor_regente_nome: newRegNome,
+              };
+              syncWithTurso('save_turma', modTurma);
+              return modTurma;
+            }
+            return t;
+          });
+          if (anyTurmaChanged) {
+            localStorage.setItem('school_os_turmas', JSON.stringify(updatedTurmas));
+          }
+          return updatedTurmas;
+        });
+      }
     }
   };
 
@@ -1239,7 +1392,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setProfessores((prev) => {
       const updated = prev.map((p) => {
         if (p.id === id) {
-          const mod = { ...p, eh_administrativo: !p.eh_administrativo };
+          const novoEhAdm = !p.eh_administrativo;
+          const mod = {
+            ...p,
+            eh_administrativo: novoEhAdm,
+            turmas_atribuidas_ids: novoEhAdm ? [] : p.turmas_atribuidas_ids,
+          };
           updatedProf = mod;
           return mod;
         }
@@ -1248,8 +1406,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('school_os_professores', JSON.stringify(updated));
       return updated;
     });
+
     if (updatedProf) {
       syncWithTurso('save_professor', updatedProf);
+
+      if (updatedProf.eh_administrativo) {
+        const profId = updatedProf.id;
+        setTurmas((prevTurmas) => {
+          let anyTurmaChanged = false;
+          const updatedTurmas = prevTurmas.map((t) => {
+            const rawProfs = t.professores_ids || [];
+            const rawApoio = t.equipe_apoio_ids || [];
+            if (rawProfs.includes(profId) || t.professor_regente_id === profId || rawApoio.includes(profId)) {
+              anyTurmaChanged = true;
+              const newProfs = rawProfs.filter((pid) => pid !== profId);
+              const newApoio = rawApoio.filter((pid) => pid !== profId);
+              let newRegId = t.professor_regente_id;
+              let newRegNome = t.professor_regente_nome;
+              if (newRegId === profId) {
+                newRegId = newProfs[0] || undefined;
+                newRegNome = newRegId ? professores.find((p) => p.id === newRegId)?.nome_completo : undefined;
+              }
+              const modTurma = {
+                ...t,
+                professores_ids: newProfs,
+                professor_regente_id: newRegId,
+                professor_regente_nome: newRegNome,
+                equipe_apoio_ids: newApoio,
+              };
+              syncWithTurso('save_turma', modTurma);
+              return modTurma;
+            }
+            return t;
+          });
+          if (anyTurmaChanged) {
+            localStorage.setItem('school_os_turmas', JSON.stringify(updatedTurmas));
+          }
+          return updatedTurmas;
+        });
+      }
     }
   };
 

@@ -1131,7 +1131,7 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
 
       {/* Formulário de Registro Rápido */}
       <form onSubmit={handleAdicionarObservacao} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-col gap-2.5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               Nova Anotação no Histórico do Estudante:

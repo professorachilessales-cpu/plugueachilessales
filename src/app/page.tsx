@@ -257,7 +257,8 @@ export default function DashboardPage() {
     const porTurma = turmas.map(t => {
       const alunosDaTurma = estudantes.filter(e => e.turma_id === t.id);
       const qtdAlunos = alunosDaTurma.length;
-      const vagasRestantes = Math.max(0, t.capacidade - qtdAlunos);
+      const cap = Number(t.capacidade) || 0;
+      const vagasRestantes = Math.max(0, cap - qtdAlunos);
       const qtdComLaudo = alunosDaTurma.filter(e => Boolean(e.possui_laudo)).length;
       contagem[t.turno] = (contagem[t.turno] || 0) + qtdAlunos;
       return {
@@ -265,11 +266,11 @@ export default function DashboardPage() {
         nome: t.nome,
         grupo: t.grupo || 'Outros',
         turno: t.turno,
-        capacidade: t.capacidade,
+        capacidade: cap,
         alunos: qtdAlunos,
         vagasRestantes,
         comLaudo: qtdComLaudo,
-        ocupacao: Math.min(100, Math.round((qtdAlunos / t.capacidade) * 100)),
+        ocupacao: cap > 0 ? Math.min(100, Math.round((qtdAlunos / cap) * 100)) : 0,
       };
     });
 
@@ -300,10 +301,10 @@ export default function DashboardPage() {
 
     const grupos = gruposUnicos.map(nomeGrupo => {
       const turmasDoGrupo = porTurma.filter(t => t.grupo === nomeGrupo);
-      const totalAlunos = turmasDoGrupo.reduce((acc, cur) => acc + cur.alunos, 0);
-      const totalCapacidade = turmasDoGrupo.reduce((acc, cur) => acc + cur.capacidade, 0);
-      const totalVagasRestantes = turmasDoGrupo.reduce((acc, cur) => acc + cur.vagasRestantes, 0);
-      const totalComLaudo = turmasDoGrupo.reduce((acc, cur) => acc + cur.comLaudo, 0);
+      const totalAlunos = turmasDoGrupo.reduce((acc, cur) => acc + (Number(cur.alunos) || 0), 0);
+      const totalCapacidade = turmasDoGrupo.reduce((acc, cur) => acc + (Number(cur.capacidade) || 0), 0);
+      const totalVagasRestantes = turmasDoGrupo.reduce((acc, cur) => acc + (Number(cur.vagasRestantes) || 0), 0);
+      const totalComLaudo = turmasDoGrupo.reduce((acc, cur) => acc + (Number(cur.comLaudo) || 0), 0);
       const ocupacao = totalCapacidade > 0 ? Math.min(100, Math.round((totalAlunos / totalCapacidade) * 100)) : 0;
 
       return {
@@ -317,8 +318,8 @@ export default function DashboardPage() {
       };
     });
 
-    const totalGeralMatriculados = porTurma.reduce((acc, cur) => acc + cur.alunos, 0);
-    const totalCapacidadeGeral = porTurma.reduce((acc, cur) => acc + cur.capacidade, 0);
+    const totalGeralMatriculados = porTurma.reduce((acc, cur) => acc + (Number(cur.alunos) || 0), 0);
+    const totalCapacidadeGeral = porTurma.reduce((acc, cur) => acc + (Number(cur.capacidade) || 0), 0);
     const ocupacaoGeral = totalCapacidadeGeral > 0 ? Math.round((totalGeralMatriculados / totalCapacidadeGeral) * 100) : 0;
 
     return { contagem, porTurma, grupos, totalGeralMatriculados, totalCapacidadeGeral, ocupacaoGeral };
@@ -1233,9 +1234,6 @@ export default function DashboardPage() {
                   <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     Estudantes sem CPF
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Controles oficiais e programas sociais (Bolsa Família)
-                  </p>
                 </div>
               </div>
 
@@ -1326,8 +1324,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-amber-200/50 dark:border-amber-900/30 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Cobrança direta com texto pré-definido</span>
+          <div className="mt-4 pt-3 border-t border-amber-200/50 dark:border-amber-900/30 flex items-center justify-end text-[11px] text-slate-500 dark:text-slate-400">
             <Link href="/estudantes" className="font-semibold text-amber-700 hover:underline dark:text-amber-400">
               Ir para Estudantes →
             </Link>
@@ -1346,9 +1343,6 @@ export default function DashboardPage() {
                   <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     Estudantes sem Foto Cadastrada
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Necessário para o Fotograma da Turma, carteirinha e crachá
-                  </p>
                 </div>
               </div>
 
@@ -1419,8 +1413,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Para atualizar fotos em lote, use o Fotograma da Turma</span>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end text-[11px] text-slate-500 dark:text-slate-400">
             <Link href="/fotograma" className="font-semibold text-school-blue-600 hover:underline dark:text-school-gold-400">
               Ir para Fotograma →
             </Link>
@@ -1439,9 +1432,6 @@ export default function DashboardPage() {
                   <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     Alertas: Sem Telefone de Contato
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Contatos de emergência e canal com a família não informados
-                  </p>
                 </div>
               </div>
 
@@ -1527,8 +1517,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-rose-200/50 dark:border-rose-900/30 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Alerta crítico de segurança e conformidade escolar</span>
+          <div className="mt-4 pt-3 border-t border-rose-200/50 dark:border-rose-900/30 flex items-center justify-end text-[11px] text-slate-500 dark:text-slate-400">
             <Link href="/estudantes" className="font-semibold text-rose-600 hover:underline dark:text-rose-400">
               Ir para Estudantes →
             </Link>
@@ -1547,9 +1536,6 @@ export default function DashboardPage() {
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 Alertas Rápidos: Ausências Docentes Registradas no Dia
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Substituições e atestados de saúde anexados no Google Drive
-              </p>
             </div>
           </div>
           <Link
@@ -1641,9 +1627,6 @@ export default function DashboardPage() {
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 Estatísticas do Tipo de Histórico Escolar
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Auditoria de conformidade documental: Definitivo, Temporário e Não entregue
-              </p>
             </div>
           </div>
 
@@ -1865,9 +1848,6 @@ export default function DashboardPage() {
                   Destaque da Agenda
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Acompanhamento prioritário da agenda pedagógica, reuniões, avaliações e atividades da instituição
-              </p>
             </div>
           </div>
 

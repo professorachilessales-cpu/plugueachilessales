@@ -672,11 +672,49 @@ export function isProfessorAdministrativo(
 
   // 3. Função escolar administrativa
   const func = (p.funcao_escola || '').trim().toLowerCase();
-  if (func === 'administrativo' || func.includes('administrativ')) {
+  if (
+    func === 'administrativo' ||
+    func.includes('administrativ') ||
+    func.includes('diretor') ||
+    func.includes('secretar') ||
+    func.includes('porteiro') ||
+    func.includes('serviços gerais')
+  ) {
     return true;
   }
 
-  // 4. Verificação de conta de usuário com privilégios administrativos/direção
+  // 4. Formação ou disciplina indicando cargo administrativo/direção/secretaria
+  const formacao = (p.formacao || '').trim().toLowerCase();
+  if (
+    formacao === 'diretor' ||
+    formacao.includes('diretor') ||
+    formacao.includes('secretár') ||
+    formacao.includes('secretar') ||
+    formacao.includes('administrativ') ||
+    formacao.includes('adminsitrativo')
+  ) {
+    return true;
+  }
+
+  if (p.disciplinas && Array.isArray(p.disciplinas)) {
+    if (
+      p.disciplinas.some((d) => {
+        const dl = (d || '').trim().toLowerCase();
+        return (
+          dl === 'diretor' ||
+          dl.includes('diretor') ||
+          dl.includes('secretár') ||
+          dl.includes('secretar') ||
+          dl.includes('administrativ') ||
+          dl.includes('adminsitrativo')
+        );
+      })
+    ) {
+      return true;
+    }
+  }
+
+  // 5. Verificação de conta de usuário com privilégios administrativos/direção
   if (users && users.length > 0) {
     const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
     const user = users.find(u => {
@@ -689,11 +727,77 @@ export function isProfessorAdministrativo(
     });
 
     if (user && (user.role === 'admin' || user.role === 'direcao')) {
-      return true;
+      // Se for admin/direção mas não tiver disciplinas de regência ou tiver formação administrativa
+      const formacaoProf = (p.formacao || '').toLowerCase();
+      if (
+        p.eh_administrativo ||
+        formacaoProf.includes('diretor') ||
+        formacaoProf.includes('secretár') ||
+        formacaoProf.includes('admin')
+      ) {
+        return true;
+      }
     }
   }
 
   return false;
+}
+
+/**
+ * Identifica se um profissional é considerado Apoio Escolar / AEE no sistema.
+ */
+export function isProfessorApoio(p?: Professor | null): boolean {
+  if (!p) return false;
+  return (
+    p.eh_apoio === true ||
+    (p as any).eh_apoio === 1 ||
+    (p as any).eh_apoio === '1' ||
+    (p as any).eh_apoio === 'true' ||
+    (p as any).is_apoio === true ||
+    (p as any).role === 'apoio' ||
+    Boolean(p.formacao?.toLowerCase().includes('apoio')) ||
+    Boolean(p.disciplinas?.some((d) => (d || '').toLowerCase().includes('apoio')))
+  );
+}
+
+/**
+ * Verifica se um profissional é apto para regência de turma (Professores Principais):
+ * - Deve ser docente ativo
+ * - NÃO pode ser administrativo
+ * - NÃO pode ser professor de apoio escolar
+ */
+export function isDocenteAptoRegencia(
+  p?: Professor | null,
+  users?: SystemUser[]
+): boolean {
+  if (!p) return false;
+
+  // Deve estar ativo
+  if (
+    p.ativo === false ||
+    (p as any).ativo === 0 ||
+    (p as any).ativo === '0' ||
+    (p as any).ativo === 'false'
+  ) {
+    return false;
+  }
+
+  // Apenas docentes (exclui funcionários)
+  if (p.tipo_profissional && p.tipo_profissional !== 'docente') {
+    return false;
+  }
+
+  // Não pode ser administrativo
+  if (isProfessorAdministrativo(p, users)) {
+    return false;
+  }
+
+  // Não pode ser profissional marcado como apoio
+  if (isProfessorApoio(p)) {
+    return false;
+  }
+
+  return true;
 }
 
 /**

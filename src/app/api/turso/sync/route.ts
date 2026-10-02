@@ -102,6 +102,41 @@ export async function POST(req: NextRequest) {
       // ----------------------------------------------------
       case 'save_turma': {
         const t = payload;
+        let sanitizedProfsIds: string[] = Array.isArray(t.professores_ids) ? [...t.professores_ids] : [];
+        let sanitizedRegenteId: string | null = t.professor_regente_id || null;
+        let sanitizedRegenteNome: string | null = t.professor_regente_nome || null;
+
+        try {
+          const profRes = await executeTursoQuery('SELECT id, eh_administrativo, eh_apoio, tipo_profissional, funcao_escola, formacao FROM professores');
+          const ineligibleIds = new Set(
+            profRes.rows
+              .filter((row: any) => {
+                const isAdmin = Boolean(
+                  row.eh_administrativo === 1 ||
+                  row.eh_administrativo === true ||
+                  row.tipo_profissional === 'funcionario' ||
+                  /diretor|secret[áa]ri|administrativ|porteir|servi[çc]os\s+gerais/i.test(row.funcao_escola || '') ||
+                  /diretor|secret[áa]ri|administrativ|porteir|servi[çc]os\s+gerais/i.test(row.formacao || '')
+                );
+                const isApoio = Boolean(
+                  row.eh_apoio === 1 ||
+                  row.eh_apoio === true ||
+                  /apoio/i.test(row.formacao || '')
+                );
+                return isAdmin || isApoio;
+              })
+              .map((row: any) => row.id)
+          );
+
+          sanitizedProfsIds = sanitizedProfsIds.filter(id => !ineligibleIds.has(id));
+          if (sanitizedRegenteId && ineligibleIds.has(sanitizedRegenteId)) {
+            sanitizedRegenteId = sanitizedProfsIds[0] || null;
+            sanitizedRegenteNome = null;
+          }
+        } catch (errCheck) {
+          console.error('Erro ao verificar professores inelegíveis em save_turma:', errCheck);
+        }
+
         await executeTursoQuery(
           `INSERT INTO turmas (
             id, nome, grupo, turno, capacidade, ano_letivo,
@@ -128,9 +163,9 @@ export async function POST(req: NextRequest) {
             t.turno,
             t.capacidade || 35,
             t.ano_letivo || 2026,
-            t.professor_regente_id || null,
-            t.professor_regente_nome || null,
-            JSON.stringify(t.professores_ids || []),
+            sanitizedRegenteId,
+            sanitizedRegenteNome,
+            JSON.stringify(sanitizedProfsIds),
             JSON.stringify(t.equipe_apoio_ids || []),
             t.sala || '',
             t.ativa !== false ? 1 : 0,
@@ -271,6 +306,15 @@ export async function POST(req: NextRequest) {
       // ----------------------------------------------------
       case 'save_professor': {
         const p = payload;
+        const isAdmin = Boolean(
+          p.eh_administrativo ||
+          p.tipo_profissional === 'funcionario' ||
+          /diretor|secret[áa]ri|administrativ|porteir|servi[çc]os\s+gerais/i.test(p.funcao_escola || '') ||
+          /diretor|secret[áa]ri|administrativ|porteir|servi[çc]os\s+gerais/i.test(p.formacao || '')
+        );
+        const isApoio = Boolean(p.eh_apoio || /apoio/i.test(p.formacao || ''));
+        const turmasAtribuidas = isAdmin ? [] : (p.turmas_atribuidas_ids || []);
+
         await executeTursoQuery(
           `INSERT INTO professores (
             id, profile_id, nome_completo, matricula, tipo_profissional, funcao_escola,
@@ -338,10 +382,10 @@ export async function POST(req: NextRequest) {
             JSON.stringify(p.disciplinas || []),
             p.telefone || '',
             p.email || '',
-            p.eh_apoio ? 1 : 0,
-            p.eh_administrativo ? 1 : 0,
+            isApoio ? 1 : 0,
+            isAdmin ? 1 : 0,
             p.ativo !== false ? 1 : 0,
-            JSON.stringify(p.turmas_atribuidas_ids || []),
+            JSON.stringify(turmasAtribuidas),
             p.cpf || null,
             p.rg || null,
             p.rg_data_expedicao || null,
@@ -376,6 +420,35 @@ export async function POST(req: NextRequest) {
             p.created_at || new Date().toISOString()
           ]
         );
+
+        // Se for administrativo ou apoio, remover de qualquer turma que possa ter seu vínculo como regente ou em professores_ids
+        if (isAdmin || isApoio) {
+          try {
+            const turmasRes = await executeTursoQuery('SELECT id, professor_regente_id, professor_regente_nome, professores_ids FROM turmas');
+            for (const tRow of turmasRes.rows) {
+              let tProfs: string[] = [];
+              try {
+                tProfs = typeof tRow.professores_ids === 'string' ? JSON.parse(tRow.professores_ids) : (tRow.professores_ids || []);
+              } catch (_) {
+                tProfs = [];
+              }
+              const hasProfInList = tProfs.includes(p.id);
+              const isRegente = tRow.professor_regente_id === p.id;
+              if (hasProfInList || isRegente) {
+                const cleanedProfs = tProfs.filter(id => id !== p.id);
+                const cleanedRegenteId = isRegente ? (cleanedProfs[0] || null) : tRow.professor_regente_id;
+                const cleanedRegenteNome = isRegente ? null : tRow.professor_regente_nome;
+                await executeTursoQuery(
+                  'UPDATE turmas SET professores_ids = ?, professor_regente_id = ?, professor_regente_nome = ? WHERE id = ?',
+                  [JSON.stringify(cleanedProfs), cleanedRegenteId, cleanedRegenteNome, tRow.id]
+                );
+              }
+            }
+          } catch (errUnlink) {
+            console.error('Erro ao desvincular professor de turmas no Turso:', errUnlink);
+          }
+        }
+
         return NextResponse.json({ success: true });
       }
 

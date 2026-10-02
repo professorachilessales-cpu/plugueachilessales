@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
 import { garantirTabelasObservacoes } from '@/lib/observacoes-service';
+import { isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +60,7 @@ export async function GET() {
     let professores: any[] = [];
     try {
       const profRes = await executeTursoQuery('SELECT * FROM professores ORDER BY nome_completo ASC');
-      professores = profRes.rows.map((row: any) => ({
+      const rawProfessores = profRes.rows.map((row: any) => ({
         ...row,
         tipo_profissional: row.tipo_profissional || 'docente',
         funcao_escola: row.funcao_escola || null,
@@ -69,6 +70,16 @@ export async function GET() {
         disciplinas: row.disciplinas ? (typeof row.disciplinas === 'string' ? JSON.parse(row.disciplinas) : row.disciplinas) : [],
         turmas_atribuidas_ids: row.turmas_atribuidas_ids ? (typeof row.turmas_atribuidas_ids === 'string' ? JSON.parse(row.turmas_atribuidas_ids) : row.turmas_atribuidas_ids) : [],
       }));
+
+      // Sanitizar status administrativo e turmas atribuídas
+      professores = rawProfessores.map((p: any) => {
+        const admin = isProfessorAdministrativo(p, users);
+        return {
+          ...p,
+          eh_administrativo: admin ? true : Boolean(p.eh_administrativo),
+          turmas_atribuidas_ids: admin ? [] : p.turmas_atribuidas_ids,
+        };
+      });
     } catch (e) {
       console.error('Erro ao ler professores do Turso:', e);
     }
@@ -77,13 +88,30 @@ export async function GET() {
     let turmas: any[] = [];
     try {
       const turmasRes = await executeTursoQuery('SELECT * FROM turmas ORDER BY nome ASC');
-      turmas = turmasRes.rows.map((row: any) => ({
-        ...row,
-        ativa: toBoolean(row.ativa, true) ? 1 : 0,
-        professores_ids: row.professores_ids ? (typeof row.professores_ids === 'string' ? JSON.parse(row.professores_ids) : row.professores_ids) : (row.professor_regente_id ? [row.professor_regente_id] : []),
-        equipe_apoio_ids: row.equipe_apoio_ids ? (typeof row.equipe_apoio_ids === 'string' ? JSON.parse(row.equipe_apoio_ids) : row.equipe_apoio_ids) : [],
-        grade_horaria: row.grade_horaria ? (typeof row.grade_horaria === 'string' ? JSON.parse(row.grade_horaria) : row.grade_horaria) : [],
-      }));
+      turmas = turmasRes.rows.map((row: any) => {
+        const rawProfs: string[] = row.professores_ids
+          ? (typeof row.professores_ids === 'string' ? JSON.parse(row.professores_ids) : row.professores_ids)
+          : (row.professor_regente_id ? [row.professor_regente_id] : []);
+
+        const validProfs = (rawProfs || []).filter((id: string) => {
+          const prof = professores.find(p => p.id === id);
+          if (!prof) return true;
+          return isDocenteAptoRegencia(prof, users);
+        });
+
+        const regenteValido = row.professor_regente_id && validProfs.includes(row.professor_regente_id)
+          ? row.professor_regente_id
+          : (validProfs.length > 0 ? validProfs[0] : null);
+
+        return {
+          ...row,
+          ativa: toBoolean(row.ativa, true) ? 1 : 0,
+          professores_ids: validProfs,
+          professor_regente_id: regenteValido,
+          equipe_apoio_ids: row.equipe_apoio_ids ? (typeof row.equipe_apoio_ids === 'string' ? JSON.parse(row.equipe_apoio_ids) : row.equipe_apoio_ids) : [],
+          grade_horaria: row.grade_horaria ? (typeof row.grade_horaria === 'string' ? JSON.parse(row.grade_horaria) : row.grade_horaria) : [],
+        };
+      });
     } catch (e) {
       console.error('Erro ao ler turmas do Turso:', e);
     }

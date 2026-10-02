@@ -35,6 +35,7 @@ import {
 import { Turno, HorarioAula, Turma, GrupoTurma, GRUPOS_TURMAS_LISTA, Professor } from '@/lib/types';
 import { analisarFaixaEtariaTurma, AnaliseTurmaFaixaEtaria } from '@/lib/faixa-etaria';
 import { ModalFaixaEtariaTurma } from '@/components/turmas/ModalFaixaEtariaTurma';
+import { isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
 
 interface SecaoEquipeTurmaFormProps {
   professores: Professor[];
@@ -55,32 +56,35 @@ function SecaoEquipeTurmaForm({
   onRemoverProfessorHistorico,
   onRemoverApoioHistorico,
 }: SecaoEquipeTurmaFormProps) {
-  // Apenas docentes com status ativo podem ser disponibilizados para seleção de regência (exclui funcionários)
+  // Apenas docentes aptos para regência (ativos, NÃO administrativos e NÃO marcados como apoio)
   const professoresAtivos = professores.filter(
-    (p) => p.ativo !== false && (p.tipo_profissional === 'docente' || !p.tipo_profissional)
+    (p) => isDocenteAptoRegencia(p)
   );
 
-  // Equipe de Apoio & Inclusão: estritamente docentes/colaboradores pedagógicos com perfil de Apoio
+  // Equipe de Apoio & Inclusão: estritamente docentes/colaboradores pedagógicos com perfil de Apoio (não administrativos)
   const equipeApoioElegivel = professores.filter(
     (p) =>
       p.ativo !== false &&
       (p.tipo_profissional === 'docente' || !p.tipo_profissional) &&
-      (p.eh_apoio === true ||
-        (p as any).is_apoio === true ||
-        (p as any).role === 'apoio' ||
-        p.formacao?.toLowerCase().includes('apoio') ||
-        p.disciplinas?.some((d) => d.toLowerCase().includes('apoio')))
+      !isProfessorAdministrativo(p) &&
+      isProfessorApoio(p)
   );
 
-  // Vínculos históricos de professores inativos preservados
+  // Vínculos históricos de professores inativos preservados (exclui administrativos e apoio)
   const profsHistoricoInativo = professoresSelecionados
     .map((id) => professores.find((p) => p.id === id))
-    .filter((p): p is Professor => !!p && p.ativo === false);
+    .filter((p): p is Professor => !!p && p.ativo === false && !isProfessorAdministrativo(p) && !isProfessorApoio(p));
 
-  // Vínculos históricos de apoio inativos preservados
+  // Vínculos históricos de apoio inativos preservados (exclui administrativos)
   const apoioHistoricoInativo = apoioSelecionados
     .map((id) => professores.find((p) => p.id === id))
-    .filter((p): p is Professor => !!p && p.ativo === false);
+    .filter((p): p is Professor => !!p && p.ativo === false && !isProfessorAdministrativo(p));
+
+  // Contagem estrita de selecionados válidos (não administrativos e não apoio)
+  const profsValidosSelecionados = professoresSelecionados.filter((id) => {
+    const p = professores.find((prof) => prof.id === id);
+    return p && !isProfessorAdministrativo(p) && !isProfessorApoio(p);
+  });
 
   return (
     <div className="space-y-4 pt-2">
@@ -96,12 +100,12 @@ function SecaoEquipeTurmaForm({
                 Professores Principais (Regência)
               </span>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Selecione nenhum, um ou múltiplos docentes ativos para a regência da turma.
+                Selecione nenhum, um ou múltiplos docentes ativos para a regência da turma (exclui administrativos e equipe de apoio).
               </p>
             </div>
           </div>
           <span className="rounded-full bg-school-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300 border border-school-blue-200 dark:border-school-blue-800">
-            {professoresSelecionados.length} selecionado(s)
+            {profsValidosSelecionados.length} selecionado(s)
           </span>
         </div>
 
@@ -353,6 +357,16 @@ export default function TurmasPage() {
     e.preventDefault();
     if (!formTurma.nome) return;
 
+    const profsIdsLimpos = formTurma.professores_ids.filter((id) => {
+      const p = professores.find((prof) => prof.id === id);
+      return p && !isProfessorAdministrativo(p) && !isProfessorApoio(p);
+    });
+
+    const apoioIdsLimpos = formTurma.equipe_apoio_ids.filter((id) => {
+      const p = professores.find((prof) => prof.id === id);
+      return p && !isProfessorAdministrativo(p);
+    });
+
     addTurma({
       nome: formTurma.nome,
       grupo: formTurma.grupo,
@@ -360,8 +374,8 @@ export default function TurmasPage() {
       capacidade: Number(formTurma.capacidade) || 35,
       ano_letivo: Number(formTurma.ano_letivo) || 2026,
       sala: formTurma.sala || 'Sala Padrão',
-      professores_ids: formTurma.professores_ids,
-      equipe_apoio_ids: formTurma.equipe_apoio_ids,
+      professores_ids: profsIdsLimpos,
+      equipe_apoio_ids: apoioIdsLimpos,
     });
 
     setModalNovaTurmaAberto(false);
@@ -380,10 +394,25 @@ export default function TurmasPage() {
   const handleAbrirEditarTurma = (t: Turma) => {
     setTurmaEditando(t);
     setStatusTurmaEditando(t.ativa !== false);
-    const profsIniciais = t.professores_ids && t.professores_ids.length > 0
+    const rawProfs = t.professores_ids && t.professores_ids.length > 0
       ? t.professores_ids
       : (t.professor_regente_id ? [t.professor_regente_id] : []);
-    const apoioInicial = t.equipe_apoio_ids || [];
+
+    // Filtra estritamente: nenhum professor administrativo ou apoio pode constar na regência
+    const profsIniciais = rawProfs.filter((id) => {
+      const p = professores.find((prof) => prof.id === id);
+      return p && !isProfessorAdministrativo(p) && !isProfessorApoio(p);
+    });
+
+    const apoioInicial = (t.equipe_apoio_ids || []).filter((id) => {
+      const p = professores.find((prof) => prof.id === id);
+      return p && !isProfessorAdministrativo(p);
+    });
+
+    // Se havia algum vínculo indevido no banco (professor administrativo ou apoio em regência), sincroniza a remoção imediatamente
+    if (rawProfs.length !== profsIniciais.length) {
+      updateTurma(t.id, { professores_ids: profsIniciais });
+    }
 
     setFormEditarTurma({
       nome: t.nome || '',
@@ -540,6 +569,16 @@ export default function TurmasPage() {
     e.preventDefault();
     if (!turmaEditando || !formEditarTurma.nome) return;
 
+    const profsIdsLimpos = formEditarTurma.professores_ids.filter((id) => {
+      const p = professores.find((prof) => prof.id === id);
+      return p && !isProfessorAdministrativo(p) && !isProfessorApoio(p);
+    });
+
+    const apoioIdsLimpos = formEditarTurma.equipe_apoio_ids.filter((id) => {
+      const p = professores.find((prof) => prof.id === id);
+      return p && !isProfessorAdministrativo(p);
+    });
+
     const updates = {
       nome: formEditarTurma.nome,
       grupo: formEditarTurma.grupo,
@@ -547,8 +586,8 @@ export default function TurmasPage() {
       capacidade: Number(formEditarTurma.capacidade) || 35,
       ano_letivo: Number(formEditarTurma.ano_letivo) || 2026,
       sala: formEditarTurma.sala || 'Sala Padrão',
-      professores_ids: formEditarTurma.professores_ids,
-      equipe_apoio_ids: formEditarTurma.equipe_apoio_ids,
+      professores_ids: profsIdsLimpos,
+      equipe_apoio_ids: apoioIdsLimpos,
     };
 
     updateTurma(turmaEditando.id, updates);
@@ -858,10 +897,17 @@ export default function TurmasPage() {
 
               {/* Equipe Docente e Apoio Resumo no Card */}
               {(() => {
-                const profsCardIds = turma.professores_ids && turma.professores_ids.length > 0
+                const rawProfsCardIds = turma.professores_ids && turma.professores_ids.length > 0
                   ? turma.professores_ids
                   : (turma.professor_regente_id ? [turma.professor_regente_id] : []);
-                const apoioCardIds = turma.equipe_apoio_ids || [];
+                const profsCardIds = rawProfsCardIds.filter((id) => {
+                  const p = professores.find((prof) => prof.id === id);
+                  return p && !isProfessorAdministrativo(p) && !isProfessorApoio(p);
+                });
+                const apoioCardIds = (turma.equipe_apoio_ids || []).filter((id) => {
+                  const p = professores.find((prof) => prof.id === id);
+                  return p && !isProfessorAdministrativo(p);
+                });
 
                 if (profsCardIds.length === 0 && apoioCardIds.length === 0) return null;
 
@@ -1076,11 +1122,11 @@ export default function TurmasPage() {
 
             const docentesVinculados = profsIds
               .map((id) => professores.find((p) => p.id === id))
-              .filter((p): p is Professor => !!p);
+              .filter((p): p is Professor => !!p && !isProfessorAdministrativo(p) && !isProfessorApoio(p));
 
             const apoioVinculado = apoioIds
               .map((id) => professores.find((p) => p.id === id))
-              .filter((p): p is Professor => !!p);
+              .filter((p): p is Professor => !!p && !isProfessorAdministrativo(p));
 
             return (
               <div className="mt-5 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40">
@@ -1385,6 +1431,8 @@ export default function TurmasPage() {
                 professoresSelecionados={formTurma.professores_ids}
                 apoioSelecionados={formTurma.equipe_apoio_ids}
                 onToggleProfessor={(id) => {
+                  const p = professores.find((prof) => prof.id === id);
+                  if (!p || isProfessorAdministrativo(p) || isProfessorApoio(p)) return;
                   setFormTurma((prev) => ({
                     ...prev,
                     professores_ids: prev.professores_ids.includes(id)
@@ -1612,6 +1660,8 @@ export default function TurmasPage() {
                   professoresSelecionados={formEditarTurma.professores_ids}
                   apoioSelecionados={formEditarTurma.equipe_apoio_ids}
                   onToggleProfessor={(id) => {
+                    const p = professores.find((prof) => prof.id === id);
+                    if (!p || isProfessorAdministrativo(p) || isProfessorApoio(p)) return;
                     setFormEditarTurma((prev) => ({
                       ...prev,
                       professores_ids: prev.professores_ids.includes(id)

@@ -77,9 +77,6 @@ export function AniversariantesSection({
                 Hoje, {dataHojeFormatada}
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Celebrações e acolhimento da comunidade escolar • Identificação por nome e turma
-            </p>
           </div>
         </div>
 

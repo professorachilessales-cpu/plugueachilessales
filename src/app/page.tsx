@@ -1902,13 +1902,30 @@ export default function DashboardPage() {
               const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T') ? (ev.data_fim || ev.data_inicio).split('T')[0] : (ev.data_fim || ev.data_inicio);
 
               let textoData = '';
+              let dataFormatada = '';
               if (iniStr) {
                 const [anoI, mesI, diaI] = iniStr.split('-');
                 textoData = `${diaI}/${mesI}`;
+                dataFormatada = `${diaI}/${mesI}/${anoI}`;
                 if (fimStr && fimStr !== iniStr) {
-                  const [, mesF, diaF] = fimStr.split('-');
+                  const [anoF, mesF, diaF] = fimStr.split('-');
                   textoData = `${diaI}/${mesI} a ${diaF}/${mesF}`;
+                  dataFormatada = `${diaI}/${mesI} a ${diaF}/${mesF}/${anoF}`;
                 }
+              }
+
+              if (ev.data_inicio?.includes('T') && !ev.all_day) {
+                const partesHora = ev.data_inicio.split('T')[1];
+                if (partesHora) {
+                  const [h, m] = partesHora.split(':');
+                  if (h && m && (h !== '00' || m !== '00')) {
+                    dataFormatada = dataFormatada ? `${dataFormatada} às ${h}:${m}` : `${h}:${m}`;
+                  }
+                }
+              }
+
+              if (!dataFormatada) {
+                dataFormatada = textoData || 'Data a definir';
               }
 
               return (

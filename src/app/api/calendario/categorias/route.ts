@@ -83,7 +83,27 @@ export async function POST(req: NextRequest) {
     const catId = id || `cat-${Date.now()}`;
     const visivel = visivel_docentes !== false ? 1 : 0;
 
+    // Regra de Proteção: A categoria Aniversários não pode ter seu nome alterado
+    if (catId === 'cat-aniversarios' && nome.trim().toLowerCase() !== 'aniversários') {
+      return NextResponse.json(
+        { error: 'O nome da categoria "Aniversários" é protegido do sistema e não pode ser alterado.' },
+        { status: 400 }
+      );
+    }
+
     if (isTursoConfigured) {
+      // Valida se já existe outra categoria com esse nome
+      const checkDupe = await executeTursoQuery(
+        'SELECT id FROM calendario_categorias WHERE LOWER(nome) = LOWER(?) AND id != ?',
+        [nome.trim(), catId]
+      );
+      if (checkDupe.rows.length > 0) {
+        return NextResponse.json(
+          { error: 'Já existe uma categoria cadastrada com este nome.' },
+          { status: 400 }
+        );
+      }
+
       await executeTursoQuery(
         `INSERT INTO calendario_categorias (id, nome, cor_hex, visivel_docentes, sistema_protegida)
          VALUES (?, ?, ?, ?, 0)
@@ -102,13 +122,17 @@ export async function POST(req: NextRequest) {
         nome: nome.trim(),
         cor_hex: cor_hex.trim(),
         visivel_docentes: Boolean(visivel),
-        sistema_protegida: false,
+        sistema_protegida: catId === 'cat-aniversarios',
       },
     });
   } catch (error: any) {
     console.error('Erro ao salvar categoria:', error);
     return NextResponse.json({ error: error.message || 'Erro ao salvar categoria' }, { status: 500 });
   }
+}
+
+export async function PUT(req: NextRequest) {
+  return POST(req);
 }
 
 export async function DELETE(req: NextRequest) {

@@ -27,7 +27,8 @@ import {
   EyeOff,
   Lock,
   Check,
-  AlertCircle
+  AlertCircle,
+  Pencil
 } from 'lucide-react';
 import { EventoEscolar, CalendarioCategoria } from '@/lib/types';
 import { PrintHeader } from '@/components/layout/PrintHeader';
@@ -87,6 +88,7 @@ export default function CalendarioPage() {
     role,
     categoriasEvento,
     addCategoriaEvento,
+    updateCategoriaEvento,
     deleteCategoriaEvento,
     escolaConfig
   } = useApp();
@@ -104,7 +106,8 @@ export default function CalendarioPage() {
   const [modalNovoEventoAberto, setModalNovoEventoAberto] = useState(false);
   const [modalCategoriasAberto, setModalCategoriasAberto] = useState(false);
 
-  // Estados do formulário de criação de categoria rápida
+  // Estados do formulário de criação/edição de categoria
+  const [editandoCatId, setEditandoCatId] = useState<string | null>(null);
   const [novaCatNome, setNovaCatNome] = useState('');
   const [novaCatCor, setNovaCatCor] = useState('#4169E1');
   const [novaCatVisivel, setNovaCatVisivel] = useState(true);
@@ -238,8 +241,27 @@ export default function CalendarioPage() {
     setFormEvento(getInitialFormEvento());
   };
 
-  // Cadastro de nova categoria
-  const handleCadastrarCategoria = async (e: React.FormEvent) => {
+  // Iniciar modo de edição de uma categoria
+  const iniciarEdicaoCategoria = (cat: CalendarioCategoria) => {
+    setEditandoCatId(cat.id);
+    setNovaCatNome(cat.nome);
+    setNovaCatCor(cat.cor_hex);
+    setNovaCatVisivel(cat.visivel_docentes);
+    setErroCat(null);
+    setSucessoCat(null);
+  };
+
+  // Cancelar modo de edição
+  const cancelarEdicaoCategoria = () => {
+    setEditandoCatId(null);
+    setNovaCatNome('');
+    setNovaCatCor('#4169E1');
+    setNovaCatVisivel(true);
+    setErroCat(null);
+  };
+
+  // Salvar categoria (criação ou edição)
+  const handleSalvarCategoria = async (e: React.FormEvent) => {
     e.preventDefault();
     setErroCat(null);
     setSucessoCat(null);
@@ -249,21 +271,54 @@ export default function CalendarioPage() {
       return;
     }
 
-    const res = await addCategoriaEvento({
-      nome: novaCatNome.trim(),
-      cor_hex: novaCatCor,
-      visivel_docentes: novaCatVisivel,
-      sistema_protegida: false,
-    });
+    if (editandoCatId) {
+      // MODO EDIÇÃO
+      const catOriginal = categoriasEvento.find((c) => c.id === editandoCatId);
+      if (!catOriginal) {
+        setErroCat('Categoria não encontrada.');
+        return;
+      }
 
-    if (!res.success) {
-      setErroCat(res.error || 'Erro ao criar categoria.');
+      // Proteção de nome da categoria Aniversários
+      if (
+        (catOriginal.sistema_protegida || catOriginal.id === 'cat-aniversarios') &&
+        novaCatNome.trim().toLowerCase() !== catOriginal.nome.toLowerCase()
+      ) {
+        setErroCat('O nome da categoria Aniversários é fixo do sistema e não pode ser alterado.');
+        return;
+      }
+
+      const res = await updateCategoriaEvento(editandoCatId, {
+        nome: novaCatNome.trim(),
+        cor_hex: novaCatCor,
+        visivel_docentes: novaCatVisivel,
+      });
+
+      if (!res.success) {
+        setErroCat(res.error || 'Erro ao atualizar categoria.');
+      } else {
+        setSucessoCat(`Categoria "${novaCatNome.trim()}" atualizada com sucesso!`);
+        cancelarEdicaoCategoria();
+        setTimeout(() => setSucessoCat(null), 3000);
+      }
     } else {
-      setSucessoCat(`Categoria "${novaCatNome.trim()}" criada com sucesso!`);
-      setNovaCatNome('');
-      setNovaCatCor('#10B981');
-      setNovaCatVisivel(true);
-      setTimeout(() => setSucessoCat(null), 3000);
+      // MODO CRIAÇÃO
+      const res = await addCategoriaEvento({
+        nome: novaCatNome.trim(),
+        cor_hex: novaCatCor,
+        visivel_docentes: novaCatVisivel,
+        sistema_protegida: false,
+      });
+
+      if (!res.success) {
+        setErroCat(res.error || 'Erro ao criar categoria.');
+      } else {
+        setSucessoCat(`Categoria "${novaCatNome.trim()}" criada com sucesso!`);
+        setNovaCatNome('');
+        setNovaCatCor('#10B981');
+        setNovaCatVisivel(true);
+        setTimeout(() => setSucessoCat(null), 3000);
+      }
     }
   };
 
@@ -325,7 +380,10 @@ export default function CalendarioPage() {
           {/* Gestão Dinâmica de Categorias (Exclusivo Administrador) */}
           {role === 'admin' && (
             <button
-              onClick={() => setModalCategoriasAberto(true)}
+              onClick={() => {
+                cancelarEdicaoCategoria();
+                setModalCategoriasAberto(true);
+              }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50/80 px-3.5 py-2 text-sm font-semibold text-purple-700 shadow-sm transition hover:bg-purple-100 dark:border-purple-900/50 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
             >
               <Palette className="h-4 w-4 text-purple-600 dark:text-purple-400" />
@@ -1062,7 +1120,10 @@ export default function CalendarioPage() {
                 </div>
               </div>
               <button
-                onClick={() => setModalCategoriasAberto(false)}
+                onClick={() => {
+                  cancelarEdicaoCategoria();
+                  setModalCategoriasAberto(false);
+                }}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="h-5 w-5" />
@@ -1093,7 +1154,11 @@ export default function CalendarioPage() {
                 {categoriasEvento.map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-800/40"
+                    className={`flex items-center justify-between rounded-xl border p-3 transition ${
+                      editandoCatId === c.id
+                        ? 'border-purple-500 bg-purple-50/70 dark:border-purple-500 dark:bg-purple-950/40 ring-2 ring-purple-400/40'
+                        : 'border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/40'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
                       <div
@@ -1109,6 +1174,12 @@ export default function CalendarioPage() {
                             <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
                               <Lock className="h-3 w-3" />
                               Fixa & Protegida
+                            </span>
+                          )}
+                          {editandoCatId === c.id && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 dark:bg-purple-900/80 dark:text-purple-200 animate-pulse">
+                              <Pencil className="h-2.5 w-2.5" />
+                              Em edição
                             </span>
                           )}
                         </div>
@@ -1132,7 +1203,22 @@ export default function CalendarioPage() {
                       </div>
                     </div>
 
-                    <div>
+                    <div className="flex items-center gap-1">
+                      {/* Botão Editar Categoria */}
+                      <button
+                        type="button"
+                        onClick={() => iniciarEdicaoCategoria(c)}
+                        className={`rounded-lg p-2 transition ${
+                          editandoCatId === c.id
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'text-slate-500 hover:bg-purple-50 hover:text-purple-600 dark:text-slate-400 dark:hover:bg-purple-950/40 dark:hover:text-purple-300'
+                        }`}
+                        title="Editar Categoria"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+
+                      {/* Botão Excluir Categoria (Bloqueado para Aniversários / Protegidas) */}
                       {c.sistema_protegida || c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários' ? (
                         <span
                           title="A categoria Aniversários é protegida do sistema e não pode ser excluída"
@@ -1142,6 +1228,7 @@ export default function CalendarioPage() {
                         </span>
                       ) : (
                         <button
+                          type="button"
                           onClick={() => handleExcluirCategoria(c.id)}
                           className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition"
                           title="Excluir Categoria"
@@ -1155,11 +1242,27 @@ export default function CalendarioPage() {
               </div>
             </div>
 
-            {/* 2. Formulário de Criação Rápida de Categoria */}
-            <form onSubmit={handleCadastrarCategoria} className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800 space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Criar Nova Categoria
-              </h4>
+            {/* 2. Formulário de Criação ou Edição de Categoria */}
+            <form onSubmit={handleSalvarCategoria} className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`flex h-6 w-6 items-center justify-center rounded-md ${editandoCatId ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'}`}>
+                    {editandoCatId ? <Pencil className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                  </div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    {editandoCatId ? 'Editar Categoria' : 'Criar Nova Categoria'}
+                  </h4>
+                </div>
+                {editandoCatId && (
+                  <button
+                    type="button"
+                    onClick={cancelarEdicaoCategoria}
+                    className="text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 underline font-medium"
+                  >
+                    Cancelar edição e criar nova
+                  </button>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1169,11 +1272,17 @@ export default function CalendarioPage() {
                   <input
                     type="text"
                     required
+                    disabled={Boolean(editandoCatId && categoriasEvento.find(c => c.id === editandoCatId)?.sistema_protegida)}
                     placeholder="Ex: Projetos Integradores, Palestras..."
                     value={novaCatNome}
                     onChange={(e) => setNovaCatNome(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-slate-100 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
                   />
+                  {editandoCatId && categoriasEvento.find(c => c.id === editandoCatId)?.sistema_protegida && (
+                    <p className="mt-1 text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                      O nome desta categoria é protegido pelo sistema e não pode ser alterado.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1230,12 +1339,22 @@ export default function CalendarioPage() {
                 </label>
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                {editandoCatId && (
+                  <button
+                    type="button"
+                    onClick={cancelarEdicaoCategoria}
+                    className="rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition"
+                  >
+                    Cancelar
+                  </button>
+                )}
                 <button
                   type="submit"
-                  className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-purple-700 transition"
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-purple-700 transition inline-flex items-center gap-1.5"
                 >
-                  Adicionar Categoria
+                  <Check className="h-3.5 w-3.5" />
+                  {editandoCatId ? 'Salvar Alterações' : 'Adicionar Categoria'}
                 </button>
               </div>
             </form>

@@ -1557,12 +1557,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const cat = categoriasEvento.find(c => c.id === id);
     if (!cat) return { success: false, error: 'Categoria não encontrada.' };
     
-    if (cat.sistema_protegida && atualizacao.nome && atualizacao.nome !== cat.nome) {
+    if (cat.sistema_protegida && atualizacao.nome && atualizacao.nome.trim().toLowerCase() !== cat.nome.trim().toLowerCase()) {
       return { success: false, error: 'O nome de uma categoria protegida do sistema não pode ser alterado.' };
     }
 
-    setCategoriasEvento(prev => prev.map(c => c.id === id ? { ...c, ...atualizacao } : c));
-    syncWithTurso('save_categoria_evento', { ...cat, ...atualizacao });
+    if (atualizacao.nome && atualizacao.nome.trim().toLowerCase() !== cat.nome.trim().toLowerCase()) {
+      const existeOutra = categoriasEvento.some(
+        c => c.id !== id && c.nome.trim().toLowerCase() === atualizacao.nome!.trim().toLowerCase()
+      );
+      if (existeOutra) {
+        return { success: false, error: 'Já existe uma categoria cadastrada com este nome.' };
+      }
+    }
+
+    const catAtualizada: CalendarioCategoria = {
+      ...cat,
+      ...atualizacao,
+      nome: atualizacao.nome ? atualizacao.nome.trim() : cat.nome,
+      cor_hex: atualizacao.cor_hex ? atualizacao.cor_hex.trim() : cat.cor_hex,
+      visivel_docentes: atualizacao.visivel_docentes !== undefined ? atualizacao.visivel_docentes : cat.visivel_docentes,
+    };
+
+    setCategoriasEvento(prev => prev.map(c => c.id === id ? catAtualizada : c));
+    syncWithTurso('save_categoria_evento', catAtualizada);
+
+    // Se a cor da categoria mudou, atualiza eventos associados que usavam a cor antiga padrão
+    if (atualizacao.cor_hex && atualizacao.cor_hex.toLowerCase() !== cat.cor_hex.toLowerCase()) {
+      const corAntiga = cat.cor_hex.toLowerCase();
+      const corNova = atualizacao.cor_hex;
+      setEventos(prev =>
+        prev.map(ev => {
+          const pertence = ev.categoria === cat.id || ev.categoria === cat.nome;
+          if (pertence && (!ev.cor || ev.cor.toLowerCase() === corAntiga)) {
+            const evAtualizado = { ...ev, cor: corNova };
+            syncWithTurso('save_evento', evAtualizado);
+            return evAtualizado;
+          }
+          return ev;
+        })
+      );
+    }
+
     return { success: true };
   };
 

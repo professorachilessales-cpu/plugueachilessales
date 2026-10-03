@@ -35,7 +35,11 @@ import {
   Camera,
   Download,
   MessageSquare,
-  Folder
+  Folder,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { PainelRelatoriosEstudante } from '@/components/relatorios/PainelRelatoriosEstudante';
 import { TimelineObservacoesAluno } from '@/components/estudantes/TimelineObservacoesAluno';
@@ -85,6 +89,10 @@ export default function EstudantesPage() {
   const [busca, setBusca] = useState('');
   const [filtroTurma, setFiltroTurma] = useState('');
   const [filtroAee, setFiltroAee] = useState<'todos' | 'com_aee' | 'sem_aee'>('todos');
+
+  // Paginação
+  const [paginaAtual, setPaginaAtual] = useState<number>(1);
+  const [itensPorPagina, setItensPorPagina] = useState<number>(10);
 
   // Modais
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
@@ -458,6 +466,70 @@ export default function EstudantesPage() {
     });
   }, [estudantes, busca, filtroTurma, filtroAee]);
 
+  // Metadados e cálculos de paginação
+  const totalRegistros = estudantesFiltrados.length;
+  const totalPaginas = Math.max(1, Math.ceil(totalRegistros / itensPorPagina));
+
+  // Função para mudar a quantidade de itens por página (reseta para página 1)
+  const handleMudarItensPorPagina = (novoTamanho: number) => {
+    setItensPorPagina(novoTamanho);
+    setPaginaAtual(1);
+  };
+
+  // Resetar para a página 1 ao alterar filtros de busca
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [busca, filtroTurma, filtroAee]);
+
+  // Garantir que a página atual não ultrapasse o total de páginas (ex: após exclusão de estudante)
+  useEffect(() => {
+    if (paginaAtual > totalPaginas && totalPaginas > 0) {
+      setPaginaAtual(totalPaginas);
+    }
+  }, [totalPaginas, paginaAtual]);
+
+  // Itens exibidos na página ativa
+  const itensExibidos = useMemo(() => {
+    const inicio = (paginaAtual - 1) * itensPorPagina;
+    return estudantesFiltrados.slice(inicio, inicio + itensPorPagina);
+  }, [estudantesFiltrados, paginaAtual, itensPorPagina]);
+
+  const inicioItem = totalRegistros === 0 ? 0 : (paginaAtual - 1) * itensPorPagina + 1;
+  const fimItem = Math.min(paginaAtual * itensPorPagina, totalRegistros);
+
+  // Geração da lista de números de páginas com elipses inteligentes
+  const gerarArrayPaginas = () => {
+    if (totalPaginas <= 7) {
+      return Array.from({ length: totalPaginas }, (_, i) => i + 1);
+    }
+
+    const paginas: (number | string)[] = [];
+
+    if (paginaAtual <= 4) {
+      for (let i = 1; i <= 5; i++) {
+        paginas.push(i);
+      }
+      paginas.push('...');
+      paginas.push(totalPaginas);
+    } else if (paginaAtual >= totalPaginas - 3) {
+      paginas.push(1);
+      paginas.push('...');
+      for (let i = totalPaginas - 4; i <= totalPaginas; i++) {
+        paginas.push(i);
+      }
+    } else {
+      paginas.push(1);
+      paginas.push('...');
+      paginas.push(paginaAtual - 1);
+      paginas.push(paginaAtual);
+      paginas.push(paginaAtual + 1);
+      paginas.push('...');
+      paginas.push(totalPaginas);
+    }
+
+    return paginas;
+  };
+
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome_completo.trim() || !form.data_nascimento) {
@@ -680,6 +752,30 @@ export default function EstudantesPage() {
             <option value="sem_aee">Sem Laudo Médico</option>
           </select>
         </div>
+
+        {/* Seletor de Quantidade por Página nos Filtros do Topo */}
+        <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700 shrink-0">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            Exibir por página:
+          </span>
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-900/50">
+            {[10, 20, 30].map((size) => (
+              <button
+                key={size}
+                type="button"
+                onClick={() => handleMudarItensPorPagina(size)}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                  itensPorPagina === size
+                    ? 'bg-school-blue-700 text-white shadow-sm dark:bg-school-blue-600'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+                title={`Exibir ${size} estudantes por página`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Tabela de Estudantes */}
@@ -704,7 +800,7 @@ export default function EstudantesPage() {
                   </td>
                 </tr>
               ) : (
-                estudantesFiltrados.map((est) => {
+                itensExibidos.map((est) => {
                   const qtdTels = [est.telefone_responsavel, est.telefone_2, est.telefone_3, est.telefone_4].filter(Boolean).length;
                   return (
                     <tr key={est.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
@@ -906,6 +1002,134 @@ export default function EstudantesPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Rodapé de Paginação e Navegação */}
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-4 border-t border-slate-200/80 bg-slate-50/70 px-4 py-3.5 dark:border-slate-700/60 dark:bg-slate-800/40 print:hidden">
+          {/* Lado Esquerdo: Indicador de Status & Seletor de Page Size */}
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 sm:gap-4 text-xs w-full lg:w-auto">
+            {/* Indicador de Status */}
+            <span className="text-slate-600 dark:text-slate-300 font-medium">
+              Mostrando <strong className="font-bold text-slate-900 dark:text-white">{inicioItem}</strong> a{' '}
+              <strong className="font-bold text-slate-900 dark:text-white">{fimItem}</strong> de{' '}
+              <strong className="font-bold text-slate-900 dark:text-white">{totalRegistros}</strong> estudantes
+            </span>
+
+            {/* Separador vertical */}
+            <div className="hidden sm:block h-4 w-px bg-slate-300 dark:bg-slate-600" />
+
+            {/* Seletor de Quantidade por Página */}
+            <div className="flex items-center gap-2">
+              <span className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+                Exibir por página:
+              </span>
+              <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                {[10, 20, 30].map((size) => {
+                  const isSelected = itensPorPagina === size;
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => handleMudarItensPorPagina(size)}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                        isSelected
+                          ? 'bg-school-blue-700 text-white shadow-sm dark:bg-school-blue-600'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800'
+                      }`}
+                      title={`Exibir ${size} por página`}
+                    >
+                      {size}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Lado Direito: Controles de Navegação */}
+          <div className="flex items-center gap-1.5 flex-wrap justify-center w-full lg:w-auto">
+            {/* Botão Primeira */}
+            <button
+              type="button"
+              onClick={() => setPaginaAtual(1)}
+              disabled={paginaAtual <= 1}
+              title="Primeira página"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <ChevronsLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Primeira</span>
+            </button>
+
+            {/* Botão Anterior */}
+            <button
+              type="button"
+              onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
+              disabled={paginaAtual <= 1}
+              title="Página anterior"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Anterior</span>
+            </button>
+
+            {/* Números das páginas */}
+            <div className="flex items-center gap-1">
+              {gerarArrayPaginas().map((item, idx) => {
+                if (item === '...') {
+                  return (
+                    <span
+                      key={`dots-${idx}`}
+                      className="px-1.5 py-1 text-xs font-bold text-slate-400 dark:text-slate-500 select-none"
+                    >
+                      ...
+                    </span>
+                  );
+                }
+                const num = item as number;
+                const isAtiva = num === paginaAtual;
+                return (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setPaginaAtual(num)}
+                    aria-current={isAtiva ? 'page' : undefined}
+                    title={`Página ${num}`}
+                    className={`min-w-[32px] h-8 px-2 rounded-xl text-xs font-bold transition-all ${
+                      isAtiva
+                        ? 'bg-school-blue-700 text-white shadow-sm dark:bg-school-blue-600'
+                        : 'border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Botão Próxima */}
+            <button
+              type="button"
+              onClick={() => setPaginaAtual((p) => Math.min(totalPaginas, p + 1))}
+              disabled={paginaAtual >= totalPaginas}
+              title="Próxima página"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <span className="hidden sm:inline">Próxima</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+
+            {/* Botão Última */}
+            <button
+              type="button"
+              onClick={() => setPaginaAtual(totalPaginas)}
+              disabled={paginaAtual >= totalPaginas}
+              title="Última página"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <span className="hidden sm:inline">Última</span>
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 

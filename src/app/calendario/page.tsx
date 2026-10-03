@@ -114,35 +114,91 @@ export default function CalendarioPage() {
   const [erroCat, setErroCat] = useState<string | null>(null);
   const [sucessoCat, setSucessoCat] = useState<string | null>(null);
 
-  // Helper para resolver informações completas da categoria (com retrocompatibilidade legada)
+  // Helper para resolver informações completas da categoria (com retrocompatibilidade legada e canônica)
   const getCategoriaInfo = (catIdOrName: string): CalendarioCategoria => {
+    if (!catIdOrName) {
+      return {
+        id: 'cat-geral',
+        nome: 'Geral',
+        cor_hex: '#2563EB',
+        visivel_docentes: true,
+        sistema_protegida: false,
+      };
+    }
+
+    const termo = catIdOrName.trim().toLowerCase();
+
+    // 1. Busca direta por ID ou Nome na lista atual de categorias
     const found = categoriasEvento.find(
-      (c) => c.id === catIdOrName || c.nome.toLowerCase() === (catIdOrName || '').toLowerCase()
+      (c) => c.id.toLowerCase() === termo || c.nome.toLowerCase() === termo
     );
     if (found) return found;
 
-    // Mapeamento retrocompatível para categorias antigas
-    const legacyMap: Record<string, { nome: string; cor_hex: string; visivel_docentes: boolean; sistema_protegida: boolean }> = {
-      aniversarios: { nome: 'Aniversários', cor_hex: '#4169E1', visivel_docentes: false, sistema_protegida: true },
-      aniversario: { nome: 'Aniversários', cor_hex: '#4169E1', visivel_docentes: false, sistema_protegida: true },
-      'cat-aniversarios': { nome: 'Aniversários', cor_hex: '#4169E1', visivel_docentes: false, sistema_protegida: true },
-      prova: { nome: 'Avaliação / Provas', cor_hex: '#EF4444', visivel_docentes: true, sistema_protegida: false },
-      reuniao: { nome: 'Reuniões Pedagógicas / Pais', cor_hex: '#EAB308', visivel_docentes: true, sistema_protegida: false },
-      feriado: { nome: 'Feriados & Recessos', cor_hex: '#8B5CF6', visivel_docentes: true, sistema_protegida: false },
-      cultural: { nome: 'Culturais & Feiras', cor_hex: '#10B981', visivel_docentes: true, sistema_protegida: false },
+    // 2. Mapeamento de termos legados para IDs canônicos
+    const legacyToId: Record<string, string> = {
+      prova: 'cat-provas',
+      provas: 'cat-provas',
+      avaliacao: 'cat-provas',
+      avaliação: 'cat-provas',
+      avaliacoes: 'cat-provas',
+      avaliações: 'cat-provas',
+      reuniao: 'cat-reunioes',
+      reunião: 'cat-reunioes',
+      reunioes: 'cat-reunioes',
+      reuniões: 'cat-reunioes',
+      feriado: 'cat-feriados',
+      feriados: 'cat-feriados',
+      recesso: 'cat-feriados',
+      recessos: 'cat-feriados',
+      cultural: 'cat-culturais',
+      culturais: 'cat-culturais',
+      aniversario: 'cat-aniversarios',
+      aniversário: 'cat-aniversarios',
+      aniversarios: 'cat-aniversarios',
+      aniversários: 'cat-aniversarios',
+      gestao: 'cat-gestao',
+      gestão: 'cat-gestao',
     };
 
-    if (legacyMap[catIdOrName]) {
-      return { id: catIdOrName, ...legacyMap[catIdOrName] };
+    if (legacyToId[termo]) {
+      const canonical = categoriasEvento.find((c) => c.id === legacyToId[termo]);
+      if (canonical) return canonical;
     }
 
+    // 3. Fallbacks estáticos se ainda não encontrada
     return {
-      id: catIdOrName || 'cat-geral',
-      nome: catIdOrName || 'Geral',
+      id: catIdOrName,
+      nome: catIdOrName,
       cor_hex: '#2563EB',
       visivel_docentes: true,
       sistema_protegida: false,
     };
+  };
+
+  // Verifica com precisão se um evento pertence ao filtro de categoria
+  const eventoCorrespondeCategoria = (ev: EventoEscolar, filtro: string): boolean => {
+    if (!filtro || filtro === 'todas') return true;
+
+    const catInfo = getCategoriaInfo(ev.categoria);
+    const filtroNorm = filtro.trim().toLowerCase();
+
+    // Compara por ID do evento ou ID canônico
+    if (ev.categoria?.toLowerCase() === filtroNorm) return true;
+    if (catInfo.id.toLowerCase() === filtroNorm) return true;
+
+    // Compara por Nome
+    if (catInfo.nome.toLowerCase() === filtroNorm) return true;
+
+    // Se o filtro selecionado for um ID ou Nome conhecido de categoria
+    const catFiltroObj = categoriasEvento.find(
+      (c) => c.id.toLowerCase() === filtroNorm || c.nome.toLowerCase() === filtroNorm
+    );
+    if (catFiltroObj) {
+      if (catInfo.id === catFiltroObj.id) return true;
+      if (catInfo.nome.toLowerCase() === catFiltroObj.nome.toLowerCase()) return true;
+    }
+
+    return false;
   };
 
   // Categorias disponíveis respeitando a visibilidade docente
@@ -187,23 +243,21 @@ export default function CalendarioPage() {
 
   const [formEvento, setFormEvento] = useState(getInitialFormEvento);
 
-  // Filtragem estrita de eventos:
-  // - Docentes visualizam apenas eventos com visivel_docentes === true
-  // - Administradores visualizam todos
-  const eventosVisiveis = useMemo(() => {
+  // 1. Todos os eventos permitidos para o perfil logado (professores não veem visivel_docentes === false)
+  const todosEventosPermitidos = useMemo(() => {
     return eventos.filter((ev) => {
       const catInfo = getCategoriaInfo(ev.categoria);
       if (role === 'professor' && catInfo.visivel_docentes === false) {
         return false;
       }
-      if (categoriaFiltro === 'todas') return true;
-      return (
-        ev.categoria === categoriaFiltro ||
-        catInfo.id === categoriaFiltro ||
-        catInfo.nome.toLowerCase() === categoriaFiltro.toLowerCase()
-      );
+      return true;
     });
-  }, [eventos, categoriaFiltro, role, categoriasEvento]);
+  }, [eventos, role, categoriasEvento]);
+
+  // 2. Eventos filtrados pela categoria selecionada pelo usuário
+  const eventosVisiveis = useMemo(() => {
+    return todosEventosPermitidos.filter((ev) => eventoCorrespondeCategoria(ev, categoriaFiltro));
+  }, [todosEventosPermitidos, categoriaFiltro, categoriasEvento]);
 
   // Cálculos do Calendário Mensal
   const ano = dataAtual.getFullYear();
@@ -410,57 +464,84 @@ export default function CalendarioPage() {
         </div>
       </div>
 
-      {/* Métricas e Resumos Rápidos das Categorias */}
+      {/* Métricas e Resumos Rápidos das Categorias (Alto Contraste) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4 print:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
+        {/* Total de Eventos */}
+        <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total de Eventos</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Total de Eventos</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
               <CalendarIcon className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{totalEventosVisiveis}</p>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-            {role === 'professor' ? 'No seu perfil docente' : 'No cronograma escolar geral'}
+          <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+            {categoriaFiltro === 'todas' ? todosEventosPermitidos.length : `${eventosVisiveis.length} de ${todosEventosPermitidos.length}`}
+          </p>
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            {categoriaFiltro === 'todas'
+              ? (role === 'professor' ? 'No seu perfil docente' : 'No cronograma escolar geral')
+              : 'Filtrado no momento'}
           </span>
         </div>
 
-        {/* 3 Primeiras categorias com cards dinâmicos */}
+        {/* 3 Primeiras categorias com cards dinâmicos em Alto Contraste */}
         {categoriasDisponiveis.slice(0, 3).map((cat) => {
-          const count = eventosVisiveis.filter((e) => {
-            const cInfo = getCategoriaInfo(e.categoria);
-            return cInfo.id === cat.id || cInfo.nome.toLowerCase() === cat.nome.toLowerCase();
-          }).length;
+          const count = todosEventosPermitidos.filter((e) => eventoCorrespondeCategoria(e, cat.id)).length;
 
           return (
             <div
               key={cat.id}
-              className="rounded-xl border p-4 shadow-sm transition-all"
-              style={{
-                borderColor: `${cat.cor_hex}40`,
-                backgroundColor: `${cat.cor_hex}10`,
-              }}
+              className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface relative overflow-hidden"
             >
-              <div className="flex items-center justify-between">
-                <span
-                  className="text-xs font-bold truncate max-w-[140px]"
-                  style={{ color: cat.cor_hex }}
-                >
-                  {cat.nome}
-                </span>
+              {/* Barra de destaque superior na cor da categoria */}
+              <div
+                className="absolute top-0 left-0 right-0 h-1"
+                style={{ backgroundColor: cat.cor_hex }}
+              />
+
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full shrink-0 shadow-xs ring-1 ring-black/10"
+                    style={{ backgroundColor: cat.cor_hex }}
+                  />
+                  <span
+                    className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate"
+                    title={cat.nome}
+                  >
+                    {cat.nome}
+                  </span>
+                </div>
                 <div
-                  className="flex h-7 w-7 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: `${cat.cor_hex}25`, color: cat.cor_hex }}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
+                  style={{
+                    backgroundColor: `${cat.cor_hex}18`,
+                    color: cat.cor_hex,
+                  }}
                 >
                   <Tag className="h-3.5 w-3.5" />
                 </div>
               </div>
-              <p className="mt-2 text-2xl font-bold" style={{ color: cat.cor_hex }}>
+
+              {/* Número com alto contraste absoluto */}
+              <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                 {count}
               </p>
-              <span className="text-[11px] font-medium opacity-80" style={{ color: cat.cor_hex }}>
-                {cat.visivel_docentes ? 'Visível aos professores' : 'Exclusivo da gestão'}
-              </span>
+
+              <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold">
+                {cat.visivel_docentes ? (
+                  <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                    <Eye className="h-3 w-3" />
+                    Visível aos professores
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                    <EyeOff className="h-3 w-3" />
+                    Exclusivo da gestão
+                  </span>
+                )}
+              </div>
             </div>
           );
         })}
@@ -475,44 +556,43 @@ export default function CalendarioPage() {
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               categoriaFiltro === 'todas'
                 ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
             }`}
           >
-            Todos ({eventosVisiveis.length})
+            Todos ({todosEventosPermitidos.length})
           </button>
 
           {categoriasDisponiveis.map((cat) => {
-            const count = eventosVisiveis.filter((e) => {
-              const cInfo = getCategoriaInfo(e.categoria);
-              return cInfo.id === cat.id || cInfo.nome.toLowerCase() === cat.nome.toLowerCase();
-            }).length;
+            const count = todosEventosPermitidos.filter((e) => eventoCorrespondeCategoria(e, cat.id)).length;
             const isSelected = categoriaFiltro === cat.id || categoriaFiltro === cat.nome;
 
             return (
               <button
                 key={cat.id}
                 onClick={() => setCategoriaFiltro(isSelected ? 'todas' : cat.id)}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition shadow-xs ${
                   isSelected
-                    ? 'ring-2 ring-blue-500 font-bold shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    ? 'ring-2 ring-blue-500 shadow-sm'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 border border-slate-200/70 dark:border-slate-700/70'
                 }`}
                 style={
                   isSelected
                     ? {
-                        backgroundColor: `${cat.cor_hex}20`,
-                        color: cat.cor_hex,
+                        backgroundColor: cat.cor_hex,
+                        color: getContrastColor(cat.cor_hex),
                         borderColor: cat.cor_hex,
                       }
                     : undefined
                 }
               >
                 <span
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: cat.cor_hex }}
+                  className="h-2.5 w-2.5 rounded-full shrink-0 ring-1 ring-black/15"
+                  style={{
+                    backgroundColor: isSelected ? getContrastColor(cat.cor_hex) : cat.cor_hex,
+                  }}
                 />
                 <span>{cat.nome}</span>
-                <span className="opacity-70 text-[10px]">({count})</span>
+                <span className="opacity-80 text-[10px]">({count})</span>
               </button>
             );
           })}
@@ -544,6 +624,30 @@ export default function CalendarioPage() {
           </div>
         </div>
       </div>
+
+      {/* Banner Informativo de Filtro Ativo */}
+      {categoriaFiltro !== 'todas' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/90 p-3.5 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 shadow-xs print:hidden animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <span
+              className="h-3 w-3 rounded-full shrink-0 shadow-xs ring-1 ring-black/10"
+              style={{ backgroundColor: getCategoriaInfo(categoriaFiltro).cor_hex }}
+            />
+            <span>
+              Filtrando categoria: <strong>{getCategoriaInfo(categoriaFiltro).nome}</strong> (
+              {eventosVisiveis.length} evento(s) no total).
+            </span>
+          </div>
+
+          <button
+            onClick={() => setCategoriaFiltro('todas')}
+            className="inline-flex items-center gap-1 rounded-md bg-white px-2.5 py-1 font-bold text-blue-700 shadow-xs hover:bg-blue-100 dark:bg-blue-900/60 dark:text-blue-200 dark:hover:bg-blue-900 transition"
+          >
+            <X className="h-3.5 w-3.5" />
+            Limpar Filtro
+          </button>
+        </div>
+      )}
 
       {/* Visualização: GRADE MENSAL (Multi-day Span Perfeito) */}
       {visualizacao === 'grade' && (

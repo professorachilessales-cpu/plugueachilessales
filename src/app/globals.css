@@ -11,7 +11,7 @@
 :root,
 [data-theme="light"] {
   /* 3. PALETA — MODO CLARO (Default com Hierarquia de Superfícies & Alto Contraste) */
-  --background: #F1F5F9;          /* Canvas da Página: cinza neutro ardósia suave (elimina o efeito tudo branco) */
+  --background: #8FAFCF;          /* Canvas da Página: azul suave (#8FAFCF) */
   --background-secondary: #E2E8F0;/* Fundo Secundário Neutro */
 
   --surface: #FFFFFF;             /* Superfície / Cards: branco puro para destacar do canvas */

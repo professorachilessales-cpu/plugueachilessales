@@ -80,6 +80,7 @@ const formProfInicial = {
   telefone_emergencia: '',
   telefone_emergencia2: '',
   contato_emergencia_nome: '',
+  contato_emergencia_parentesco: '',
   observacoes: '',
   eh_apoio: false,
   eh_administrativo: false,
@@ -318,6 +319,7 @@ export default function ProfessoresPage() {
       telefone_emergencia: formProf.telefone_emergencia.trim(),
       telefone_emergencia2: formProf.telefone_emergencia2.trim(),
       contato_emergencia_nome: formProf.contato_emergencia_nome.trim().toUpperCase(),
+      contato_emergencia_parentesco: (formProf.contato_emergencia_parentesco || '').trim().toUpperCase(),
       observacoes: formProf.observacoes.trim().toUpperCase(),
       ativo: formProf.ativo !== false,
       eh_apoio: formProf.eh_apoio,
@@ -1454,7 +1456,7 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
                       Data de Expedição do RG
                     </label>
@@ -1464,6 +1466,90 @@ export default function ProfessoresPage() {
                       onChange={(e) => setFormProf({ ...formProf, rg_data_expedicao: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
+                  </div>
+
+                  {/* Opções Funcionais: Status, Apoio e Funcionário Administrativo */}
+                  <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {/* Toggle Status Ativo/Inativo */}
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                      <div>
+                        <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
+                          Status do Colaborador
+                        </span>
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                          {formProf.ativo ? 'Ativo no Quadro' : 'Inativo / Afastado'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formProf.ativo}
+                        onClick={() => setFormProf((prev) => ({ ...prev, ativo: !prev.ativo }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formProf.ativo ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            formProf.ativo ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Toggle Apoio */}
+                    <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30">
+                      <div>
+                        <span className="font-bold text-purple-900 dark:text-purple-200 text-xs block">
+                          Apoio Escolar / AEE
+                        </span>
+                        <span className="text-[10px] text-purple-700 dark:text-purple-400">
+                          {formProf.eh_apoio ? 'Sim (Profissional de Apoio)' : 'Não (Docente Regular)'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(formProf.eh_apoio)}
+                        onClick={() => setFormProf((prev) => ({ ...prev, eh_apoio: !prev.eh_apoio }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formProf.eh_apoio ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            formProf.eh_apoio ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Toggle Funcionário Administrativo */}
+                    <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
+                      <div>
+                        <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
+                          O professor é funcionário Administrativo?
+                        </span>
+                        <span className="text-[10px] text-blue-700 dark:text-blue-400">
+                          {formProf.eh_administrativo ? 'Sim, atua na administração escolar' : 'Não, somente regência docente'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(formProf.eh_administrativo)}
+                        onClick={() => setFormProf((prev) => ({ ...prev, eh_administrativo: !prev.eh_administrativo }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formProf.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            formProf.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1665,7 +1751,7 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
                       E-mail Institucional
                     </label>
@@ -1678,7 +1764,7 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-                  <div>
+                  <div className="sm:col-span-3">
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
                       Nome do Contato de Emergência
                     </label>
@@ -1686,7 +1772,20 @@ export default function ProfessoresPage() {
                       type="text"
                       value={formProf.contato_emergencia_nome}
                       onChange={(e) => handleNovoUpperChange('contato_emergencia_nome', e.target.value)}
-                      placeholder="EX: MARIA (ESPOSA / IRMÃ)"
+                      placeholder="EX: MARIA SILVA"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                      Parentesco do Contato
+                    </label>
+                    <input
+                      type="text"
+                      value={formProf.contato_emergencia_parentesco || ''}
+                      onChange={(e) => handleNovoUpperChange('contato_emergencia_parentesco', e.target.value)}
+                      placeholder="EX: CÔNJUGE, MÃE, IRMÃO"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </div>
@@ -1715,83 +1814,6 @@ export default function ProfessoresPage() {
                       placeholder="(81) 98888-2222"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
                     />
-                  </div>
-
-                  {/* Toggle Apoio */}
-                  <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30">
-                    <span className="font-bold text-purple-900 dark:text-purple-200 text-xs">
-                      Apoio Escolar / AEE
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setFormProf((prev) => ({ ...prev, eh_apoio: !prev.eh_apoio }))}
-                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        formProf.eh_apoio ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          formProf.eh_apoio ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Status do Colaborador e Toggle Funcionário Administrativo */}
-                  <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Toggle Status Ativo/Inativo */}
-                    <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-                      <div>
-                        <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
-                          Status do Colaborador
-                        </span>
-                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
-                          {formProf.ativo ? 'Ativo no Quadro' : 'Inativo / Afastado'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={formProf.ativo}
-                        onClick={() => setFormProf((prev) => ({ ...prev, ativo: !prev.ativo }))}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          formProf.ativo ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            formProf.ativo ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    {/* Toggle Funcionário Administrativo */}
-                    <div className="flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
-                      <div>
-                        <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
-                          O professor é funcionário Administrativo?
-                        </span>
-                        <span className="text-[10px] text-blue-700 dark:text-blue-400">
-                          {formProf.eh_administrativo ? 'Sim, atua na administração escolar' : 'Não, somente regência docente'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={Boolean(formProf.eh_administrativo)}
-                        onClick={() => setFormProf((prev) => ({ ...prev, eh_administrativo: !prev.eh_administrativo }))}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          formProf.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            formProf.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1971,10 +1993,10 @@ export default function ProfessoresPage() {
                     </select>
                   </div>
 
-                  {/* Status do Colaborador e Toggle Funcionário Administrativo */}
-                  <div className={`sm:col-span-3 grid grid-cols-1 ${formEditProf.tipo_profissional !== 'funcionario' ? 'sm:grid-cols-2' : ''} gap-3`}>
+                  {/* Status do Colaborador, Apoio e Toggle Funcionário Administrativo */}
+                  <div className={`sm:col-span-3 grid grid-cols-1 ${formEditProf.tipo_profissional !== 'funcionario' ? 'sm:grid-cols-2' : ''} gap-3 pt-1`}>
                     {/* Toggle Status Ativo/Inativo */}
-                    <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                    <div className={`flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30 ${formEditProf.tipo_profissional === 'funcionario' ? 'sm:col-span-2' : ''}`}>
                       <div>
                         <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
                           Status do Colaborador
@@ -2000,9 +2022,38 @@ export default function ProfessoresPage() {
                       </button>
                     </div>
 
+                    {/* Toggle Apoio (somente para Docentes) */}
+                    {formEditProf.tipo_profissional !== 'funcionario' && (
+                      <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30">
+                        <div>
+                          <span className="font-bold text-purple-900 dark:text-purple-200 text-xs block">
+                            Apoio Escolar / AEE
+                          </span>
+                          <span className="text-[10px] text-purple-700 dark:text-purple-400">
+                            {formEditProf.eh_apoio ? 'Sim (Profissional de Apoio)' : 'Não (Docente Regular)'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(formEditProf.eh_apoio)}
+                          onClick={() => setFormEditProf((prev) => ({ ...prev, eh_apoio: !prev.eh_apoio }))}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            formEditProf.eh_apoio ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              formEditProf.eh_apoio ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Toggle Funcionário Administrativo (somente para Docentes) */}
                     {formEditProf.tipo_profissional !== 'funcionario' && (
-                      <div className="flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
+                      <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
                         <div>
                           <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
                             O professor é funcionário Administrativo?
@@ -2392,7 +2443,7 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-                  <div>
+                  <div className="sm:col-span-3">
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
                       Nome do Contato de Emergência
                     </label>
@@ -2443,29 +2494,6 @@ export default function ProfessoresPage() {
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-mono"
                     />
                   </div>
-
-
-                  {/* Toggle Apoio (somente para Docentes) */}
-                  {formEditProf.tipo_profissional !== 'funcionario' && (
-                    <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30 sm:col-span-2">
-                      <span className="font-bold text-purple-900 dark:text-purple-200 text-xs">
-                        Apoio Escolar / AEE
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setFormEditProf((prev) => ({ ...prev, eh_apoio: !prev.eh_apoio }))}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          formEditProf.eh_apoio ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            formEditProf.eh_apoio ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
 

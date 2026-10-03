@@ -42,7 +42,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F1F5F9] dark:bg-school-dark-bg text-slate-900 dark:text-slate-100 overflow-x-hidden">
+    <div className="flex min-h-screen flex-col bg-[#8FAFCF] dark:bg-school-dark-bg text-slate-900 dark:text-slate-100 overflow-x-hidden">
       <Sidebar
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}

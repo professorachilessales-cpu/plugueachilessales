@@ -72,20 +72,34 @@ export default function CalendarioPage() {
 
   const [visualizacao, setVisualizacao] = useState<'grade' | 'lista'>('grade');
   const [categoriaFiltro, setCategoriaFiltro] = useState<CategoriaEvento | 'todas'>('todas');
-  const [dataAtual, setDataAtual] = useState(() => new Date(2026, 8, 1)); // Setembro 2026 como base dos mocks
+  // Exibe o mês atual ao abrir a tela
+  const [dataAtual, setDataAtual] = useState(() => {
+    const agora = new Date();
+    return new Date(agora.getFullYear(), agora.getMonth(), 1);
+  });
   const [eventoSelecionado, setEventoSelecionado] = useState<EventoEscolar | null>(null);
   const [modalNovoEventoAberto, setModalNovoEventoAberto] = useState(false);
 
+  // Helper para estado inicial do formulário de novo evento
+  const getInitialFormEvento = () => {
+    const agora = new Date();
+    const anoStr = agora.getFullYear();
+    const mesStr = String(agora.getMonth() + 1).padStart(2, '0');
+    const diaStr = String(agora.getDate()).padStart(2, '0');
+    const dataBase = `${anoStr}-${mesStr}-${diaStr}`;
+    return {
+      titulo: '',
+      descricao: '',
+      data_inicio: `${dataBase}T08:00`,
+      data_fim: `${dataBase}T11:30`,
+      categoria: 'prova' as CategoriaEvento,
+      cor: CATEGORIAS_CONFIG.prova.defaultColor,
+      publico_alvo: 'Toda a Escola',
+    };
+  };
+
   // Form de criação de novo evento
-  const [formEvento, setFormEvento] = useState({
-    titulo: '',
-    descricao: '',
-    data_inicio: '2026-09-25T08:00',
-    data_fim: '2026-09-25T11:30',
-    categoria: 'prova' as CategoriaEvento,
-    cor: CATEGORIAS_CONFIG.prova.defaultColor,
-    publico_alvo: 'Toda a Escola',
-  });
+  const [formEvento, setFormEvento] = useState(getInitialFormEvento);
 
   // Filtragem de eventos
   const eventosFiltrados = useMemo(() => {
@@ -123,15 +137,7 @@ export default function CalendarioPage() {
     });
 
     setModalNovoEventoAberto(false);
-    setFormEvento({
-      titulo: '',
-      descricao: '',
-      data_inicio: '2026-09-25T08:00',
-      data_fim: '2026-09-25T11:30',
-      categoria: 'prova',
-      cor: CATEGORIAS_CONFIG.prova.defaultColor,
-      publico_alvo: 'Toda a Escola',
-    });
+    setFormEvento(getInitialFormEvento());
   };
 
   // Estatísticas Rápidas
@@ -174,13 +180,16 @@ export default function CalendarioPage() {
             Imprimir
           </button>
 
-          <button
-            onClick={() => setModalNovoEventoAberto(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Novo Evento
-          </button>
+          {/* Opção exclusiva para Administrador */}
+          {role === 'admin' && (
+            <button
+              onClick={() => setModalNovoEventoAberto(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Evento
+            </button>
+          )}
         </div>
       </div>
 
@@ -319,10 +328,13 @@ export default function CalendarioPage() {
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
-                onClick={() => setDataAtual(new Date(2026, 8, 1))}
+                onClick={() => {
+                  const agora = new Date();
+                  setDataAtual(new Date(agora.getFullYear(), agora.getMonth(), 1));
+                }}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               >
-                Hoje / Mês Inicial
+                Hoje / Mês Atual
               </button>
               <button
                 onClick={() => mudarMes(1)}
@@ -367,12 +379,16 @@ export default function CalendarioPage() {
               });
 
               const isFimDeSemana = (primeiroDiaSemana + i) % 7 === 0 || (primeiroDiaSemana + i) % 7 === 6;
+              const hoje = new Date();
+              const isHoje = hoje.getFullYear() === ano && hoje.getMonth() === mes && hoje.getDate() === diaNum;
 
               return (
                 <div
                   key={`day-${diaNum}`}
                   className={`min-h-[85px] sm:min-h-[110px] rounded-xl border p-1.5 transition-all flex flex-col justify-between ${
-                    eventosDoDia.length > 0
+                    isHoje
+                      ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/30 dark:border-blue-500 dark:bg-blue-950/20'
+                      : eventosDoDia.length > 0
                       ? 'border-blue-200 bg-blue-50/20 dark:border-blue-900/40 dark:bg-blue-950/10'
                       : isFimDeSemana
                       ? 'border-slate-100 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/20'
@@ -382,10 +398,13 @@ export default function CalendarioPage() {
                   <div className="flex items-center justify-between mb-1">
                     <span
                       className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                        eventosDoDia.length > 0
+                        isHoje
+                          ? 'bg-blue-600 text-white font-bold ring-2 ring-blue-300 dark:ring-blue-700'
+                          : eventosDoDia.length > 0
                           ? 'bg-blue-600 text-white'
                           : 'text-slate-700 dark:text-slate-300'
                       }`}
+                      title={isHoje ? 'Hoje' : undefined}
                     >
                       {diaNum}
                     </span>
@@ -435,7 +454,9 @@ export default function CalendarioPage() {
                 Nenhum evento encontrado nesta categoria
               </h3>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Ajuste os filtros acima ou cadastre um novo evento escolar.
+                {role === 'admin'
+                  ? 'Ajuste os filtros acima ou cadastre um novo evento escolar.'
+                  : 'Ajuste os filtros acima para visualizar os eventos escolares.'}
               </p>
             </div>
           ) : (
@@ -620,8 +641,8 @@ export default function CalendarioPage() {
         </div>
       )}
 
-      {/* Modal de Criação de Novo Evento */}
-      {modalNovoEventoAberto && (
+      {/* Modal de Criação de Novo Evento (Exclusivo Administrador) */}
+      {modalNovoEventoAberto && role === 'admin' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">

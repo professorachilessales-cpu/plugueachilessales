@@ -1717,33 +1717,6 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-                  {/* Toggle Funcionário Administrativo */}
-                  <div className="flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
-                    <div>
-                      <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
-                        Funcionário Administrativo?
-                      </span>
-                      <span className="text-[10px] text-blue-700 dark:text-blue-400">
-                        {formProf.eh_administrativo ? 'Sim, atua na administração escolar' : 'Não, somente regência docente'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={Boolean(formProf.eh_administrativo)}
-                      onClick={() => setFormProf((prev) => ({ ...prev, eh_administrativo: !prev.eh_administrativo }))}
-                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        formProf.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          formProf.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
                   {/* Toggle Apoio */}
                   <div className="flex items-center justify-between rounded-xl border border-purple-200/80 bg-purple-50/50 p-2.5 dark:border-purple-900/60 dark:bg-purple-950/30">
                     <span className="font-bold text-purple-900 dark:text-purple-200 text-xs">
@@ -1764,31 +1737,61 @@ export default function ProfessoresPage() {
                     </button>
                   </div>
 
-                  {/* Toggle Status Ativo/Inativo */}
-                  <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-                    <div>
-                      <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
-                        Status do Docente
-                      </span>
-                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
-                        {formProf.ativo ? 'Ativo no Quadro' : 'Inativo / Afastado'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={formProf.ativo}
-                      onClick={() => setFormProf((prev) => ({ ...prev, ativo: !prev.ativo }))}
-                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        formProf.ativo ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          formProf.ativo ? 'translate-x-4' : 'translate-x-0'
+                  {/* Status do Colaborador e Toggle Funcionário Administrativo */}
+                  <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Toggle Status Ativo/Inativo */}
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                      <div>
+                        <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
+                          Status do Colaborador
+                        </span>
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                          {formProf.ativo ? 'Ativo no Quadro' : 'Inativo / Afastado'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formProf.ativo}
+                        onClick={() => setFormProf((prev) => ({ ...prev, ativo: !prev.ativo }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formProf.ativo ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
-                      />
-                    </button>
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            formProf.ativo ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Toggle Funcionário Administrativo */}
+                    <div className="flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
+                      <div>
+                        <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
+                          O professor é funcionário Administrativo?
+                        </span>
+                        <span className="text-[10px] text-blue-700 dark:text-blue-400">
+                          {formProf.eh_administrativo ? 'Sim, atua na administração escolar' : 'Não, somente regência docente'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(formProf.eh_administrativo)}
+                        onClick={() => setFormProf((prev) => ({ ...prev, eh_administrativo: !prev.eh_administrativo }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formProf.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            formProf.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1968,31 +1971,63 @@ export default function ProfessoresPage() {
                     </select>
                   </div>
 
-                  {/* Toggle Status Ativo/Inativo */}
-                  <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30 sm:col-span-3">
-                    <div>
-                      <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
-                        Status do Colaborador
-                      </span>
-                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
-                        {formEditProf.ativo ? 'Ativo no Quadro' : 'Inativo / Afastado'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={formEditProf.ativo}
-                      onClick={() => setFormEditProf((prev) => ({ ...prev, ativo: !prev.ativo }))}
-                      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        formEditProf.ativo ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          formEditProf.ativo ? 'translate-x-4' : 'translate-x-0'
+                  {/* Status do Colaborador e Toggle Funcionário Administrativo */}
+                  <div className={`sm:col-span-3 grid grid-cols-1 ${formEditProf.tipo_profissional !== 'funcionario' ? 'sm:grid-cols-2' : ''} gap-3`}>
+                    {/* Toggle Status Ativo/Inativo */}
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-2.5 dark:border-emerald-900/60 dark:bg-emerald-950/30">
+                      <div>
+                        <span className="font-bold text-emerald-950 dark:text-emerald-200 text-xs block">
+                          Status do Colaborador
+                        </span>
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                          {formEditProf.ativo ? 'Ativo no Quadro' : 'Inativo / Afastado'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formEditProf.ativo}
+                        onClick={() => setFormEditProf((prev) => ({ ...prev, ativo: !prev.ativo }))}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          formEditProf.ativo ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
-                      />
-                    </button>
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            formEditProf.ativo ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Toggle Funcionário Administrativo (somente para Docentes) */}
+                    {formEditProf.tipo_profissional !== 'funcionario' && (
+                      <div className="flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30">
+                        <div>
+                          <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
+                            O professor é funcionário Administrativo?
+                          </span>
+                          <span className="text-[10px] text-blue-700 dark:text-blue-400">
+                            {formEditProf.eh_administrativo ? 'Sim, atua no setor administrativo escolar' : 'Não, somente regência docente'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(formEditProf.eh_administrativo)}
+                          onClick={() => setFormEditProf((prev) => ({ ...prev, eh_administrativo: !prev.eh_administrativo }))}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            formEditProf.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              formEditProf.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2409,34 +2444,6 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-                  {/* Toggle Funcionário Administrativo (somente para Docentes) */}
-                  {formEditProf.tipo_profissional !== 'funcionario' && (
-                    <div className="flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/30 sm:col-span-2">
-                      <div>
-                        <span className="font-bold text-blue-950 dark:text-blue-200 text-xs block">
-                          O professor é funcionário Administrativo?
-                        </span>
-                        <span className="text-[10px] text-blue-700 dark:text-blue-400">
-                          {formEditProf.eh_administrativo ? 'Sim, atua no setor administrativo escolar' : 'Não, somente regência docente'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={Boolean(formEditProf.eh_administrativo)}
-                        onClick={() => setFormEditProf((prev) => ({ ...prev, eh_administrativo: !prev.eh_administrativo }))}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          formEditProf.eh_administrativo ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            formEditProf.eh_administrativo ? 'translate-x-4' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  )}
 
                   {/* Toggle Apoio (somente para Docentes) */}
                   {formEditProf.tipo_profissional !== 'funcionario' && (

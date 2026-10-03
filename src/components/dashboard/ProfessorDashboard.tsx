@@ -30,6 +30,7 @@ import { isProfessorAdministrativo } from '@/lib/pareceres-ia';
 export function ProfessorDashboard() {
   const { 
     currentUser, 
+    authenticatedUser,
     users,
     professores, 
     turmas, 
@@ -42,37 +43,48 @@ export function ProfessorDashboard() {
     deleteAtestadoProfessor 
   } = useApp();
 
+  const usuarioLogado = authenticatedUser || currentUser;
+
   // Localiza o perfil de professor conectado
   const professorAtual = useMemo(() => {
-    const cpfLimpoUser = currentUser?.cpf?.replace(/\D/g, '');
+    const cpfLimpoUser = usuarioLogado?.cpf?.replace(/\D/g, '');
     return (
       professores.find(p => {
         const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
         if (cpfLimpoUser && cpfLimpoProf && cpfLimpoUser === cpfLimpoProf) return true;
-        if (currentUser?.id && (p.id === currentUser.id || (p as any).user_id === currentUser.id)) return true;
-        if (currentUser?.email && p.email?.toLowerCase() === currentUser.email.toLowerCase()) return true;
-        if (currentUser?.name && p.nome_completo?.toLowerCase() === currentUser.name.toLowerCase()) return true;
+        if (usuarioLogado?.id && (p.id === usuarioLogado.id || (p as any).user_id === usuarioLogado.id || p.profile_id === usuarioLogado.id)) return true;
+        if (usuarioLogado?.email && p.email?.toLowerCase() === usuarioLogado.email.toLowerCase()) return true;
+        if (usuarioLogado?.name && p.nome_completo?.toLowerCase() === usuarioLogado.name.toLowerCase()) return true;
         return false;
       }) ||
       professores[0]
     );
-  }, [professores, currentUser]);
-
-  // Turmas atribuídas ao professor conectado
-  const turmasAtribuidas = useMemo(() => {
-    if (!professorAtual) return [];
-    return turmas.filter(t => 
-      (t.professores_ids && t.professores_ids.includes(professorAtual.id)) ||
-      t.professor_regente_id === professorAtual.id
-    );
-  }, [turmas, professorAtual]);
-
-  const turmasIds = useMemo(() => turmasAtribuidas.map(t => t.id), [turmasAtribuidas]);
+  }, [professores, usuarioLogado]);
 
   // Identifica se o perfil conectado é de Funcionário Administrativo
   const ehAdministrativo = useMemo(() => {
     return isProfessorAdministrativo(professorAtual, users);
   }, [professorAtual, users]);
+
+  // Turmas atribuídas ao professor conectado
+  const turmasAtribuidas = useMemo(() => {
+    if (!professorAtual || ehAdministrativo) return [];
+    const profId = professorAtual.id;
+    const profName = professorAtual.nome_completo?.trim().toLowerCase();
+    const turmasAtribuidasIds = professorAtual.turmas_atribuidas_ids || [];
+
+    return turmas.filter(t => 
+      (t.professores_ids && t.professores_ids.includes(profId)) ||
+      t.professor_regente_id === profId ||
+      (t.professor_regente_nome && profName && t.professor_regente_nome.trim().toLowerCase() === profName) ||
+      (t.id && turmasAtribuidasIds.includes(t.id)) ||
+      (t.nome && turmasAtribuidasIds.includes(t.nome)) ||
+      (t.equipe_apoio_ids && t.equipe_apoio_ids.includes(profId)) ||
+      (t.grade_horaria && Array.isArray(t.grade_horaria) && t.grade_horaria.some(h => h.professor_nome && profName && h.professor_nome.trim().toLowerCase() === profName))
+    );
+  }, [turmas, professorAtual, ehAdministrativo]);
+
+  const turmasIds = useMemo(() => turmasAtribuidas.map(t => t.id), [turmasAtribuidas]);
 
   // 1. SOLICITAÇÕES ATIVAS PARA O PROFESSOR (Bloco de Alertas Críticos)
   // Professores administrativos não recebem notificações e não elaboram relatórios

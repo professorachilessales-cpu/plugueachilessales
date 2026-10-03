@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { PrintHeader } from '@/components/layout/PrintHeader';
+import { isProfessorAdministrativo } from '@/lib/pareceres-ia';
 import { 
   Image as ImageIcon, 
   MessageSquare, 
@@ -79,11 +80,128 @@ const MODELOS_WHATSAPP_PADRAO: ModeloWhatsApp[] = [
 
 export default function FotogramaPage() {
   const router = useRouter();
-  const { estudantes, turmas, role, escolaConfig, updateEstudante } = useApp();
+  const { estudantes, turmas, role, currentUser, authenticatedUser, professores, users, escolaConfig, updateEstudante } = useApp();
+
+  // Usuário efetivamente logado no sistema (prioriza o usuário autenticado da sessão)
+  const usuarioLogado = authenticatedUser || currentUser;
+  const isPerfilProfessor = role === 'professor' || usuarioLogado?.role === 'professor';
+
+  // Vincula o registro oficial do professor do banco de dados
+  const professorVinculado = useMemo(() => {
+    if (!isPerfilProfessor) return null;
+    const cpfLimpoUser = usuarioLogado?.cpf?.replace(/\D/g, '');
+
+    const match = professores.find((p) => {
+      const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
+      if (cpfLimpoUser && cpfLimpoProf && cpfLimpoUser === cpfLimpoProf) return true;
+      if (usuarioLogado?.id && (p.id === usuarioLogado.id || (p as any).user_id === usuarioLogado.id || p.profile_id === usuarioLogado.id)) return true;
+      if (usuarioLogado?.email && p.email && usuarioLogado.email.toLowerCase() === p.email.toLowerCase()) return true;
+      if (usuarioLogado?.name && p.nome_completo && usuarioLogado.name.trim().toLowerCase() === p.nome_completo.trim().toLowerCase()) return true;
+      return false;
+    });
+
+    if (match) return match;
+
+    // Se quem está logado for administrador testando/simulando o perfil de professor sem conta vinculada
+    if (usuarioLogado?.role === 'admin' && role === 'professor') {
+      return professores.find(p => (p.turmas_atribuidas_ids && p.turmas_atribuidas_ids.length > 0) || !p.eh_administrativo) || professores[0] || null;
+    }
+
+    return null;
+  }, [isPerfilProfessor, usuarioLogado, role, professores]);
+
+  // Turmas acessíveis (No perfil de professor: estritamente turmas onde ele é docente)
+  const turmasDisponiveis = useMemo(() => {
+    if (!isPerfilProfessor) {
+      return turmas;
+    }
+
+    // Se for funcionário puramente administrativo, não exibe turmas
+    if (professorVinculado && isProfessorAdministrativo(professorVinculado, users)) {
+      return [];
+    }
+
+    if (!professorVinculado && usuarioLogado?.role === 'professor') {
+      return [];
+    }
+
+    const teacherIds = new Set<string>();
+    if (professorVinculado?.id) teacherIds.add(professorVinculado.id);
+    if ((professorVinculado as any)?.user_id) teacherIds.add((professorVinculado as any).user_id);
+    if (professorVinculado?.profile_id) teacherIds.add(professorVinculado.profile_id);
+    if (usuarioLogado?.id) teacherIds.add(usuarioLogado.id);
+
+    const teacherNames = new Set<string>();
+    if (professorVinculado?.nome_completo) teacherNames.add(professorVinculado.nome_completo.trim().toLowerCase());
+    if (usuarioLogado?.name) teacherNames.add(usuarioLogado.name.trim().toLowerCase());
+
+    const turmasAtribuidas = professorVinculado?.turmas_atribuidas_ids || [];
+
+    return turmas.filter((t) => {
+      // 1. O ID do professor está em professores_ids da turma
+      if (t.professores_ids && Array.isArray(t.professores_ids)) {
+        if (t.professores_ids.some((id) => teacherIds.has(id))) return true;
+      }
+
+      // 2. O professor é o regente titular da turma (por ID)
+      if (t.professor_regente_id && teacherIds.has(t.professor_regente_id)) {
+        return true;
+      }
+
+      // 3. O professor é o regente titular da turma (por Nome)
+      if (t.professor_regente_nome && teacherNames.has(t.professor_regente_nome.trim().toLowerCase())) {
+        return true;
+      }
+
+      // 4. A turma consta nas turmas atribuídas do cadastro do professor (por ID ou Nome)
+      if (
+        (t.id && turmasAtribuidas.includes(t.id)) ||
+        (t.nome && turmasAtribuidas.includes(t.nome))
+      ) {
+        return true;
+      }
+
+      // 5. O professor está na equipe de apoio pedagógico / AEE da turma
+      if (t.equipe_apoio_ids && Array.isArray(t.equipe_apoio_ids)) {
+        if (t.equipe_apoio_ids.some((id) => teacherIds.has(id))) return true;
+      }
+
+      // 6. O professor ministra aulas na grade horária da turma
+      if (t.grade_horaria && Array.isArray(t.grade_horaria)) {
+        if (
+          t.grade_horaria.some(
+            (h) => h.professor_nome && teacherNames.has(h.professor_nome.trim().toLowerCase())
+          )
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+  }, [turmas, isPerfilProfessor, professorVinculado, usuarioLogado, users]);
 
   // Turma Selecionada
-  const [turmaSelecionadaId, setTurmaSelecionadaId] = useState<string>(turmas[0]?.id || '');
+  const [turmaSelecionadaId, setTurmaSelecionadaId] = useState<string>('');
   const [busca, setBusca] = useState('');
+
+  // Sincroniza a turma selecionada caso a atual não pertença às turmas do professor
+  useEffect(() => {
+    if (turmasDisponiveis.length > 0) {
+      if (!turmaSelecionadaId || !turmasDisponiveis.some((t) => t.id === turmaSelecionadaId)) {
+        setTurmaSelecionadaId(turmasDisponiveis[0].id);
+      }
+    } else {
+      if (turmaSelecionadaId !== '') {
+        setTurmaSelecionadaId('');
+      }
+    }
+  }, [turmasDisponiveis, turmaSelecionadaId]);
+
+  const turmaAtual = useMemo(() => {
+    if (turmasDisponiveis.length === 0) return null;
+    return turmasDisponiveis.find((t) => t.id === turmaSelecionadaId) || turmasDisponiveis[0];
+  }, [turmasDisponiveis, turmaSelecionadaId]);
 
   // Modal WhatsApp
   const [modalWhatsAppAberto, setModalWhatsAppAberto] = useState(false);
@@ -123,17 +241,11 @@ export default function FotogramaPage() {
     });
   }, [escolaConfig.modelos_whatsapp]);
 
-  // Turmas acessíveis
-  const turmasDisponiveis = useMemo(() => turmas, [turmas]);
-
-  const turmaAtual = useMemo(() => {
-    return turmas.find(t => t.id === turmaSelecionadaId) || turmas[0];
-  }, [turmas, turmaSelecionadaId]);
-
   // Alunos da Turma Selecionada
   const alunosDaTurma = useMemo(() => {
+    if (!turmaAtual) return [];
     return estudantes
-      .filter((e) => e.turma_id === (turmaAtual?.id || ''))
+      .filter((e) => e.turma_id === turmaAtual.id)
       .filter((e) => e.nome_completo.toLowerCase().includes(busca.toLowerCase()));
   }, [estudantes, turmaAtual, busca]);
 
@@ -236,7 +348,11 @@ export default function FotogramaPage() {
       {/* Cabeçalho de Impressão Oficial para PDF */}
       <PrintHeader
         documentTitle="FOTOGRAMA DA TURMA"
-        documentSubtitle={`Turma: ${turmaAtual?.nome || 'Turma'} (${(turmaAtual?.turno || 'Manhã').toUpperCase()}) • Ano Letivo: ${escolaConfig.ano_letivo_ativo || 2026}`}
+        documentSubtitle={
+          turmaAtual
+            ? `Turma: ${turmaAtual.nome} (${(turmaAtual.turno || 'Manhã').toUpperCase()}) • Ano Letivo: ${escolaConfig.ano_letivo_ativo || 2026}`
+            : `Ano Letivo: ${escolaConfig.ano_letivo_ativo || 2026}`
+        }
       />
 
       {/* Topo do Fotograma (Oculto na impressão) */}
@@ -255,7 +371,8 @@ export default function FotogramaPage() {
           {/* Botão de Geração de PDF / Impressão */}
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 transition-all dark:bg-school-blue-600"
+            disabled={!turmaAtual}
+            className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 transition-all dark:bg-school-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Gerar PDF ou Imprimir Fotograma da Turma"
           >
             <Printer className="h-4 w-4" />
@@ -268,15 +385,20 @@ export default function FotogramaPage() {
               Turma:
             </label>
             <select
-              value={turmaAtual?.id}
+              value={turmaAtual?.id || ''}
               onChange={(e) => setTurmaSelecionadaId(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 shadow-sm focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-school-dark-surface dark:text-white"
+              disabled={turmasDisponiveis.length === 0}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 shadow-sm focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-school-dark-surface dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {turmasDisponiveis.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nome} ({t.turno.toUpperCase()})
-                </option>
-              ))}
+              {turmasDisponiveis.length === 0 ? (
+                <option value="">Nenhuma turma associada</option>
+              ) : (
+                turmasDisponiveis.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nome} ({t.turno.toUpperCase()})
+                  </option>
+                ))
+              )}
             </select>
           </div>
         </div>
@@ -316,7 +438,17 @@ export default function FotogramaPage() {
       </div>
 
       {/* Grid de Cards de Fotos (Mural Fotográfico / PDF) */}
-      {alunosDaTurma.length === 0 ? (
+      {turmasDisponiveis.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-800 dark:bg-school-dark-surface print:hidden">
+          <ImageIcon className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+            Nenhuma turma associada encontrada
+          </h3>
+          <p className="text-xs text-slate-500 max-w-sm mt-1">
+            Seu perfil docente não possui turmas atribuídas no momento. Solicite à coordenação pedagógica ou direção a atribuição de suas turmas.
+          </p>
+        </div>
+      ) : alunosDaTurma.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-800 dark:bg-school-dark-surface print:hidden">
           <ImageIcon className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
           <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">

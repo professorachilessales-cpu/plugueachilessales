@@ -123,6 +123,9 @@ export default function CalendarioPage() {
 
     // Mapeamento retrocompatível para categorias antigas
     const legacyMap: Record<string, { nome: string; cor_hex: string; visivel_docentes: boolean; sistema_protegida: boolean }> = {
+      aniversarios: { nome: 'Aniversários', cor_hex: '#4169E1', visivel_docentes: false, sistema_protegida: true },
+      aniversario: { nome: 'Aniversários', cor_hex: '#4169E1', visivel_docentes: false, sistema_protegida: true },
+      'cat-aniversarios': { nome: 'Aniversários', cor_hex: '#4169E1', visivel_docentes: false, sistema_protegida: true },
       prova: { nome: 'Avaliação / Provas', cor_hex: '#EF4444', visivel_docentes: true, sistema_protegida: false },
       reuniao: { nome: 'Reuniões Pedagógicas / Pais', cor_hex: '#EAB308', visivel_docentes: true, sistema_protegida: false },
       feriado: { nome: 'Feriados & Recessos', cor_hex: '#8B5CF6', visivel_docentes: true, sistema_protegida: false },
@@ -1325,13 +1328,16 @@ export default function CalendarioPage() {
                     Visível no perfil dos docentes
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Se desmarcado, esta categoria e os eventos a ela vinculados serão de uso restrito da gestão e coordenação.
+                    {editandoCatId && (categoriasEvento.find(c => c.id === editandoCatId)?.sistema_protegida || editandoCatId === 'cat-aniversarios')
+                      ? 'A categoria Aniversários é de uso exclusivo da gestão e não é visível para o perfil docente.'
+                      : 'Se desmarcado, esta categoria e os eventos a ela vinculados serão de uso restrito da gestão e coordenação.'}
                   </p>
                 </div>
-                <label className="relative inline-flex cursor-pointer items-center">
+                <label className={`relative inline-flex items-center ${editandoCatId && (categoriasEvento.find(c => c.id === editandoCatId)?.sistema_protegida || editandoCatId === 'cat-aniversarios') ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                   <input
                     type="checkbox"
-                    checked={novaCatVisivel}
+                    disabled={Boolean(editandoCatId && (categoriasEvento.find(c => c.id === editandoCatId)?.sistema_protegida || editandoCatId === 'cat-aniversarios'))}
+                    checked={editandoCatId && (categoriasEvento.find(c => c.id === editandoCatId)?.sistema_protegida || editandoCatId === 'cat-aniversarios') ? false : novaCatVisivel}
                     onChange={(e) => setNovaCatVisivel(e.target.checked)}
                     className="peer sr-only"
                   />

@@ -13292,7 +13292,7 @@ export const initialCategoriasEvento: CalendarioCategoria[] = [
     id: 'cat-aniversarios',
     nome: 'Aniversários',
     cor_hex: '#4169E1', // Azul Royal (Obrigatório e Protegida)
-    visivel_docentes: true,
+    visivel_docentes: false, // Não visível aos professores (Exclusivo Gestão)
     sistema_protegida: true,
     created_at: '2026-01-01T00:00:00Z',
   },

@@ -434,11 +434,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const savedCategorias = localStorage.getItem('school_os_calendario_categorias');
       if (savedCategorias) {
         try {
-          const parsed: CalendarioCategoria[] = JSON.parse(savedCategorias);
+          let parsed: CalendarioCategoria[] = JSON.parse(savedCategorias);
           const hasAniv = parsed.some((c) => c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários');
           if (!hasAniv) {
             parsed.unshift(initialCategoriasEvento[0]);
           }
+          parsed = parsed.map(c => {
+            if (c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários') {
+              return { ...c, visivel_docentes: false, cor_hex: '#4169E1', sistema_protegida: true };
+            }
+            return c;
+          });
           setCategoriasEvento(parsed);
         } catch {
           setCategoriasEvento(initialCategoriasEvento);
@@ -621,11 +627,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('school_os_eventos', JSON.stringify(tEventos));
           }
           if (json.data.calendarioCategorias && json.data.calendarioCategorias.length > 0) {
-            const parsedCats: CalendarioCategoria[] = json.data.calendarioCategorias;
+            let parsedCats: CalendarioCategoria[] = json.data.calendarioCategorias;
             const hasAniv = parsedCats.some((c) => c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários');
             if (!hasAniv) {
               parsedCats.unshift(initialCategoriasEvento[0]);
             }
+            parsedCats = parsedCats.map(c => {
+              if (c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários') {
+                return { ...c, visivel_docentes: false, cor_hex: '#4169E1', sistema_protegida: true };
+              }
+              return c;
+            });
             setCategoriasEvento(parsedCats);
             localStorage.setItem('school_os_calendario_categorias', JSON.stringify(parsedCats));
           }
@@ -1561,6 +1573,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'O nome de uma categoria protegida do sistema não pode ser alterado.' };
     }
 
+    const isAniversarios = cat.id === 'cat-aniversarios' || cat.nome.toLowerCase() === 'aniversários';
+    if (isAniversarios && atualizacao.visivel_docentes === true) {
+      return { success: false, error: 'A categoria Aniversários é de uso restrito da gestão e não pode ser visível aos docentes.' };
+    }
+
     if (atualizacao.nome && atualizacao.nome.trim().toLowerCase() !== cat.nome.trim().toLowerCase()) {
       const existeOutra = categoriasEvento.some(
         c => c.id !== id && c.nome.trim().toLowerCase() === atualizacao.nome!.trim().toLowerCase()
@@ -1575,7 +1592,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...atualizacao,
       nome: atualizacao.nome ? atualizacao.nome.trim() : cat.nome,
       cor_hex: atualizacao.cor_hex ? atualizacao.cor_hex.trim() : cat.cor_hex,
-      visivel_docentes: atualizacao.visivel_docentes !== undefined ? atualizacao.visivel_docentes : cat.visivel_docentes,
+      visivel_docentes: isAniversarios ? false : (atualizacao.visivel_docentes !== undefined ? atualizacao.visivel_docentes : cat.visivel_docentes),
     };
 
     setCategoriasEvento(prev => prev.map(c => c.id === id ? catAtualizada : c));

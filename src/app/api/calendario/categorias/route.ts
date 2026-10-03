@@ -41,6 +41,14 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // Regra de Visibilidade: Aniversários não é visível aos docentes
+      cats = cats.map(c => {
+        if (c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários') {
+          return { ...c, visivel_docentes: false };
+        }
+        return c;
+      });
+
       // Regra de Visibilidade Docente: se perfil for professor, oculta categorias restritas
       if (userRole === 'professor') {
         cats = cats.filter((c) => c.visivel_docentes);
@@ -49,7 +57,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, data: cats });
     }
 
-    let cats = initialCategoriasEvento;
+    let cats = initialCategoriasEvento.map(c => {
+      if (c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários') {
+        return { ...c, visivel_docentes: false };
+      }
+      return c;
+    });
     if (userRole === 'professor') {
       cats = cats.filter((c) => c.visivel_docentes);
     }
@@ -65,7 +78,7 @@ export async function POST(req: NextRequest) {
     const userRole = req.headers.get('x-user-role');
     if (userRole === 'professor') {
       return NextResponse.json(
-        { error: 'Acesso negado: Apenas Administradores podem cadastrar categorias.' },
+        { error: 'Acesso negado: Apenas Administradores podem cadastrar ou editar categorias.' },
         { status: 403 }
       );
     }
@@ -81,7 +94,8 @@ export async function POST(req: NextRequest) {
     }
 
     const catId = id || `cat-${Date.now()}`;
-    const visivel = visivel_docentes !== false ? 1 : 0;
+    const isAniversarios = catId === 'cat-aniversarios' || nome.trim().toLowerCase() === 'aniversários';
+    const visivel = isAniversarios ? 0 : (visivel_docentes !== false ? 1 : 0);
 
     // Regra de Proteção: A categoria Aniversários não pode ter seu nome alterado
     if (catId === 'cat-aniversarios' && nome.trim().toLowerCase() !== 'aniversários') {

@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS calendario_categorias (
 -- Inserção de categorias padrão se não existirem
 INSERT OR IGNORE INTO calendario_categorias (id, nome, cor_hex, visivel_docentes, sistema_protegida)
 VALUES
-    ('cat-aniversarios', 'Aniversários', '#4169E1', 1, 1),
+    ('cat-aniversarios', 'Aniversários', '#4169E1', 0, 1),
     ('cat-provas', 'Avaliação / Provas', '#EF4444', 1, 0),
     ('cat-reunioes', 'Reuniões Pedagógicas / Pais', '#EAB308', 1, 0),
     ('cat-feriados', 'Feriados & Recessos', '#8B5CF6', 1, 0),

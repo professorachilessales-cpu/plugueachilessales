@@ -15,6 +15,15 @@ export const metadata: Metadata = {
   title: 'PLUGUE - Plataforma Unificada de Gestão Educacional',
   description: 'PLUGUE - Plataforma Unificada de Gestão Educacional: Sistema PWA de Gestão Escolar, Fotograma da Turma, Inclusão e Integração Google Drive.',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

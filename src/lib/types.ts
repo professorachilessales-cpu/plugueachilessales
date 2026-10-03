@@ -300,17 +300,27 @@ export interface FaltaProfessor {
   created_at: string;
 }
 
-export type CategoriaEvento = 'prova' | 'reuniao' | 'feriado' | 'cultural';
+export interface CalendarioCategoria {
+  id: string;
+  nome: string;
+  cor_hex: string;
+  visivel_docentes: boolean;
+  sistema_protegida: boolean;
+  created_at?: string;
+}
+
+export type CategoriaEvento = string;
 
 export interface EventoEscolar {
   id: string;
   titulo: string;
-  descricao: string;
-  data_inicio: string;
-  data_fim: string;
+  descricao?: string;
+  data_inicio: string; // YYYY-MM-DD ou ISO
+  data_fim: string;    // YYYY-MM-DD ou ISO
   categoria: CategoriaEvento;
   cor: string;
   publico_alvo?: string;
+  all_day?: boolean;
   created_at: string;
 }
 

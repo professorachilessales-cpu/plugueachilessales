@@ -201,14 +201,34 @@ CREATE TABLE IF NOT EXISTS faltas_professores (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- 8. TABELA DE CALENDÁRIO E EVENTOS ESCOLARES
+-- 8. TABELA DE CATEGORIAS DO CALENDÁRIO
+CREATE TABLE IF NOT EXISTS calendario_categorias (
+    id TEXT PRIMARY KEY,
+    nome TEXT NOT NULL UNIQUE,
+    cor_hex TEXT NOT NULL,
+    visivel_docentes INTEGER NOT NULL DEFAULT 1,
+    sistema_protegida INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserção de categorias padrão se não existirem
+INSERT OR IGNORE INTO calendario_categorias (id, nome, cor_hex, visivel_docentes, sistema_protegida)
+VALUES
+    ('cat-aniversarios', 'Aniversários', '#4169E1', 1, 1),
+    ('cat-provas', 'Avaliação / Provas', '#EF4444', 1, 0),
+    ('cat-reunioes', 'Reuniões Pedagógicas / Pais', '#EAB308', 1, 0),
+    ('cat-feriados', 'Feriados & Recessos', '#8B5CF6', 1, 0),
+    ('cat-culturais', 'Culturais & Feiras', '#10B981', 1, 0),
+    ('cat-gestao', 'Planejamento Interno / Gestão', '#64748B', 0, 0);
+
+-- 8.1 TABELA DE CALENDÁRIO E EVENTOS ESCOLARES
 CREATE TABLE IF NOT EXISTS eventos (
     id TEXT PRIMARY KEY,
     titulo TEXT NOT NULL,
     descricao TEXT,
     data_inicio TEXT NOT NULL,
     data_fim TEXT NOT NULL,
-    categoria TEXT NOT NULL CHECK (categoria IN ('prova', 'reuniao', 'feriado', 'cultural')),
+    categoria TEXT NOT NULL,
     cor TEXT DEFAULT '#2563EB',
     publico_alvo TEXT DEFAULT 'Todos',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP

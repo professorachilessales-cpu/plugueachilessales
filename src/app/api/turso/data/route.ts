@@ -174,6 +174,19 @@ export async function GET() {
       console.error('Erro ao ler eventos do Turso:', e);
     }
 
+    // 8.1 Categorias do Calendário
+    let calendarioCategorias: any[] = [];
+    try {
+      const catRes = await executeTursoQuery('SELECT * FROM calendario_categorias ORDER BY created_at ASC');
+      calendarioCategorias = catRes.rows.map((row: any) => ({
+        ...row,
+        visivel_docentes: Boolean(row.visivel_docentes === 1 || row.visivel_docentes === true),
+        sistema_protegida: Boolean(row.sistema_protegida === 1 || row.sistema_protegida === true),
+      }));
+    } catch (e) {
+      console.error('Erro ao ler calendario_categorias do Turso:', e);
+    }
+
     // 9. Activity Logs
     let activityLogs: any[] = [];
     try {
@@ -407,6 +420,7 @@ export async function GET() {
         estudantes,
         faltasProfessores,
         eventos,
+        calendarioCategorias,
         activityLogs,
         solicitacoesRelatorio,
         relatoriosProfessores,

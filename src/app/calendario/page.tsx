@@ -20,94 +20,184 @@ import {
   GraduationCap,
   Users2,
   CalendarDays,
-  Info
+  Info,
+  Tag,
+  Palette,
+  Eye,
+  EyeOff,
+  Lock,
+  Check,
+  AlertCircle
 } from 'lucide-react';
-import { CategoriaEvento, EventoEscolar } from '@/lib/types';
+import { EventoEscolar, CalendarioCategoria } from '@/lib/types';
 import { PrintHeader } from '@/components/layout/PrintHeader';
 
-const CATEGORIAS_CONFIG: Record<
-  CategoriaEvento,
-  { label: string; bgLight: string; bgDark: string; border: string; text: string; icon: React.ElementType; defaultColor: string }
-> = {
-  prova: {
-    label: 'Avaliações & Provas',
-    bgLight: 'bg-blue-50 text-blue-700',
-    bgDark: 'dark:bg-blue-950/50 dark:text-blue-300',
-    border: 'border-blue-200 dark:border-blue-800/60',
-    text: 'text-blue-600 dark:text-blue-400',
-    icon: GraduationCap,
-    defaultColor: '#2563EB',
-  },
-  reuniao: {
-    label: 'Reuniões Pedagógicas / Pais',
-    bgLight: 'bg-amber-50 text-amber-800',
-    bgDark: 'dark:bg-amber-950/50 dark:text-amber-300',
-    border: 'border-amber-200 dark:border-amber-800/60',
-    text: 'text-amber-600 dark:text-amber-400',
-    icon: Users2,
-    defaultColor: '#EAB308',
-  },
-  feriado: {
-    label: 'Feriados & Recessos',
-    bgLight: 'bg-rose-50 text-rose-700',
-    bgDark: 'dark:bg-rose-950/50 dark:text-rose-300',
-    border: 'border-rose-200 dark:border-rose-800/60',
-    text: 'text-rose-600 dark:text-rose-400',
-    icon: Coffee,
-    defaultColor: '#EF4444',
-  },
-  cultural: {
-    label: 'Culturais & Feiras',
-    bgLight: 'bg-emerald-50 text-emerald-700',
-    bgDark: 'dark:bg-emerald-950/50 dark:text-emerald-300',
-    border: 'border-emerald-200 dark:border-emerald-800/60',
-    text: 'text-emerald-600 dark:text-emerald-400',
-    icon: Sparkles,
-    defaultColor: '#10B981',
-  },
-};
+// Paleta de cores rápidas para seleção
+const SWATCHES_PRESET = [
+  { cor: '#4169E1', nome: 'Azul Royal' },
+  { cor: '#EF4444', nome: 'Vermelho' },
+  { cor: '#EAB308', nome: 'Âmbar Dourado' },
+  { cor: '#10B981', nome: 'Verde Esmeralda' },
+  { cor: '#8B5CF6', nome: 'Roxo Violeta' },
+  { cor: '#0EA5E9', nome: 'Azul Celeste' },
+  { cor: '#EC4899', nome: 'Rosa Choque' },
+  { cor: '#64748B', nome: 'Cinza Ardósia' },
+];
+
+// Helper para calcular alto contraste de texto sobre a cor de fundo
+function getContrastColor(hexColor: string): string {
+  if (!hexColor || !hexColor.startsWith('#')) return '#FFFFFF';
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16) || 0;
+  const g = parseInt(hex.substring(2, 4), 16) || 0;
+  const b = parseInt(hex.substring(4, 6), 16) || 0;
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 155 ? '#0F172A' : '#FFFFFF';
+}
+
+// Formatação amigável do intervalo contínuo de datas
+function formatarIntervalo(inicio: string, fim?: string): string {
+  const iniStr = inicio?.includes('T') ? inicio.split('T')[0] : inicio;
+  const fimStr = (fim || inicio)?.includes('T') ? (fim || inicio).split('T')[0] : (fim || inicio);
+  if (!iniStr) return '';
+
+  const [anoI, mesI, diaI] = iniStr.split('-');
+  const dataIniFormatada = `${diaI}/${mesI}/${anoI}`;
+
+  if (!fimStr || iniStr === fimStr) {
+    return `${dataIniFormatada} (Dia Inteiro)`;
+  }
+
+  const [anoF, mesF, diaF] = fimStr.split('-');
+  const dataFimFormatada = `${diaF}/${mesF}/${anoF}`;
+
+  const dt1 = new Date(Number(anoI), Number(mesI) - 1, Number(diaI));
+  const dt2 = new Date(Number(anoF), Number(mesF) - 1, Number(diaF));
+  const diffTime = dt2.getTime() - dt1.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+  return `${dataIniFormatada} a ${dataFimFormatada} (${diffDays} dias)`;
+}
 
 export default function CalendarioPage() {
-  const { eventos, addEvento, deleteEvento, role } = useApp();
+  const {
+    eventos,
+    addEvento,
+    deleteEvento,
+    role,
+    categoriasEvento,
+    addCategoriaEvento,
+    deleteCategoriaEvento,
+    escolaConfig
+  } = useApp();
 
   const [visualizacao, setVisualizacao] = useState<'grade' | 'lista'>('grade');
-  const [categoriaFiltro, setCategoriaFiltro] = useState<CategoriaEvento | 'todas'>('todas');
-  // Exibe o mês atual ao abrir a tela
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>('todas');
+
+  // Abre no mês atual
   const [dataAtual, setDataAtual] = useState(() => {
     const agora = new Date();
     return new Date(agora.getFullYear(), agora.getMonth(), 1);
   });
+
   const [eventoSelecionado, setEventoSelecionado] = useState<EventoEscolar | null>(null);
   const [modalNovoEventoAberto, setModalNovoEventoAberto] = useState(false);
+  const [modalCategoriasAberto, setModalCategoriasAberto] = useState(false);
 
-  // Helper para estado inicial do formulário de novo evento
+  // Estados do formulário de criação de categoria rápida
+  const [novaCatNome, setNovaCatNome] = useState('');
+  const [novaCatCor, setNovaCatCor] = useState('#4169E1');
+  const [novaCatVisivel, setNovaCatVisivel] = useState(true);
+  const [erroCat, setErroCat] = useState<string | null>(null);
+  const [sucessoCat, setSucessoCat] = useState<string | null>(null);
+
+  // Helper para resolver informações completas da categoria (com retrocompatibilidade legada)
+  const getCategoriaInfo = (catIdOrName: string): CalendarioCategoria => {
+    const found = categoriasEvento.find(
+      (c) => c.id === catIdOrName || c.nome.toLowerCase() === (catIdOrName || '').toLowerCase()
+    );
+    if (found) return found;
+
+    // Mapeamento retrocompatível para categorias antigas
+    const legacyMap: Record<string, { nome: string; cor_hex: string; visivel_docentes: boolean; sistema_protegida: boolean }> = {
+      prova: { nome: 'Avaliação / Provas', cor_hex: '#EF4444', visivel_docentes: true, sistema_protegida: false },
+      reuniao: { nome: 'Reuniões Pedagógicas / Pais', cor_hex: '#EAB308', visivel_docentes: true, sistema_protegida: false },
+      feriado: { nome: 'Feriados & Recessos', cor_hex: '#8B5CF6', visivel_docentes: true, sistema_protegida: false },
+      cultural: { nome: 'Culturais & Feiras', cor_hex: '#10B981', visivel_docentes: true, sistema_protegida: false },
+    };
+
+    if (legacyMap[catIdOrName]) {
+      return { id: catIdOrName, ...legacyMap[catIdOrName] };
+    }
+
+    return {
+      id: catIdOrName || 'cat-geral',
+      nome: catIdOrName || 'Geral',
+      cor_hex: '#2563EB',
+      visivel_docentes: true,
+      sistema_protegida: false,
+    };
+  };
+
+  // Categorias disponíveis respeitando a visibilidade docente
+  const categoriasDisponiveis = useMemo(() => {
+    if (role === 'admin' || role === 'direcao') {
+      return categoriasEvento;
+    }
+    return categoriasEvento.filter((c) => c.visivel_docentes !== false);
+  }, [categoriasEvento, role]);
+
+  // Categoria padrão inicial para o formulário (Avaliação / Provas em vermelho #EF4444)
+  const categoriaPadrao = useMemo(() => {
+    const catProvas = categoriasEvento.find(
+      (c) => c.nome.toLowerCase().includes('prova') || c.nome.toLowerCase().includes('avaliação')
+    );
+    return catProvas || categoriasEvento[1] || categoriasEvento[0] || {
+      id: 'cat-provas',
+      nome: 'Avaliação / Provas',
+      cor_hex: '#EF4444',
+      visivel_docentes: true,
+      sistema_protegida: false
+    };
+  }, [categoriasEvento]);
+
+  // Helper para estado inicial do formulário simplificado (apenas datas, sem horários)
   const getInitialFormEvento = () => {
     const agora = new Date();
     const anoStr = agora.getFullYear();
     const mesStr = String(agora.getMonth() + 1).padStart(2, '0');
     const diaStr = String(agora.getDate()).padStart(2, '0');
-    const dataBase = `${anoStr}-${mesStr}-${diaStr}`;
+    const hojeStr = `${anoStr}-${mesStr}-${diaStr}`;
+
     return {
       titulo: '',
       descricao: '',
-      data_inicio: `${dataBase}T08:00`,
-      data_fim: `${dataBase}T11:30`,
-      categoria: 'prova' as CategoriaEvento,
-      cor: CATEGORIAS_CONFIG.prova.defaultColor,
-      publico_alvo: 'Toda a Escola',
+      data_inicio: hojeStr,
+      data_fim: hojeStr,
+      categoria: categoriaPadrao.id,
+      cor: categoriaPadrao.cor_hex || '#EF4444',
     };
   };
 
-  // Form de criação de novo evento
   const [formEvento, setFormEvento] = useState(getInitialFormEvento);
 
-  // Filtragem de eventos
-  const eventosFiltrados = useMemo(() => {
+  // Filtragem estrita de eventos:
+  // - Docentes visualizam apenas eventos com visivel_docentes === true
+  // - Administradores visualizam todos
+  const eventosVisiveis = useMemo(() => {
     return eventos.filter((ev) => {
+      const catInfo = getCategoriaInfo(ev.categoria);
+      if (role === 'professor' && catInfo.visivel_docentes === false) {
+        return false;
+      }
       if (categoriaFiltro === 'todas') return true;
-      return ev.categoria === categoriaFiltro;
+      return (
+        ev.categoria === categoriaFiltro ||
+        catInfo.id === categoriaFiltro ||
+        catInfo.nome.toLowerCase() === categoriaFiltro.toLowerCase()
+      );
     });
-  }, [eventos, categoriaFiltro]);
+  }, [eventos, categoriaFiltro, role, categoriasEvento]);
 
   // Cálculos do Calendário Mensal
   const ano = dataAtual.getFullYear();
@@ -122,36 +212,88 @@ export default function CalendarioPage() {
     setDataAtual(new Date(ano, mes + delta, 1));
   };
 
+  // Cadastro de novo evento (Apenas datas, sem horas)
   const handleCadastrarEvento = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formEvento.titulo) return;
+    if (!formEvento.titulo.trim() || !formEvento.data_inicio || !formEvento.data_fim) return;
+
+    // Garante que data_fim >= data_inicio
+    let dtInicio = formEvento.data_inicio;
+    let dtFim = formEvento.data_fim;
+    if (dtFim < dtInicio) {
+      dtFim = dtInicio;
+    }
 
     addEvento({
-      titulo: formEvento.titulo,
-      descricao: formEvento.descricao,
-      data_inicio: new Date(formEvento.data_inicio).toISOString(),
-      data_fim: new Date(formEvento.data_fim).toISOString(),
+      titulo: formEvento.titulo.trim(),
+      descricao: formEvento.descricao.trim(),
+      data_inicio: dtInicio,
+      data_fim: dtFim,
       categoria: formEvento.categoria,
-      cor: formEvento.cor || CATEGORIAS_CONFIG[formEvento.categoria].defaultColor,
-      publico_alvo: formEvento.publico_alvo,
+      cor: formEvento.cor || getCategoriaInfo(formEvento.categoria).cor_hex,
+      all_day: true,
     });
 
     setModalNovoEventoAberto(false);
     setFormEvento(getInitialFormEvento());
   };
 
+  // Cadastro de nova categoria
+  const handleCadastrarCategoria = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErroCat(null);
+    setSucessoCat(null);
+
+    if (!novaCatNome.trim()) {
+      setErroCat('Informe o nome da categoria.');
+      return;
+    }
+
+    const res = await addCategoriaEvento({
+      nome: novaCatNome.trim(),
+      cor_hex: novaCatCor,
+      visivel_docentes: novaCatVisivel,
+      sistema_protegida: false,
+    });
+
+    if (!res.success) {
+      setErroCat(res.error || 'Erro ao criar categoria.');
+    } else {
+      setSucessoCat(`Categoria "${novaCatNome.trim()}" criada com sucesso!`);
+      setNovaCatNome('');
+      setNovaCatCor('#10B981');
+      setNovaCatVisivel(true);
+      setTimeout(() => setSucessoCat(null), 3000);
+    }
+  };
+
+  // Exclusão de categoria com trava para protegidas
+  const handleExcluirCategoria = async (id: string) => {
+    const cat = categoriasEvento.find((c) => c.id === id);
+    if (!cat) return;
+
+    if (cat.sistema_protegida || cat.id === 'cat-aniversarios' || cat.nome.toLowerCase() === 'aniversários') {
+      alert('A categoria Aniversários é fixa e protegida do sistema. Não pode ser excluída.');
+      return;
+    }
+
+    if (confirm(`Deseja realmente excluir a categoria "${cat.nome}"?`)) {
+      const res = await deleteCategoriaEvento(id);
+      if (!res.success) {
+        alert(res.error || 'Erro ao excluir categoria.');
+      }
+    }
+  };
+
   // Estatísticas Rápidas
-  const totalEventos = eventos.length;
-  const totalProvas = eventos.filter((e) => e.categoria === 'prova').length;
-  const totalReunioes = eventos.filter((e) => e.categoria === 'reuniao').length;
-  const totalFeriados = eventos.filter((e) => e.categoria === 'feriado').length;
+  const totalEventosVisiveis = eventosVisiveis.length;
 
   return (
     <div className="space-y-6">
       {/* Cabeçalho de Impressão Timbrado */}
       <PrintHeader
         documentTitle="CALENDÁRIO OFICIAL DE ATIVIDADES E EVENTOS"
-        documentSubtitle="Cronograma Geral do Ano Letivo 2026 - Gestão Pedagógica"
+        documentSubtitle={`Cronograma Geral do Ano Letivo ${escolaConfig.ano_letivo_ativo || ano} - Gestão Pedagógica`}
       />
 
       {/* Header Principal da Página */}
@@ -163,11 +305,11 @@ export default function CalendarioPage() {
             </h1>
             <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
               <CalendarDays className="h-3.5 w-3.5" />
-              Ano Letivo 2026
+              Ano Letivo {escolaConfig.ano_letivo_ativo || 2026}
             </span>
           </div>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            Planejamento pedagógico unificado, avaliações, conselhos de classe, reuniões e recessos letivos.
+            Cronograma pedagógico unificado, períodos avaliativos contínuos, eventos culturais e recessos escolares.
           </p>
         </div>
 
@@ -180,10 +322,24 @@ export default function CalendarioPage() {
             Imprimir
           </button>
 
+          {/* Gestão Dinâmica de Categorias (Exclusivo Administrador) */}
+          {role === 'admin' && (
+            <button
+              onClick={() => setModalCategoriasAberto(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50/80 px-3.5 py-2 text-sm font-semibold text-purple-700 shadow-sm transition hover:bg-purple-100 dark:border-purple-900/50 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
+            >
+              <Palette className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              Gerenciar Categorias
+            </button>
+          )}
+
           {/* Opção exclusiva para Administrador */}
           {role === 'admin' && (
             <button
-              onClick={() => setModalNovoEventoAberto(true)}
+              onClick={() => {
+                setFormEvento(getInitialFormEvento());
+                setModalNovoEventoAberto(true);
+              }}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-600 dark:hover:bg-blue-700"
             >
               <Plus className="h-4 w-4" />
@@ -193,7 +349,7 @@ export default function CalendarioPage() {
         </div>
       </div>
 
-      {/* Métricas e Resumos Rápidos */}
+      {/* Métricas e Resumos Rápidos das Categorias */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4 print:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
           <div className="flex items-center justify-between">
@@ -202,90 +358,113 @@ export default function CalendarioPage() {
               <CalendarIcon className="h-4 w-4" />
             </div>
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{totalEventos}</p>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">No cronograma oficial</span>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{totalEventosVisiveis}</p>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+            {role === 'professor' ? 'No seu perfil docente' : 'No cronograma escolar geral'}
+          </span>
         </div>
 
-        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/20">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Avaliações & Provas</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
-              <GraduationCap className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-blue-900 dark:text-blue-200">{totalProvas}</p>
-          <span className="text-[11px] text-blue-700 dark:text-blue-300">Simulados e Bimestrais</span>
-        </div>
+        {/* 3 Primeiras categorias com cards dinâmicos */}
+        {categoriasDisponiveis.slice(0, 3).map((cat) => {
+          const count = eventosVisiveis.filter((e) => {
+            const cInfo = getCategoriaInfo(e.categoria);
+            return cInfo.id === cat.id || cInfo.nome.toLowerCase() === cat.nome.toLowerCase();
+          }).length;
 
-        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-amber-800 dark:text-amber-300">Reuniões & Pais</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
-              <Users2 className="h-4 w-4" />
+          return (
+            <div
+              key={cat.id}
+              className="rounded-xl border p-4 shadow-sm transition-all"
+              style={{
+                borderColor: `${cat.cor_hex}40`,
+                backgroundColor: `${cat.cor_hex}10`,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span
+                  className="text-xs font-bold truncate max-w-[140px]"
+                  style={{ color: cat.cor_hex }}
+                >
+                  {cat.nome}
+                </span>
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: `${cat.cor_hex}25`, color: cat.cor_hex }}
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold" style={{ color: cat.cor_hex }}>
+                {count}
+              </p>
+              <span className="text-[11px] font-medium opacity-80" style={{ color: cat.cor_hex }}>
+                {cat.visivel_docentes ? 'Visível aos professores' : 'Exclusivo da gestão'}
+              </span>
             </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-amber-900 dark:text-amber-200">{totalReunioes}</p>
-          <span className="text-[11px] text-amber-700 dark:text-amber-300">Conselho e Comunidade</span>
-        </div>
-
-        <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-rose-700 dark:text-rose-300">Recessos & Feriados</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300">
-              <Coffee className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-rose-900 dark:text-rose-200">{totalFeriados}</p>
-          <span className="text-[11px] text-rose-700 dark:text-rose-300">Dias não letivos</span>
-        </div>
+          );
+        })}
       </div>
 
       {/* Barra de Filtros e Alternância de Visualização */}
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface sm:flex-row sm:items-center sm:justify-between print:hidden">
-        {/* Filtro por Categorias */}
+        {/* Filtro Dinâmico por Categorias */}
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => setCategoriaFiltro('todas')}
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               categoriaFiltro === 'todas'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
             }`}
           >
-            Todos ({eventos.length})
+            Todos ({eventosVisiveis.length})
           </button>
 
-          {(Object.keys(CATEGORIAS_CONFIG) as CategoriaEvento[]).map((catKey) => {
-            const config = CATEGORIAS_CONFIG[catKey];
-            const Icon = config.icon;
-            const count = eventos.filter((e) => e.categoria === catKey).length;
-            const isSelected = categoriaFiltro === catKey;
+          {categoriasDisponiveis.map((cat) => {
+            const count = eventosVisiveis.filter((e) => {
+              const cInfo = getCategoriaInfo(e.categoria);
+              return cInfo.id === cat.id || cInfo.nome.toLowerCase() === cat.nome.toLowerCase();
+            }).length;
+            const isSelected = categoriaFiltro === cat.id || categoriaFiltro === cat.nome;
 
             return (
               <button
-                key={catKey}
-                onClick={() => setCategoriaFiltro(catKey)}
+                key={cat.id}
+                onClick={() => setCategoriaFiltro(isSelected ? 'todas' : cat.id)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                   isSelected
-                    ? `${config.bgLight} ${config.bgDark} ring-2 ring-blue-500 font-semibold`
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    ? 'ring-2 ring-blue-500 font-bold shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                 }`}
+                style={
+                  isSelected
+                    ? {
+                        backgroundColor: `${cat.cor_hex}20`,
+                        color: cat.cor_hex,
+                        borderColor: cat.cor_hex,
+                      }
+                    : undefined
+                }
               >
-                <Icon className="h-3.5 w-3.5" />
-                {config.label.split(' ')[0]} ({count})
+                <span
+                  className="h-2.5 w-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: cat.cor_hex }}
+                />
+                <span>{cat.nome}</span>
+                <span className="opacity-70 text-[10px]">({count})</span>
               </button>
             );
           })}
         </div>
 
-        {/* Alternador Grade x Lista & Navegação de Mês */}
+        {/* Alternador Grade x Lista */}
         <div className="flex items-center justify-between gap-3 sm:justify-end">
           <div className="flex items-center rounded-lg border border-slate-200 p-1 dark:border-school-dark-border bg-slate-50 dark:bg-slate-800/60">
             <button
               onClick={() => setVisualizacao('grade')}
               className={`rounded px-2.5 py-1 text-xs font-medium transition ${
                 visualizacao === 'grade'
-                  ? 'bg-white text-blue-600 shadow-sm dark:bg-school-dark-surface dark:text-blue-400'
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-school-dark-surface dark:text-blue-400 font-bold'
                   : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
@@ -295,7 +474,7 @@ export default function CalendarioPage() {
               onClick={() => setVisualizacao('lista')}
               className={`rounded px-2.5 py-1 text-xs font-medium transition ${
                 visualizacao === 'lista'
-                  ? 'bg-white text-blue-600 shadow-sm dark:bg-school-dark-surface dark:text-blue-400'
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-school-dark-surface dark:text-blue-400 font-bold'
                   : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
@@ -305,7 +484,7 @@ export default function CalendarioPage() {
         </div>
       </div>
 
-      {/* Visualização: GRADE MENSAL */}
+      {/* Visualização: GRADE MENSAL (Multi-day Span Perfeito) */}
       {visualizacao === 'grade' && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
           {/* Navegador de Mês */}
@@ -315,14 +494,14 @@ export default function CalendarioPage() {
                 {nomeMes}
               </h2>
               <span className="hidden sm:inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                {eventosFiltrados.length} evento(s) listados
+                {eventosVisiveis.length} evento(s) no cronograma
               </span>
             </div>
 
             <div className="flex items-center gap-1">
               <button
                 onClick={() => mudarMes(-1)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition"
                 title="Mês Anterior"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -332,13 +511,13 @@ export default function CalendarioPage() {
                   const agora = new Date();
                   setDataAtual(new Date(agora.getFullYear(), agora.getMonth(), 1));
                 }}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition"
               >
                 Hoje / Mês Atual
               </button>
               <button
                 onClick={() => mudarMes(1)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition"
                 title="Próximo Mês"
               >
                 <ChevronRight className="h-5 w-5" />
@@ -347,14 +526,14 @@ export default function CalendarioPage() {
           </div>
 
           {/* Cabeçalho dos Dias da Semana */}
-          <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">
-            <div>Dom</div>
+          <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-center text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <div className="text-rose-500">Dom</div>
             <div>Seg</div>
             <div>Ter</div>
             <div>Qua</div>
             <div>Qui</div>
             <div>Sex</div>
-            <div>Sáb</div>
+            <div className="text-slate-400">Sáb</div>
           </div>
 
           {/* Células de Dias do Mês */}
@@ -363,7 +542,7 @@ export default function CalendarioPage() {
             {Array.from({ length: primeiroDiaSemana }).map((_, i) => (
               <div
                 key={`empty-${i}`}
-                className="min-h-[85px] sm:min-h-[110px] rounded-lg border border-dashed border-slate-100 bg-slate-50/40 p-1.5 opacity-40 dark:border-slate-800 dark:bg-slate-900/30"
+                className="min-h-[90px] sm:min-h-[115px] rounded-lg border border-dashed border-slate-100 bg-slate-50/40 p-1.5 opacity-40 dark:border-slate-800 dark:bg-slate-900/30"
               />
             ))}
 
@@ -372,24 +551,33 @@ export default function CalendarioPage() {
               const diaNum = i + 1;
               const dataString = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(diaNum).padStart(2, '0')}`;
 
-              // Eventos que ocorrem neste dia
-              const eventosDoDia = eventosFiltrados.filter((ev) => {
-                const dataInicioEv = ev.data_inicio.split('T')[0];
-                return dataInicioEv === dataString;
+              // Eventos que cobrem este dia: data_inicio <= dia_calendario <= data_fim
+              const eventosDoDia = eventosVisiveis.filter((ev) => {
+                const inicioStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
+                const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T')
+                  ? (ev.data_fim || ev.data_inicio).split('T')[0]
+                  : (ev.data_fim || ev.data_inicio);
+
+                return dataString >= inicioStr && dataString <= fimStr;
               });
 
-              const isFimDeSemana = (primeiroDiaSemana + i) % 7 === 0 || (primeiroDiaSemana + i) % 7 === 6;
+              const diaSemana = (primeiroDiaSemana + i) % 7; // 0 = Domingo, 6 = Sábado
+              const isFimDeSemana = diaSemana === 0 || diaSemana === 6;
+
               const hoje = new Date();
-              const isHoje = hoje.getFullYear() === ano && hoje.getMonth() === mes && hoje.getDate() === diaNum;
+              const isHoje =
+                hoje.getFullYear() === ano &&
+                hoje.getMonth() === mes &&
+                hoje.getDate() === diaNum;
 
               return (
                 <div
                   key={`day-${diaNum}`}
-                  className={`min-h-[85px] sm:min-h-[110px] rounded-xl border p-1.5 transition-all flex flex-col justify-between ${
+                  className={`min-h-[90px] sm:min-h-[115px] rounded-xl border p-1.5 transition-all flex flex-col justify-between overflow-x-clip ${
                     isHoje
-                      ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/30 dark:border-blue-500 dark:bg-blue-950/20'
+                      ? 'border-blue-500 bg-blue-50/30 ring-2 ring-blue-500/20 dark:border-blue-500 dark:bg-blue-950/20'
                       : eventosDoDia.length > 0
-                      ? 'border-blue-200 bg-blue-50/20 dark:border-blue-900/40 dark:bg-blue-950/10'
+                      ? 'border-slate-200 bg-white hover:border-slate-300 dark:border-school-dark-border dark:bg-school-dark-surface'
                       : isFimDeSemana
                       ? 'border-slate-100 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/20'
                       : 'border-slate-200 bg-white hover:border-slate-300 dark:border-school-dark-border dark:bg-school-dark-surface'
@@ -400,8 +588,8 @@ export default function CalendarioPage() {
                       className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
                         isHoje
                           ? 'bg-blue-600 text-white font-bold ring-2 ring-blue-300 dark:ring-blue-700'
-                          : eventosDoDia.length > 0
-                          ? 'bg-blue-600 text-white'
+                          : diaSemana === 0
+                          ? 'text-rose-600 font-bold'
                           : 'text-slate-700 dark:text-slate-300'
                       }`}
                       title={isHoje ? 'Hoje' : undefined}
@@ -410,29 +598,72 @@ export default function CalendarioPage() {
                     </span>
 
                     {eventosDoDia.length > 0 && (
-                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
                         {eventosDoDia.length} ev
                       </span>
                     )}
                   </div>
 
-                  {/* Lista de Pílulas de Eventos no Dia */}
-                  <div className="flex-1 space-y-1 overflow-y-auto max-h-[65px] pr-0.5">
+                  {/* Lista de Barras Contínuas dos Eventos no Dia */}
+                  <div className="flex-1 space-y-1 overflow-y-auto max-h-[75px] py-0.5">
                     {eventosDoDia.map((ev) => {
-                      const catConfig = CATEGORIAS_CONFIG[ev.categoria];
+                      const inicioStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
+                      const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T')
+                        ? (ev.data_fim || ev.data_inicio).split('T')[0]
+                        : (ev.data_fim || ev.data_inicio);
+
+                      const isMultiDay = inicioStr !== fimStr;
+                      const isFirstDay = dataString === inicioStr;
+                      const isLastDay = dataString === fimStr;
+                      const isStartOfRow = diaSemana === 0;
+                      const isEndOfRow = diaSemana === 6;
+
+                      const catInfo = getCategoriaInfo(ev.categoria);
+                      const corFinal = ev.cor || catInfo.cor_hex || '#2563EB';
+                      const textColor = getContrastColor(corFinal);
+
+                      // Lógica de conectividade contínua do bloco cruzando células e semanas
+                      let roundedClasses = 'rounded-md';
+                      let marginClasses = 'mx-0.5';
+
+                      if (isMultiDay) {
+                        if ((isFirstDay || isStartOfRow) && (isLastDay || isEndOfRow)) {
+                          roundedClasses = 'rounded-md';
+                          marginClasses = 'mx-0.5';
+                        } else if (isFirstDay || isStartOfRow) {
+                          roundedClasses = 'rounded-l-md rounded-r-none';
+                          marginClasses = 'ml-0.5 -mr-2.5';
+                        } else if (isLastDay || isEndOfRow) {
+                          roundedClasses = 'rounded-r-md rounded-l-none';
+                          marginClasses = '-ml-2.5 mr-0.5';
+                        } else {
+                          roundedClasses = 'rounded-none';
+                          marginClasses = '-mx-2.5';
+                        }
+                      }
+
                       return (
                         <button
-                          key={ev.id}
+                          key={`${ev.id}-${dataString}`}
                           onClick={() => setEventoSelecionado(ev)}
-                          className="w-full text-left truncate rounded px-1.5 py-0.5 text-[11px] font-medium transition hover:opacity-90 block"
+                          className={`h-5 text-left px-1.5 text-[10px] font-bold transition hover:brightness-110 flex items-center shadow-xs z-10 block w-full relative ${roundedClasses} ${marginClasses}`}
                           style={{
-                            backgroundColor: `${ev.cor}18`,
-                            color: ev.cor,
-                            borderLeft: `3px solid ${ev.cor}`,
+                            backgroundColor: corFinal,
+                            color: textColor,
                           }}
-                          title={`${ev.titulo} (${new Date(ev.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})`}
+                          title={`${ev.titulo} (${formatarIntervalo(ev.data_inicio, ev.data_fim)})`}
                         >
-                          {ev.titulo}
+                          {isFirstDay || isStartOfRow || !isMultiDay ? (
+                            <span className="truncate flex items-center gap-1">
+                              {isMultiDay && <Layers className="h-2.5 w-2.5 shrink-0 opacity-80" />}
+                              <span className="truncate">{ev.titulo}</span>
+                            </span>
+                          ) : (
+                            <span className="truncate opacity-90 text-[9px] font-medium flex items-center gap-1">
+                              <span className="h-1 w-1 rounded-full bg-white/70 shrink-0" />
+                              <span className="truncate">{ev.titulo}</span>
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -447,7 +678,7 @@ export default function CalendarioPage() {
       {/* Visualização: LISTA CRONOLÓGICA */}
       {visualizacao === 'lista' && (
         <div className="space-y-3">
-          {eventosFiltrados.length === 0 ? (
+          {eventosVisiveis.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-12 text-center dark:border-school-dark-border dark:bg-school-dark-surface">
               <CalendarIcon className="mx-auto h-12 w-12 text-slate-300 dark:text-slate-600" />
               <h3 className="mt-3 text-base font-semibold text-slate-800 dark:text-slate-200">
@@ -460,25 +691,9 @@ export default function CalendarioPage() {
               </p>
             </div>
           ) : (
-            eventosFiltrados.map((ev) => {
-              const catConfig = CATEGORIAS_CONFIG[ev.categoria];
-              const Icon = catConfig.icon;
-
-              const dataInicioFormat = new Date(ev.data_inicio).toLocaleDateString('pt-BR', {
-                weekday: 'long',
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric',
-              });
-
-              const horaInicio = new Date(ev.data_inicio).toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
-              const horaFim = new Date(ev.data_fim).toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
+            eventosVisiveis.map((ev) => {
+              const catInfo = getCategoriaInfo(ev.categoria);
+              const corFinal = ev.cor || catInfo.cor_hex || '#2563EB';
 
               return (
                 <div
@@ -487,23 +702,31 @@ export default function CalendarioPage() {
                 >
                   <div className="flex items-start gap-4">
                     <div
-                      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl shadow-inner"
-                      style={{ backgroundColor: `${ev.cor}20`, color: ev.cor }}
+                      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl shadow-inner font-bold"
+                      style={{ backgroundColor: `${corFinal}20`, color: corFinal }}
                     >
-                      <Icon className="h-6 w-6" />
+                      <CalendarIcon className="h-6 w-6" />
                     </div>
 
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
-                          className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                          className="rounded-full px-2.5 py-0.5 text-xs font-bold"
                           style={{
-                            backgroundColor: `${ev.cor}18`,
-                            color: ev.cor,
+                            backgroundColor: `${corFinal}18`,
+                            color: corFinal,
+                            border: `1px solid ${corFinal}40`,
                           }}
                         >
-                          {catConfig.label}
+                          {catInfo.nome}
                         </span>
+
+                        {catInfo.visivel_docentes === false && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            <EyeOff className="h-3 w-3" />
+                            Exclusivo Gestão
+                          </span>
+                        )}
 
                         {ev.publico_alvo && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -517,18 +740,16 @@ export default function CalendarioPage() {
                         {ev.titulo}
                       </h3>
 
-                      <p className="text-sm text-slate-600 dark:text-slate-300">
-                        {ev.descricao}
-                      </p>
+                      {ev.descricao && (
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                          {ev.descricao}
+                        </p>
+                      )}
 
                       <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-500 dark:text-slate-400">
-                        <span className="flex items-center gap-1 capitalize font-medium text-slate-700 dark:text-slate-200">
-                          <CalendarIcon className="h-3.5 w-3.5 text-slate-400" />
-                          {dataInicioFormat}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5 text-slate-400" />
-                          {horaInicio} às {horaFim}
+                        <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
+                          <Clock className="h-3.5 w-3.5 text-blue-500" />
+                          {formatarIntervalo(ev.data_inicio, ev.data_fim)}
                         </span>
                       </div>
                     </div>
@@ -552,25 +773,25 @@ export default function CalendarioPage() {
 
       {/* Modal de Detalhes do Evento */}
       {eventoSelecionado && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in zoom-in-95">
             <div className="flex items-start justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div
-                  className="flex h-10 w-10 items-center justify-center rounded-xl"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl"
                   style={{
-                    backgroundColor: `${eventoSelecionado.cor}20`,
-                    color: eventoSelecionado.cor,
+                    backgroundColor: `${eventoSelecionado.cor || getCategoriaInfo(eventoSelecionado.categoria).cor_hex}20`,
+                    color: eventoSelecionado.cor || getCategoriaInfo(eventoSelecionado.categoria).cor_hex,
                   }}
                 >
-                  <CalendarIcon className="h-5 w-5" />
+                  <CalendarIcon className="h-6 w-6" />
                 </div>
                 <div>
                   <span
                     className="text-xs font-bold uppercase tracking-wider"
-                    style={{ color: eventoSelecionado.cor }}
+                    style={{ color: eventoSelecionado.cor || getCategoriaInfo(eventoSelecionado.categoria).cor_hex }}
                   >
-                    {CATEGORIAS_CONFIG[eventoSelecionado.categoria].label}
+                    {getCategoriaInfo(eventoSelecionado.categoria).nome}
                   </span>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     {eventoSelecionado.titulo}
@@ -587,31 +808,27 @@ export default function CalendarioPage() {
             </div>
 
             <div className="mt-4 space-y-4">
-              <div>
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Descrição</span>
-                <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
-                  {eventoSelecionado.descricao || 'Sem descrição cadastrada.'}
+              <div className="rounded-xl bg-slate-50 p-3.5 dark:bg-slate-800/60">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Período Vigente
+                </p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                  {formatarIntervalo(eventoSelecionado.data_inicio, eventoSelecionado.data_fim)}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-3.5 text-xs dark:bg-slate-800/60">
+              {eventoSelecionado.descricao ? (
                 <div>
-                  <span className="font-semibold text-slate-500 dark:text-slate-400">Data e Horário</span>
-                  <p className="mt-1 font-medium text-slate-800 dark:text-slate-200">
-                    {new Date(eventoSelecionado.data_inicio).toLocaleDateString('pt-BR')}
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    Descrição & Observações
                   </p>
-                  <p className="text-slate-500 dark:text-slate-400">
-                    {new Date(eventoSelecionado.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} às {new Date(eventoSelecionado.data_fim).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line">
+                    {eventoSelecionado.descricao}
                   </p>
                 </div>
-
-                <div>
-                  <span className="font-semibold text-slate-500 dark:text-slate-400">Público-Alvo</span>
-                  <p className="mt-1 font-medium text-slate-800 dark:text-slate-200">
-                    {eventoSelecionado.publico_alvo || 'Toda a Instituição'}
-                  </p>
-                </div>
-              </div>
+              ) : (
+                <p className="text-xs italic text-slate-400">Nenhuma observação informada.</p>
+              )}
             </div>
 
             <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
@@ -621,7 +838,7 @@ export default function CalendarioPage() {
                     deleteEvento(eventoSelecionado.id);
                     setEventoSelecionado(null);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
                 >
                   <Trash2 className="h-4 w-4" />
                   Excluir Evento
@@ -641,10 +858,10 @@ export default function CalendarioPage() {
         </div>
       )}
 
-      {/* Modal de Criação de Novo Evento (Exclusivo Administrador) */}
+      {/* Modal de Criação de Novo Evento (Apenas Datas, Sem Horários - Exclusivo Administrador) */}
       {modalNovoEventoAberto && role === 'admin' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
@@ -663,79 +880,52 @@ export default function CalendarioPage() {
             </div>
 
             <form onSubmit={handleCadastrarEvento} className="mt-4 space-y-4">
+              {/* Título */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Título do Evento *
+                  Título / Nome do Evento *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Simulado Geral ENEM - 2º Dia"
+                  placeholder="Ex: Simulado Geral ENEM - 1º Dia"
                   value={formEvento.titulo}
                   onChange={(e) => setFormEvento({ ...formEvento, titulo: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-school-dark-border dark:bg-slate-800 dark:text-white"
                 />
               </div>
 
+              {/* Datas: Início e Término (YYYY-MM-DD sem horas) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Categoria *
-                  </label>
-                  <select
-                    value={formEvento.categoria}
-                    onChange={(e) => {
-                      const cat = e.target.value as CategoriaEvento;
-                      setFormEvento({
-                        ...formEvento,
-                        categoria: cat,
-                        cor: CATEGORIAS_CONFIG[cat].defaultColor,
-                      });
-                    }}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-school-dark-border dark:bg-slate-800 dark:text-white"
-                  >
-                    <option value="prova">Avaliação / Prova</option>
-                    <option value="reuniao">Reunião Pedagógica / Pais</option>
-                    <option value="feriado">Feriado / Recesso</option>
-                    <option value="cultural">Evento Cultural / Feira</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Público-Alvo
+                    Data de Início *
                   </label>
                   <input
-                    type="text"
-                    placeholder="Ex: 3º Ano Médio, Pais"
-                    value={formEvento.publico_alvo}
-                    onChange={(e) => setFormEvento({ ...formEvento, publico_alvo: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-school-dark-border dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Início *
-                  </label>
-                  <input
-                    type="datetime-local"
+                    type="date"
                     required
                     value={formEvento.data_inicio}
-                    onChange={(e) => setFormEvento({ ...formEvento, data_inicio: e.target.value })}
+                    onChange={(e) => {
+                      const newIni = e.target.value;
+                      setFormEvento((prev) => ({
+                        ...prev,
+                        data_inicio: newIni,
+                        // Se o término ficou menor, atualiza automaticamente
+                        data_fim: prev.data_fim < newIni ? newIni : prev.data_fim,
+                      }));
+                    }}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-school-dark-border dark:bg-slate-800 dark:text-white"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Término *
+                    Data de Término *
                   </label>
                   <input
-                    type="datetime-local"
+                    type="date"
                     required
+                    min={formEvento.data_inicio}
                     value={formEvento.data_fim}
                     onChange={(e) => setFormEvento({ ...formEvento, data_fim: e.target.value })}
                     className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-school-dark-border dark:bg-slate-800 dark:text-white"
@@ -743,13 +933,90 @@ export default function CalendarioPage() {
                 </div>
               </div>
 
+              {/* Categoria */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Descrição & Orientações Pedagógicas
+                  Categoria *
+                </label>
+                <select
+                  value={formEvento.categoria}
+                  onChange={(e) => {
+                    const catId = e.target.value;
+                    const catObj = getCategoriaInfo(catId);
+                    setFormEvento({
+                      ...formEvento,
+                      categoria: catId,
+                      cor: catObj.cor_hex || formEvento.cor, // herda cor da categoria
+                    });
+                  }}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-school-dark-border dark:bg-slate-800 dark:text-white"
+                >
+                  {categoriasEvento.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome} {c.visivel_docentes === false ? '(Exclusivo Gestão)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seletor de Cor do Evento (Herdada com Personalização) */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Cor do Evento (Personalizável)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const catObj = getCategoriaInfo(formEvento.categoria);
+                      setFormEvento({ ...formEvento, cor: catObj.cor_hex });
+                    }}
+                    className="text-[11px] text-blue-600 hover:underline dark:text-blue-400 font-medium"
+                  >
+                    Restaurar cor da categoria
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={formEvento.cor}
+                    onChange={(e) => setFormEvento({ ...formEvento, cor: e.target.value })}
+                    className="h-9 w-12 cursor-pointer rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm dark:border-slate-700"
+                    title="Seletor de Cor Personalizada"
+                  />
+                  <span className="font-mono text-xs font-bold uppercase text-slate-600 dark:text-slate-300 w-16">
+                    {formEvento.cor}
+                  </span>
+
+                  {/* Swatches rápidos */}
+                  <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+                    {SWATCHES_PRESET.map((s) => (
+                      <button
+                        key={s.cor}
+                        type="button"
+                        onClick={() => setFormEvento({ ...formEvento, cor: s.cor })}
+                        style={{ backgroundColor: s.cor }}
+                        title={s.nome}
+                        className={`h-6 w-6 rounded-full border-2 transition-transform ${
+                          formEvento.cor.toLowerCase() === s.cor.toLowerCase()
+                            ? 'scale-115 border-slate-900 dark:border-white shadow-sm ring-1 ring-blue-500'
+                            : 'border-transparent hover:scale-110'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Descrição / Observação (Opcional) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Descrição / Observações (Opcional)
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Detalhes sobre salas, material necessário, cronograma da atividade..."
+                  placeholder="Orientações aos professores, salas, material pedagógico..."
                   value={formEvento.descricao}
                   onChange={(e) => setFormEvento({ ...formEvento, descricao: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-school-dark-border dark:bg-slate-800 dark:text-white"
@@ -769,6 +1036,206 @@ export default function CalendarioPage() {
                   className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
                 >
                   Salvar no Cronograma
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Gestão Dinâmica de Categorias & Cores (Exclusivo Administrador) */}
+      {modalCategoriasAberto && role === 'admin' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                  <Palette className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Gestão Dinâmica de Categorias & Cores
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Defina paletas personalizadas e controle o acesso e visibilidade no perfil dos docentes.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalCategoriasAberto(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Alertas */}
+            {erroCat && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-xs text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{erroCat}</span>
+              </div>
+            )}
+            {sucessoCat && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300">
+                <Check className="h-4 w-4 shrink-0" />
+                <span>{sucessoCat}</span>
+              </div>
+            )}
+
+            {/* 1. Categorias Cadastradas */}
+            <div className="mt-5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+                Categorias Atuais ({categoriasEvento.length})
+              </h4>
+
+              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                {categoriasEvento.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-800/40"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-4 w-4 rounded-full border border-white shadow-xs shrink-0"
+                        style={{ backgroundColor: c.cor_hex }}
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">
+                            {c.nome}
+                          </span>
+                          {c.sistema_protegida && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
+                              <Lock className="h-3 w-3" />
+                              Fixa & Protegida
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-mono text-[10px] text-slate-500 uppercase">
+                            {c.cor_hex}
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          {c.visivel_docentes ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <Eye className="h-3 w-3" />
+                              Visível para Docentes
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                              <EyeOff className="h-3 w-3" />
+                              Exclusivo Gestão / Coordenação
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      {c.sistema_protegida || c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários' ? (
+                        <span
+                          title="A categoria Aniversários é protegida do sistema e não pode ser excluída"
+                          className="inline-flex items-center p-2 text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                        >
+                          <Lock className="h-4 w-4" />
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleExcluirCategoria(c.id)}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition"
+                          title="Excluir Categoria"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Formulário de Criação Rápida de Categoria */}
+            <form onSubmit={handleCadastrarCategoria} className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800 space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Criar Nova Categoria
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Nome da Categoria *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Projetos Integradores, Palestras..."
+                    value={novaCatNome}
+                    onChange={(e) => setNovaCatNome(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Cor Padrão *
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={novaCatCor}
+                      onChange={(e) => setNovaCatCor(e.target.value)}
+                      className="h-9 w-12 cursor-pointer rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm dark:border-slate-700"
+                    />
+                    <span className="font-mono text-xs font-bold uppercase text-slate-600 dark:text-slate-300 w-16">
+                      {novaCatCor}
+                    </span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {SWATCHES_PRESET.slice(0, 5).map((s) => (
+                        <button
+                          key={s.cor}
+                          type="button"
+                          onClick={() => setNovaCatCor(s.cor)}
+                          style={{ backgroundColor: s.cor }}
+                          className={`h-5 w-5 rounded-full border ${
+                            novaCatCor.toLowerCase() === s.cor.toLowerCase()
+                              ? 'scale-110 border-slate-900 dark:border-white shadow-xs'
+                              : 'border-transparent'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Switch de Visibilidade no Perfil de Docentes */}
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 dark:border-slate-700 dark:bg-slate-800/30">
+                <div>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">
+                    Visível no perfil dos docentes
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Se desmarcado, esta categoria e os eventos a ela vinculados serão de uso restrito da gestão e coordenação.
+                  </p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={novaCatVisivel}
+                    onChange={(e) => setNovaCatVisivel(e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-300 peer-checked:bg-purple-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] dark:bg-slate-700"></div>
+                </label>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-purple-700 transition"
+                >
+                  Adicionar Categoria
                 </button>
               </div>
             </form>

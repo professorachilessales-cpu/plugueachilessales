@@ -527,6 +527,43 @@ export async function POST(req: NextRequest) {
       }
 
       // ----------------------------------------------------
+      // CATEGORIAS DE EVENTOS
+      // ----------------------------------------------------
+      case 'save_categoria_evento': {
+        const cat = payload;
+        await executeTursoQuery(
+          `INSERT INTO calendario_categorias (
+            id, nome, cor_hex, visivel_docentes, sistema_protegida, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            nome = excluded.nome,
+            cor_hex = excluded.cor_hex,
+            visivel_docentes = excluded.visivel_docentes`,
+          [
+            cat.id,
+            cat.nome,
+            cat.cor_hex,
+            cat.visivel_docentes ? 1 : 0,
+            cat.sistema_protegida ? 1 : 0,
+            cat.created_at || new Date().toISOString()
+          ]
+        );
+        return NextResponse.json({ success: true });
+      }
+
+      case 'delete_categoria_evento': {
+        const { id } = payload;
+        if (id === 'cat-aniversarios' || payload.sistema_protegida) {
+          return NextResponse.json(
+            { error: 'A categoria Aniversários é protegida do sistema e não pode ser excluída.' },
+            { status: 403 }
+          );
+        }
+        await executeTursoQuery('DELETE FROM calendario_categorias WHERE id = ? AND sistema_protegida != 1', [id]);
+        return NextResponse.json({ success: true });
+      }
+
+      // ----------------------------------------------------
       // DOCUMENTOS DE ESTUDANTE
       // ----------------------------------------------------
       case 'save_documento': {

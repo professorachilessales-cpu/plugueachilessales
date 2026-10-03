@@ -36,6 +36,7 @@ export function ProfessorDashboard() {
     turmas, 
     estudantes, 
     eventos,
+    categoriasEvento,
     solicitacoesRelatorio, 
     relatoriosProfessores, 
     reposicoesAulas, 
@@ -171,16 +172,23 @@ export function ProfessorDashboard() {
     }
   };
 
-  // 4. PRÓXIMOS 10 EVENTOS (ordem rigorosamente decrescente: do mais recente para o mais antigo)
+  // 4. PRÓXIMOS 10 EVENTOS (apenas categorias visíveis para docentes)
   const proximos10Eventos = useMemo(() => {
     return [...eventos]
+      .filter((ev) => {
+        const cat = categoriasEvento.find(
+          (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
+        );
+        if (cat && cat.visivel_docentes === false) return false;
+        return true;
+      })
       .sort((a, b) => {
         const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : a.data_inicio + 'T00:00:00').getTime() || 0;
         const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : b.data_inicio + 'T00:00:00').getTime() || 0;
-        return timeB - timeA;
+        return timeA - timeB;
       })
       .slice(0, 10);
-  }, [eventos]);
+  }, [eventos, categoriasEvento]);
 
   // 5. ANIVERSARIANTES DO MÊS (Estudantes das turmas do professor e escola)
   const mesAtual = new Date().getMonth() + 1;
@@ -698,7 +706,8 @@ export function ProfessorDashboard() {
                           {ev.titulo}
                         </h4>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {formatarDataEvento(ev.data_inicio)} • {ev.categoria.toUpperCase()}
+                          {formatarDataEvento(ev.data_inicio)}
+                          {ev.data_fim && ev.data_fim !== ev.data_inicio ? ` a ${formatarDataEvento(ev.data_fim)}` : ''} • {categoriasEvento.find(c => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase())?.nome || ev.categoria}
                         </p>
                       </div>
                     </div>

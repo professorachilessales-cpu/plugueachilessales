@@ -51,6 +51,7 @@ export default function DashboardPage() {
     turmas, 
     faltasProfessores, 
     eventos, 
+    categoriasEvento,
     role, 
     updateEstudante, 
     escolaConfig,
@@ -412,19 +413,31 @@ export default function DashboardPage() {
     return estudantes.filter(e => checarPossuiLaudo(e) || checarAee(e)).length;
   }, [estudantes]);
 
-  // 10 Próximos Eventos Cadastrados
+  // 10 Próximos Eventos Cadastrados (com respeito à visibilidade docente)
   const dezProximosEventos = useMemo(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-    const ordenados = [...eventos].sort(
-      (a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime()
+    const visiveis = eventos.filter((ev) => {
+      if (role === 'professor') {
+        const cat = categoriasEvento.find(
+          (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
+        );
+        if (cat && cat.visivel_docentes === false) return false;
+      }
+      return true;
+    });
+    const ordenados = [...visiveis].sort(
+      (a, b) => new Date(a.data_inicio?.includes('T') ? a.data_inicio : a.data_inicio + 'T00:00:00').getTime() - new Date(b.data_inicio?.includes('T') ? b.data_inicio : b.data_inicio + 'T00:00:00').getTime()
     );
-    const futuros = ordenados.filter(ev => new Date(ev.data_inicio).getTime() >= hoje.getTime());
+    const futuros = ordenados.filter((ev) => {
+      const fim = ev.data_fim || ev.data_inicio;
+      return new Date(fim.includes('T') ? fim : fim + 'T23:59:59').getTime() >= hoje.getTime();
+    });
     if (futuros.length >= 10) {
       return futuros.slice(0, 10);
     }
     return ordenados.slice(0, 10);
-  }, [eventos]);
+  }, [eventos, categoriasEvento, role]);
 
   // Estado do Modal de Envio de WhatsApp para Inclusão
   const [modalWhatsAppInclusaoAberto, setModalWhatsAppInclusaoAberto] = useState(false);
@@ -1879,23 +1892,24 @@ export default function DashboardPage() {
         ) : (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {dezProximosEventos.map((ev) => {
-              const dataEv = new Date(ev.data_inicio);
-              const dataFormatada = dataEv.toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              });
-              const horaFormatada = dataEv.toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
+              const catObj = categoriasEvento.find(
+                (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
+              );
+              const nomeCat = catObj?.nome || ev.categoria;
+              const corCat = ev.cor || catObj?.cor_hex || '#2563EB';
 
-              const badgeCategoria = {
-                prova: { label: 'Prova / Avaliação', bg: 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-800/60' },
-                reuniao: { label: 'Reunião', bg: 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800/60' },
-                feriado: { label: 'Feriado / Recesso', bg: 'bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800/60' },
-                cultural: { label: 'Cultural / Mostra', bg: 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800/60' },
-              }[ev.categoria] || { label: ev.categoria, bg: 'bg-slate-50 text-slate-800 border border-slate-200 dark:bg-slate-800 dark:text-slate-300' };
+              const iniStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
+              const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T') ? (ev.data_fim || ev.data_inicio).split('T')[0] : (ev.data_fim || ev.data_inicio);
+
+              let textoData = '';
+              if (iniStr) {
+                const [anoI, mesI, diaI] = iniStr.split('-');
+                textoData = `${diaI}/${mesI}`;
+                if (fimStr && fimStr !== iniStr) {
+                  const [, mesF, diaF] = fimStr.split('-');
+                  textoData = `${diaI}/${mesI} a ${diaF}/${mesF}`;
+                }
+              }
 
               return (
                 <div
@@ -1904,14 +1918,19 @@ export default function DashboardPage() {
                 >
                   <div>
                     <div className="flex items-center justify-between gap-1.5 mb-2.5">
-                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${badgeCategoria.bg}`}>
-                        {badgeCategoria.label}
+                      <span
+                        className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold truncate max-w-[120px]"
+                        style={{
+                          backgroundColor: `${corCat}18`,
+                          color: corCat,
+                          border: `1px solid ${corCat}40`,
+                        }}
+                      >
+                        {nomeCat}
                       </span>
-                      {horaFormatada !== '00:00' && (
-                        <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                          {horaFormatada}
-                        </span>
-                      )}
+                      <span className="text-[10px] font-mono font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded">
+                        {textoData}
+                      </span>
                     </div>
 
                     <h4 className="font-bold text-xs text-slate-900 dark:text-white line-clamp-2" title={ev.titulo}>

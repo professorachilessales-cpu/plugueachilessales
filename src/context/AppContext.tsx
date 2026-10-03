@@ -27,7 +27,8 @@ import {
   ReposicaoAula,
   StatusReposicaoAula,
   TipoObservacaoAluno,
-  TipoDocumentoDrive
+  TipoDocumentoDrive,
+  CalendarioCategoria
 } from '@/lib/types';
 import { 
   initialEscolaConfig, 
@@ -36,6 +37,7 @@ import {
   initialProfessores, 
   initialFaltasProfessores, 
   initialEventos,
+  initialCategoriasEvento,
   initialActivityLogs,
   initialUsers,
   initialSolicitacoesRelatorio,
@@ -86,6 +88,7 @@ interface AppContextType {
   professores: Professor[];
   faltasProfessores: FaltaProfessor[];
   eventos: EventoEscolar[];
+  categoriasEvento: CalendarioCategoria[];
   activityLogs: ActivityLog[];
 
   // 1. Relatórios Pedagógicos Colaborativos com IA
@@ -160,9 +163,12 @@ interface AppContextType {
   addFaltaProfessor: (falta: Omit<FaltaProfessor, 'id' | 'created_at' | 'homologado'>) => void;
   toggleHomologarFalta: (id: string) => void;
 
-  // Ações Eventos
+  // Ações Eventos & Categorias
   addEvento: (evento: Omit<EventoEscolar, 'id' | 'created_at'>) => void;
   deleteEvento: (id: string) => void;
+  addCategoriaEvento: (cat: Omit<CalendarioCategoria, 'id'>) => Promise<{ success: boolean; error?: string }>;
+  updateCategoriaEvento: (id: string, cat: Partial<CalendarioCategoria>) => Promise<{ success: boolean; error?: string }>;
+  deleteCategoriaEvento: (id: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -177,6 +183,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [professores, setProfessores] = useState<Professor[]>(initialProfessores);
   const [faltasProfessores, setFaltasProfessores] = useState<FaltaProfessor[]>(initialFaltasProfessores);
   const [eventos, setEventos] = useState<EventoEscolar[]>(initialEventos);
+  const [categoriasEvento, setCategoriasEvento] = useState<CalendarioCategoria[]>(initialCategoriasEvento);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(initialActivityLogs);
 
   // 1. Relatórios Pedagógicos Colaborativos com IA
@@ -423,6 +430,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setEventos(JSON.parse(savedEventos));
       }
 
+      // Categorias de Eventos persistidas
+      const savedCategorias = localStorage.getItem('school_os_calendario_categorias');
+      if (savedCategorias) {
+        try {
+          const parsed: CalendarioCategoria[] = JSON.parse(savedCategorias);
+          const hasAniv = parsed.some((c) => c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários');
+          if (!hasAniv) {
+            parsed.unshift(initialCategoriasEvento[0]);
+          }
+          setCategoriasEvento(parsed);
+        } catch {
+          setCategoriasEvento(initialCategoriasEvento);
+        }
+      }
+
       // Activity Logs persistidos
       const savedLogs = localStorage.getItem('school_os_activity_logs');
       if (savedLogs) {
@@ -598,6 +620,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setEventos(tEventos);
             localStorage.setItem('school_os_eventos', JSON.stringify(tEventos));
           }
+          if (json.data.calendarioCategorias && json.data.calendarioCategorias.length > 0) {
+            const parsedCats: CalendarioCategoria[] = json.data.calendarioCategorias;
+            const hasAniv = parsedCats.some((c) => c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários');
+            if (!hasAniv) {
+              parsedCats.unshift(initialCategoriasEvento[0]);
+            }
+            setCategoriasEvento(parsedCats);
+            localStorage.setItem('school_os_calendario_categorias', JSON.stringify(parsedCats));
+          }
           if (tLogs && tLogs.length > 0) {
             setActivityLogs(tLogs);
             localStorage.setItem('school_os_activity_logs', JSON.stringify(tLogs));
@@ -730,6 +761,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error(e);
     }
   }, [eventos, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('school_os_calendario_categorias', JSON.stringify(categoriasEvento));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [categoriasEvento, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -1491,6 +1531,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteEvento = (id: string) => {
     setEventos((prev) => prev.filter((ev) => ev.id !== id));
     syncWithTurso('delete_evento', { id });
+  };
+
+  const addCategoriaEvento = async (novaCat: Omit<CalendarioCategoria, 'id'>): Promise<{ success: boolean; error?: string }> => {
+    if (!novaCat.nome.trim()) {
+      return { success: false, error: 'O nome da categoria é obrigatório.' };
+    }
+    const existe = categoriasEvento.some(c => c.nome.trim().toLowerCase() === novaCat.nome.trim().toLowerCase());
+    if (existe) {
+      return { success: false, error: 'Já existe uma categoria cadastrada com este nome.' };
+    }
+    const catCriada: CalendarioCategoria = {
+      ...novaCat,
+      id: `cat-${Date.now()}`,
+      nome: novaCat.nome.trim(),
+      sistema_protegida: false,
+      created_at: new Date().toISOString(),
+    };
+    setCategoriasEvento(prev => [...prev, catCriada]);
+    syncWithTurso('save_categoria_evento', catCriada);
+    return { success: true };
+  };
+
+  const updateCategoriaEvento = async (id: string, atualizacao: Partial<CalendarioCategoria>): Promise<{ success: boolean; error?: string }> => {
+    const cat = categoriasEvento.find(c => c.id === id);
+    if (!cat) return { success: false, error: 'Categoria não encontrada.' };
+    
+    if (cat.sistema_protegida && atualizacao.nome && atualizacao.nome !== cat.nome) {
+      return { success: false, error: 'O nome de uma categoria protegida do sistema não pode ser alterado.' };
+    }
+
+    setCategoriasEvento(prev => prev.map(c => c.id === id ? { ...c, ...atualizacao } : c));
+    syncWithTurso('save_categoria_evento', { ...cat, ...atualizacao });
+    return { success: true };
+  };
+
+  const deleteCategoriaEvento = async (id: string): Promise<{ success: boolean; error?: string }> => {
+    const cat = categoriasEvento.find(c => c.id === id);
+    if (!cat) return { success: false, error: 'Categoria não encontrada.' };
+    if (cat.sistema_protegida || cat.id === 'cat-aniversarios' || cat.nome.toLowerCase() === 'aniversários') {
+      return { success: false, error: 'A categoria Aniversários é protegida do sistema e não pode ser excluída.' };
+    }
+    setCategoriasEvento(prev => prev.filter(c => c.id !== id));
+    syncWithTurso('delete_categoria_evento', { id });
+    return { success: true };
   };
 
   const addActivityLog = async (logData: Omit<ActivityLog, 'id' | 'created_at'>): Promise<ActivityLog> => {
@@ -2583,6 +2667,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toggleHomologarFalta,
         addEvento,
         deleteEvento,
+        categoriasEvento,
+        addCategoriaEvento,
+        updateCategoriaEvento,
+        deleteCategoriaEvento,
       }}
     >
       {children}

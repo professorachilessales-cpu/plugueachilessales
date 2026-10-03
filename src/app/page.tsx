@@ -413,10 +413,11 @@ export default function DashboardPage() {
     return estudantes.filter(e => checarPossuiLaudo(e) || checarAee(e)).length;
   }, [estudantes]);
 
-  // 10 Próximos Eventos Cadastrados (com respeito à visibilidade docente)
+  // Próximos Eventos Escolares (da data atual em diante, respeitando a visibilidade docente)
   const dezProximosEventos = useMemo(() => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const agora = new Date();
+    const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+
     const visiveis = eventos.filter((ev) => {
       if (role === 'professor') {
         const cat = categoriasEvento.find(
@@ -426,17 +427,21 @@ export default function DashboardPage() {
       }
       return true;
     });
-    const ordenados = [...visiveis].sort(
-      (a, b) => new Date(a.data_inicio?.includes('T') ? a.data_inicio : a.data_inicio + 'T00:00:00').getTime() - new Date(b.data_inicio?.includes('T') ? b.data_inicio : b.data_inicio + 'T00:00:00').getTime()
-    );
-    const futuros = ordenados.filter((ev) => {
-      const fim = ev.data_fim || ev.data_inicio;
-      return new Date(fim.includes('T') ? fim : fim + 'T23:59:59').getTime() >= hoje.getTime();
-    });
-    if (futuros.length >= 10) {
-      return futuros.slice(0, 10);
-    }
-    return ordenados.slice(0, 10);
+
+    const futuros = visiveis
+      .filter((ev) => {
+        const fim = ev.data_fim || ev.data_inicio;
+        if (!fim) return false;
+        const fimStr = fim.includes('T') ? fim.split('T')[0] : fim;
+        return fimStr >= hojeStr;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : (a.data_inicio || '') + 'T00:00:00').getTime() || 0;
+        const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : (b.data_inicio || '') + 'T00:00:00').getTime() || 0;
+        return timeA - timeB;
+      });
+
+    return futuros.slice(0, 10);
   }, [eventos, categoriasEvento, role]);
 
   // Estado do Modal de Envio de WhatsApp para Inclusão
@@ -1841,7 +1846,7 @@ export default function DashboardPage() {
         obterInfoTurma={obterInfoTurma}
       />
 
-      {/* Último Bloco do Dashboard: 10 Próximos Eventos Cadastrados (Em Destaque Especial) */}
+      {/* Último Bloco do Dashboard: Próximos Eventos Escolares (Em Destaque Especial) */}
       <div className="isometric-featured-card relative rounded-2xl border-2 border-purple-300/80 bg-gradient-to-b from-purple-50/40 via-white to-indigo-50/20 p-6 dark:border-purple-800/80 dark:bg-gradient-to-b dark:from-slate-900 dark:via-school-dark-surface dark:to-purple-950/20 overflow-hidden">
         {/* Glow / Decoração em gradiente de fundo */}
         <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-purple-500/10 blur-3xl dark:bg-purple-600/15" />
@@ -1854,7 +1859,7 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                  10 Próximos Eventos Cadastrados
+                  Próximos Eventos Escolares
                 </h3>
                 <span className="inline-flex items-center gap-1 rounded-full bg-purple-600 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-xs">
                   <Sparkles className="h-3 w-3" />

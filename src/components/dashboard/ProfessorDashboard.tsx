@@ -172,19 +172,26 @@ export function ProfessorDashboard() {
     }
   };
 
-  // 4. PRÓXIMOS 10 EVENTOS (apenas categorias visíveis para docentes)
+  // 4. PRÓXIMOS EVENTOS ESCOLARES (da data atual em diante, apenas categorias visíveis para docentes)
   const proximos10Eventos = useMemo(() => {
+    const agora = new Date();
+    const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+
     return [...eventos]
       .filter((ev) => {
         const cat = categoriasEvento.find(
           (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
         );
         if (cat && cat.visivel_docentes === false) return false;
-        return true;
+
+        const fim = ev.data_fim || ev.data_inicio;
+        if (!fim) return false;
+        const fimStr = fim.includes('T') ? fim.split('T')[0] : fim;
+        return fimStr >= hojeStr;
       })
       .sort((a, b) => {
-        const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : a.data_inicio + 'T00:00:00').getTime() || 0;
-        const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : b.data_inicio + 'T00:00:00').getTime() || 0;
+        const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : (a.data_inicio || '') + 'T00:00:00').getTime() || 0;
+        const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : (b.data_inicio || '') + 'T00:00:00').getTime() || 0;
         return timeA - timeB;
       })
       .slice(0, 10);
@@ -670,14 +677,14 @@ export function ProfessorDashboard() {
           </div>
         </div>
 
-        {/* WIDGET PRÓXIMOS 10 EVENTOS */}
+        {/* WIDGET PRÓXIMOS EVENTOS ESCOLARES */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Próximos 10 Eventos Cadastrados
+                  Próximos Eventos Escolares
                 </h3>
               </div>
               <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-school-blue-800 dark:bg-blue-950 dark:text-blue-300">

@@ -1883,7 +1883,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const nomeEstudante = aluno?.nome_completo || 'Estudante';
     const generoEstudante = aluno?.genero || (aluno as any)?.sexo || '';
-    const userApiKey = dadosExtras?.apiKey || (typeof window !== 'undefined' ? localStorage.getItem('gemini_user_api_key') : null) || undefined;
+    const userApiKey = dadosExtras?.apiKey || undefined;
     const tentativa = dadosExtras?.tentativa || 1;
 
     const res = await fetch('/api/ia/polir-relatorio', {

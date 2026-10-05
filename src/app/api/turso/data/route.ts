@@ -111,12 +111,22 @@ export async function GET() {
     try {
       const turmasRes = await executeTursoQuery('SELECT * FROM turmas ORDER BY nome ASC');
       turmas = turmasRes.rows.map((row: any) => {
-        const relProfs = turmaProfessores.filter((tp: any) => tp.turma_id === row.id).map((tp: any) => tp.professor_id);
-        const rawProfs: string[] = relProfs.length > 0
-          ? relProfs
-          : (row.professores_ids
-              ? (typeof row.professores_ids === 'string' ? JSON.parse(row.professores_ids) : row.professores_ids)
-              : (row.professor_regente_id ? [row.professor_regente_id] : []));
+        let parsedProfs: string[] = [];
+        if (row.professores_ids) {
+          try {
+            parsedProfs = typeof row.professores_ids === 'string' ? JSON.parse(row.professores_ids) : row.professores_ids;
+          } catch {
+            parsedProfs = [];
+          }
+        }
+        if (!Array.isArray(parsedProfs) || parsedProfs.length === 0) {
+          const relProfs = turmaProfessores.filter((tp: any) => tp.turma_id === row.id).map((tp: any) => tp.professor_id);
+          parsedProfs = relProfs.length > 0
+            ? relProfs
+            : (row.professor_regente_id ? [row.professor_regente_id] : []);
+        }
+
+        const rawProfs: string[] = parsedProfs;
 
         const validProfs = (rawProfs || []).filter((id: string) => {
           const prof = professores.find(p => p.id === id);

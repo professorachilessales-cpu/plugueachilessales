@@ -887,33 +887,35 @@ export function obterProfessoresDocentesDaTurma(
 
   const idsAssociados = new Set<string>();
 
-  // 1. Professores atribuídos à regência da turma
+  // 1. Professores atribuídos à regência da turma (estritamente da tabela turmas do banco)
+  let pids: string[] = [];
   if (Array.isArray(turma.professores_ids)) {
-    turma.professores_ids.forEach(id => {
-      if (id && typeof id === 'string') idsAssociados.add(id);
-    });
+    pids = turma.professores_ids;
+  } else if (typeof (turma as any).professores_ids === 'string') {
+    try {
+      pids = JSON.parse((turma as any).professores_ids);
+    } catch {}
   }
+  pids.forEach(id => {
+    if (id && typeof id === 'string') idsAssociados.add(id);
+  });
 
-  // 2. Professor regente titular da turma
+  // 2. Professor regente titular da turma (tabela turmas do banco)
   if (turma.professor_regente_id && typeof turma.professor_regente_id === 'string') {
     idsAssociados.add(turma.professor_regente_id);
   }
 
-  // 3. Equipe de apoio pedagógico / AEE vinculada à turma
+  // 3. Equipe de apoio pedagógico / AEE vinculada à turma (tabela turmas do banco)
+  let apoioIds: string[] = [];
   if (Array.isArray(turma.equipe_apoio_ids)) {
-    turma.equipe_apoio_ids.forEach(id => {
-      if (id && typeof id === 'string') idsAssociados.add(id);
-    });
+    apoioIds = turma.equipe_apoio_ids;
+  } else if (typeof (turma as any).equipe_apoio_ids === 'string') {
+    try {
+      apoioIds = JSON.parse((turma as any).equipe_apoio_ids);
+    } catch {}
   }
-
-  // 4. Professores que tenham a turma explicitamente vinculada em suas fichas
-  professores.forEach(p => {
-    if (
-      (turma.id && p.turmas_atribuidas_ids?.includes(turma.id)) ||
-      (turma.nome && p.turmas_atribuidas_ids?.includes(turma.nome))
-    ) {
-      idsAssociados.add(p.id);
-    }
+  apoioIds.forEach(id => {
+    if (id && typeof id === 'string') idsAssociados.add(id);
   });
 
   // Filtra apenas os docentes ativos que NÃO sejam administrativos

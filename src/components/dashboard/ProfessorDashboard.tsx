@@ -128,8 +128,19 @@ export function ProfessorDashboard() {
       .forEach(r => {
         const sol = solicitacoesRelatorio.find(s => s && s.id === r.solicitacao_id);
         const aluno = estudantes.find(e => e && e.id === sol?.aluno_id);
-        const turma = turmas.find(t => t && t.id === aluno?.turma_id);
-        if (sol && aluno && sol.status !== 'concluido' && r.status !== 'nao_entregue') {
+        const turma = turmas.find(t => 
+          (aluno?.turma_id && t.id === aluno.turma_id) || 
+          (t.nome && aluno?.turma_nome && t.nome.trim().toLowerCase() === aluno.turma_nome.trim().toLowerCase())
+        );
+
+        // Validação estrita da tabela turmas: O professor atual deve de fato pertencer à turma do estudante
+        const profPertenceATurma = turma && (
+          (Array.isArray(turma.professores_ids) && turma.professores_ids.includes(professorAtual.id)) ||
+          turma.professor_regente_id === professorAtual.id ||
+          (Array.isArray(turma.equipe_apoio_ids) && turma.equipe_apoio_ids.includes(professorAtual.id))
+        );
+
+        if (sol && aluno && sol.status !== 'concluido' && r.status !== 'nao_entregue' && profPertenceATurma) {
           itens.push({
             relatorio: r,
             solicitacao: sol,

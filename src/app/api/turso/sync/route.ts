@@ -853,6 +853,36 @@ export async function POST(req: NextRequest) {
       case 'criar_solicitacao_relatorio': {
         const { solicitacao, relatorios_professores } = payload;
         try {
+          // 1. Valida estritamente contra a tabela turmas do banco de dados
+          let profsValidosDaTurma: Set<string> | null = null;
+          if (solicitacao?.aluno_id) {
+            try {
+              const estRes = await executeTursoQuery('SELECT turma_id, turma_nome FROM estudantes WHERE id = ?', [solicitacao.aluno_id]);
+              const estDb = estRes.rows[0];
+              if (estDb) {
+                const tRes = await executeTursoQuery(
+                  'SELECT id, professores_ids, professor_regente_id, equipe_apoio_ids FROM turmas WHERE id = ? OR LOWER(nome) = LOWER(?)',
+                  [estDb.turma_id || '', (estDb.turma_nome || '').trim()]
+                );
+                if (tRes.rows.length > 0) {
+                  const tRow = tRes.rows[0];
+                  profsValidosDaTurma = new Set<string>();
+                  try {
+                    const pIds = typeof tRow.professores_ids === 'string' ? JSON.parse(tRow.professores_ids) : tRow.professores_ids;
+                    if (Array.isArray(pIds)) pIds.forEach((id: string) => profsValidosDaTurma!.add(id));
+                  } catch {}
+                  if (tRow.professor_regente_id) profsValidosDaTurma.add(tRow.professor_regente_id);
+                  try {
+                    const aIds = typeof tRow.equipe_apoio_ids === 'string' ? JSON.parse(tRow.equipe_apoio_ids) : tRow.equipe_apoio_ids;
+                    if (Array.isArray(aIds)) aIds.forEach((id: string) => profsValidosDaTurma!.add(id));
+                  } catch {}
+                }
+              }
+            } catch (errCheck) {
+              console.warn('Aviso: Não foi possível validar turma_professores no sync:', errCheck);
+            }
+          }
+
           if (solicitacao) {
             await executeTursoQuery(
               `INSERT INTO solicitacoes_relatorio (id, aluno_id, status, data_solicitacao, admin_solicitante_id, created_at)
@@ -871,7 +901,12 @@ export async function POST(req: NextRequest) {
             );
           }
           if (Array.isArray(relatorios_professores)) {
-            for (const rp of relatorios_professores) {
+            // Filtra exclusivamente para os professores da turma do estudante cadastrados na tabela turmas do banco
+            const relatoriosFiltrados = profsValidosDaTurma && profsValidosDaTurma.size > 0
+              ? relatorios_professores.filter((rp: any) => profsValidosDaTurma!.has(rp.professor_id))
+              : relatorios_professores;
+
+            for (const rp of relatoriosFiltrados) {
               await executeTursoQuery(
                 `INSERT INTO relatorios_professores (id, solicitacao_id, professor_id, rascunho_original, texto_ia, texto_final, status, data_envio, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

@@ -59,7 +59,7 @@ export interface EscolaConfig {
   updated_at: string;
 }
 
-export type Turno = 'manha' | 'tarde' | 'noite';
+export type Turno = 'manha' | 'manhã' | 'tarde' | 'noite';
 
 export interface HorarioAula {
   id: string;

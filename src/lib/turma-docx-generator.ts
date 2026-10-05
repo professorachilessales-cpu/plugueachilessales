@@ -40,7 +40,7 @@ export function formatarAee(val?: boolean | number | string): string {
 export function formatarTurno(turno?: string): string {
   if (!turno) return 'Não informado';
   const t = String(turno).toLowerCase();
-  if (t === 'manha') return 'Manhã';
+  if (t === 'manha' || t === 'manhã') return 'Manhã';
   if (t === 'tarde') return 'Tarde';
   if (t === 'noite') return 'Noite';
   return turno.charAt(0).toUpperCase() + turno.slice(1);

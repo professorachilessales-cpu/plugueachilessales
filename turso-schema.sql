@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS turmas (
     id TEXT PRIMARY KEY,
     nome TEXT NOT NULL,
     grupo TEXT DEFAULT '1º anos',
-    turno TEXT NOT NULL CHECK (turno IN ('manha', 'tarde', 'noite')),
+    turno TEXT NOT NULL CHECK (turno IN ('manha', 'manhã', 'tarde', 'noite')),
     capacidade INTEGER NOT NULL DEFAULT 35,
     ano_letivo INTEGER NOT NULL DEFAULT 2026,
     professor_regente_id TEXT REFERENCES professores(id) ON DELETE SET NULL,

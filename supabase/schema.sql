@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS public.professores (
 CREATE TABLE IF NOT EXISTS public.turmas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nome VARCHAR(100) NOT NULL,
-    turno VARCHAR(20) NOT NULL CHECK (turno IN ('manha', 'tarde', 'noite')),
+    turno VARCHAR(20) NOT NULL CHECK (turno IN ('manha', 'manhã', 'tarde', 'noite')),
     capacidade INT NOT NULL DEFAULT 35,
     ano_letivo INT NOT NULL DEFAULT 2026,
     professor_regente_id UUID REFERENCES public.professores(id) ON DELETE SET NULL,

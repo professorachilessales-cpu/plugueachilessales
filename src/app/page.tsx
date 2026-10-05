@@ -113,7 +113,7 @@ export default function DashboardPage() {
   const obterInfoTurma = (turmaId?: string, turmaNomeFallback?: string) => {
     const t = turmas.find(item => item.id === turmaId);
     if (t) {
-      const turnoLabel = t.turno === 'manha' ? 'Manhã' : t.turno === 'tarde' ? 'Tarde' : 'Noite';
+      const turnoLabel = (t.turno === 'manha' || t.turno === 'manhã') ? 'Manhã' : t.turno === 'tarde' ? 'Tarde' : 'Noite';
       return {
         id: t.id,
         nome: t.nome,
@@ -261,7 +261,8 @@ export default function DashboardPage() {
       const cap = Number(t.capacidade) || 0;
       const vagasRestantes = Math.max(0, cap - qtdAlunos);
       const qtdComLaudo = alunosDaTurma.filter(e => Boolean(e.possui_laudo)).length;
-      contagem[t.turno] = (contagem[t.turno] || 0) + qtdAlunos;
+      const turnoKey = (t.turno === 'manha' || t.turno === 'manhã') ? 'manha' : (t.turno as 'tarde' | 'noite');
+      contagem[turnoKey] = (contagem[turnoKey] || 0) + qtdAlunos;
       return {
         id: t.id,
         nome: t.nome,
@@ -961,7 +962,7 @@ export default function DashboardPage() {
                   <div className="space-y-2.5 pt-1">
                     {grupo.turmas.map((turma) => {
                       const corBarra =
-                        turma.turno === 'manha'
+                        (turma.turno === 'manha' || turma.turno === 'manhã')
                           ? 'bg-school-blue-600'
                           : turma.turno === 'tarde'
                             ? 'bg-school-gold-500'

@@ -394,7 +394,7 @@ export interface ActivityLog {
 // 1. MÓDULO: RELATÓRIOS PEDAGÓGICOS COLABORATIVOS COM IA
 // -------------------------------------------------------------
 export type StatusSolicitacaoRelatorio = 'pendente' | 'concluido';
-export type StatusRelatorioProfessor = 'pendente' | 'enviado' | 'nao_entregue';
+export type StatusRelatorioProfessor = 'pendente' | 'enviado' | 'nao_elaborado' | 'nao_entregue';
 
 export interface SolicitacaoRelatorio {
   id: string;

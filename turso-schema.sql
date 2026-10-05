@@ -318,7 +318,7 @@ CREATE TABLE IF NOT EXISTS relatorios_professores (
     rascunho_original TEXT,
     texto_ia TEXT,
     texto_final TEXT,
-    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'enviado', 'nao_entregue')),
+    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'enviado', 'nao_elaborado', 'nao_entregue')),
     data_envio TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );

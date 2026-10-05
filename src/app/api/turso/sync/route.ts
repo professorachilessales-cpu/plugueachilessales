@@ -1057,10 +1057,35 @@ export async function POST(req: NextRequest) {
               `UPDATE solicitacoes_relatorio SET status = 'concluido' WHERE id = ?`,
               [solId]
             );
+            // Professores que não realizaram o relatório ficam com status 'nao_elaborado' registrado no banco
+            await executeTursoQuery(
+              `UPDATE relatorios_professores SET status = 'nao_elaborado' WHERE solicitacao_id = ? AND status != 'enviado'`,
+              [solId]
+            );
           }
         } catch (e: any) {
           console.error('Erro ao salvar relatório consolidado no Turso:', e);
           return NextResponse.json({ error: e?.message || 'Falha ao salvar consolidado no banco' }, { status: 500 });
+        }
+        return NextResponse.json({ success: true });
+      }
+
+      case 'concluir_solicitacao_relatorio': {
+        const { solicitacao_id } = payload;
+        try {
+          if (solicitacao_id) {
+            await executeTursoQuery(
+              `UPDATE solicitacoes_relatorio SET status = 'concluido' WHERE id = ?`,
+              [solicitacao_id]
+            );
+            await executeTursoQuery(
+              `UPDATE relatorios_professores SET status = 'nao_elaborado' WHERE solicitacao_id = ? AND status != 'enviado'`,
+              [solicitacao_id]
+            );
+          }
+        } catch (e: any) {
+          console.error('Erro ao concluir solicitação no Turso:', e);
+          return NextResponse.json({ error: e?.message || 'Falha ao concluir solicitação no banco' }, { status: 500 });
         }
         return NextResponse.json({ success: true });
       }

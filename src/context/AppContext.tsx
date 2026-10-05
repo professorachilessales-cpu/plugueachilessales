@@ -97,7 +97,8 @@ interface AppContextType {
   relatoriosConsolidados: RelatorioConsolidado[];
   notificacoesAdmin: NotificacaoAdmin[];
   addSolicitacaoRelatorio: (alunoId: string, adminId?: string, professoresIdsParam?: string[], obs?: string) => string;
-  updateSolicitacaoRelatorio?: (id: string, updates: any) => void;
+  updateSolicitacaoRelatorio: (id: string, updates: Partial<SolicitacaoRelatorio>) => void;
+  concluirSolicitacaoRelatorio: (solicitacaoId: string) => Promise<void>;
   salvarRascunhoProfessor: (relatorioId: string, rascunho: string) => void;
   limparRascunhoProfessor: (relatorioId: string) => void;
   updateRelatorioProfessor: (relatorioId: string, updates: Partial<RelatorioProfessor>) => void;
@@ -2142,9 +2143,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return [novoConsolidado, ...filtrado];
     });
 
-    setSolicitacoesRelatorio(prev =>
-      prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' } : s))
-    );
+    setSolicitacoesRelatorio(prev => {
+      const updated = prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' as const } : s));
+      try { localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    // Professores que não entregaram ficam como 'nao_elaborado'
+    setRelatoriosProfessores(prev => {
+      const updated = prev.map(r =>
+        r.solicitacao_id === solicitacaoId && r.status !== 'enviado'
+          ? { ...r, status: 'nao_elaborado' as const }
+          : r
+      );
+      try { localStorage.setItem('school_os_relatorios_professores', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
 
     // Persistência no banco de dados Turso
     fetch('/api/turso/sync', {
@@ -2165,9 +2179,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const salvarRelatorioConsolidado = (solicitacaoId: string, conteudoFinal: string, _observacoesSecretaria?: string) => {
     const agora = new Date().toISOString();
 
-    setSolicitacoesRelatorio(prev =>
-      prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' } : s))
-    );
+    setSolicitacoesRelatorio(prev => {
+      const updated = prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' as const } : s));
+      try { localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    // Professores que não entregaram ficam como 'nao_elaborado'
+    setRelatoriosProfessores(prev => {
+      const updated = prev.map(r =>
+        r.solicitacao_id === solicitacaoId && r.status !== 'enviado'
+          ? { ...r, status: 'nao_elaborado' as const }
+          : r
+      );
+      try { localStorage.setItem('school_os_relatorios_professores', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
 
     const novoConsolidado: RelatorioConsolidado = {
       id: `rel-cons-${Date.now()}`,
@@ -2180,10 +2207,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setRelatoriosConsolidados(prev => {
       const existe = prev.find(c => c.solicitacao_id === solicitacaoId);
+      let updated: RelatorioConsolidado[];
       if (existe) {
-        return prev.map(c => (c.solicitacao_id === solicitacaoId ? { ...c, conteudo_final: conteudoFinal } : c));
+        updated = prev.map(c => (c.solicitacao_id === solicitacaoId ? { ...c, conteudo_final: conteudoFinal } : c));
+      } else {
+        updated = [novoConsolidado, ...prev];
       }
-      return [novoConsolidado, ...prev];
+      try { localStorage.setItem('school_os_relatorios_consolidados', JSON.stringify(updated)); } catch (e) {}
+      return updated;
     });
 
     // Persistência direta no banco de dados Turso
@@ -2200,6 +2231,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
       }),
     }).catch(err => console.error('[Turso Sync] Falha ao salvar relatório consolidado no banco:', err));
+  };
+
+  const concluirSolicitacaoRelatorio = async (solicitacaoId: string) => {
+    setSolicitacoesRelatorio(prev => {
+      const updated = prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' as const } : s));
+      try { localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    setRelatoriosProfessores(prev => {
+      const updated = prev.map(r =>
+        r.solicitacao_id === solicitacaoId && r.status !== 'enviado'
+          ? { ...r, status: 'nao_elaborado' as const }
+          : r
+      );
+      try { localStorage.setItem('school_os_relatorios_professores', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    try {
+      await fetch('/api/turso/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'concluir_solicitacao_relatorio',
+          payload: { solicitacao_id: solicitacaoId },
+        }),
+      });
+    } catch (err) {
+      console.error('[Turso Sync] Falha ao concluir solicitação no banco:', err);
+    }
+  };
+
+  const updateSolicitacaoRelatorio = (solicitacaoId: string, updates: Partial<SolicitacaoRelatorio>) => {
+    setSolicitacoesRelatorio(prev => {
+      const updated = prev.map(s => (s.id === solicitacaoId ? { ...s, ...updates } : s));
+      try { localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    if (updates.status === 'concluido') {
+      setRelatoriosProfessores(prev => {
+        const updated = prev.map(r =>
+          r.solicitacao_id === solicitacaoId && r.status !== 'enviado'
+            ? { ...r, status: 'nao_elaborado' as const }
+            : r
+        );
+        try { localStorage.setItem('school_os_relatorios_professores', JSON.stringify(updated)); } catch (e) {}
+        return updated;
+      });
+
+      fetch('/api/turso/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'concluir_solicitacao_relatorio',
+          payload: { solicitacao_id: solicitacaoId },
+        }),
+      }).catch(err => console.error('[Turso Sync] Falha ao concluir solicitação no banco:', err));
+    }
   };
 
   const excluirSolicitacaoRelatorio = async (solicitacaoId: string) => {
@@ -2831,6 +2922,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         relatoriosConsolidados,
         notificacoesAdmin,
         addSolicitacaoRelatorio,
+        updateSolicitacaoRelatorio,
+        concluirSolicitacaoRelatorio,
         salvarRascunhoProfessor,
         limparRascunhoProfessor,
         updateRelatorioProfessor,

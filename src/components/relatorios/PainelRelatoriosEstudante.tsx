@@ -28,7 +28,8 @@ import {
   RefreshCw,
   ExternalLink,
   Printer,
-  Copy
+  Copy,
+  XCircle
 } from 'lucide-react';
 import { determinarGeneroEstudante, obterProfessoresDocentesDaTurma } from '@/lib/pareceres-ia';
 import { calcularIdadeEmAnos } from '@/lib/faixa-etaria';
@@ -95,6 +96,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
     observacoesAluno,
     addSolicitacaoRelatorio, 
     updateSolicitacaoRelatorio, 
+    concluirSolicitacaoRelatorio,
     updateRelatorioProfessor, 
     deleteRelatorioProfessor, 
     marcarNotificacaoComoLida, 
@@ -172,6 +174,30 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
       alert(err?.message || 'Erro ao cancelar a solicitação.');
     } finally {
       setCancelandoSolicitacao(false);
+    }
+  };
+
+  // Concluir e homologar ciclo de solicitação de relatório
+  const [concluindoSolicitacao, setConcluindoSolicitacao] = useState(false);
+  const handleConcluirSolicitacao = async () => {
+    if (!solicitacaoAtiva) return;
+    const confirmou = confirm(
+      'Deseja concluir esta solicitação de relatório?\n\n' +
+      '• Os professores que não realizaram o relatório ficarão com status "Não Elaborado" (em vermelho).\n' +
+      '• As opções de excluir e reenviar cobrança das Ações da Secretaria desaparecerão.\n' +
+      '• Todas as alterações serão salvas e registradas no banco de dados.'
+    );
+    if (!confirmou) return;
+
+    setConcluindoSolicitacao(true);
+    try {
+      await concluirSolicitacaoRelatorio(solicitacaoAtiva.id);
+      setAlertaSucesso('Solicitação concluída com sucesso! Professores sem relatório foram registrados como "Não Elaborado" no banco.');
+      setTimeout(() => setAlertaSucesso(null), 4000);
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao concluir solicitação.');
+    } finally {
+      setConcluindoSolicitacao(false);
     }
   };
 
@@ -311,9 +337,9 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
   const handleSalvarConsolidado = () => {
     if (!solicitacaoAtiva) return;
     salvarRelatorioConsolidado(solicitacaoAtiva.id, textoConsolidadoEditavel);
-    setAlertaSucesso('Parecer consolidado salvo com sucesso!');
+    setAlertaSucesso('Parecer consolidado salvo e ciclo concluído! Professores sem envio foram registrados como "Não Elaborado".');
     setModalConsolidacaoAberto(false);
-    setTimeout(() => setAlertaSucesso(null), 3500);
+    setTimeout(() => setAlertaSucesso(null), 4000);
   };
 
   // Copiar texto consolidado para a área de transferência
@@ -594,6 +620,20 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                     </button>
                   )}
 
+                  {/* Botão Concluir Solicitação (Verde, visível apenas quando pendente) */}
+                  {!isConcluida && (
+                    <button
+                      type="button"
+                      onClick={handleConcluirSolicitacao}
+                      disabled={concluindoSolicitacao}
+                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-emerald-600/40 border-2 border-emerald-500 transition-all cursor-pointer disabled:opacity-50"
+                      title="Concluir e homologar esta solicitação no banco. Professores sem parecer ficarão como 'Não Elaborado'."
+                    >
+                      <CheckCircle2 className="h-4 w-4 text-white" />
+                      <span>{concluindoSolicitacao ? 'Concluindo...' : 'Concluir Solicitação'}</span>
+                    </button>
+                  )}
+
                   {/* Botão Consolidar com IA */}
                   <button
                     type="button"
@@ -679,12 +719,17 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                             <td className="px-4 py-3">
                               {enviado ? (
                                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
-                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                   <span>Enviado à Secretaria</span>
+                                </span>
+                              ) : isConcluida || parecer.status === 'nao_elaborado' || parecer.status === 'nao_entregue' ? (
+                                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-red-100 text-red-800 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800">
+                                  <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
+                                  <span>Não Elaborado</span>
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
-                                  <Clock className="h-3 w-3 text-amber-600" />
+                                  <Clock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                                   <span>Pendente (Em Elaboração)</span>
                                 </span>
                               )}
@@ -694,7 +739,7 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
-                                {/* Visualizar/Editar */}
+                                {/* Visualizar/Editar (apenas se enviado) */}
                                 {enviado && (
                                   <button
                                     onClick={() => handleAbrirParecer(parecer)}
@@ -721,8 +766,8 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                                   </button>
                                 )}
 
-                                {/* Reenviar aviso */}
-                                {!enviado && (
+                                {/* Reenviar aviso (DESAPARECE quando a solicitação estiver em concluído) */}
+                                {!isConcluida && !enviado && (
                                   <button
                                     onClick={() => {
                                       alert(`Notificação de cobrança reenviada para o professor ${prof?.nome_completo || 'Docente'}!`);
@@ -734,18 +779,27 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                                   </button>
                                 )}
 
-                                {/* Excluir parecer */}
-                                <button
-                                  onClick={() => {
-                                    if (confirm(`Excluir atribuição de parecer para ${prof?.nome_completo || 'Docente'}?`)) {
-                                      deleteRelatorioProfessor(parecer.id);
-                                    }
-                                  }}
-                                  title="Remover Professor deste Relatório"
-                                  className="rounded-lg p-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                                {/* Excluir parecer (DESAPARECE quando a solicitação estiver em concluído) */}
+                                {!isConcluida && (
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Excluir atribuição de parecer para ${prof?.nome_completo || 'Docente'}?`)) {
+                                        deleteRelatorioProfessor(parecer.id);
+                                      }
+                                    }}
+                                    title="Remover Professor deste Relatório"
+                                    className="rounded-lg p-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+
+                                {/* Quando concluído e não enviado, exibe aviso discreto */}
+                                {isConcluida && !enviado && !temNotificacaoPendente && (
+                                  <span className="text-[11px] text-slate-400 dark:text-slate-500 italic pr-1">
+                                    Encerrado
+                                  </span>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -855,13 +909,14 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
             {/* Editor do Texto Final pela Secretaria */}
             <div className="space-y-1.5 text-xs">
               <label className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px]">
-                3. Texto Final Homologado (Edição Permitida):
+                {isConcluida ? '3. Texto Homologado (Somente Leitura):' : '3. Texto Final Homologado (Edição Permitida):'}
               </label>
               <textarea
                 rows={5}
+                readOnly={isConcluida}
                 value={editandoTextoFinal}
                 onChange={(e) => setEditandoTextoFinal(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 p-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white leading-relaxed"
+                className={`w-full rounded-xl border border-slate-200 p-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white leading-relaxed ${isConcluida ? 'bg-slate-50 dark:bg-slate-800/60 cursor-not-allowed opacity-90' : ''}`}
               />
             </div>
 
@@ -871,17 +926,19 @@ export function PainelRelatoriosEstudante({ estudante, onClose }: PainelRelatori
                 onClick={() => setParecerEmVisualizacao(null)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
               >
-                Cancelar
+                {isConcluida ? 'Fechar' : 'Cancelar'}
               </button>
-              <button
-                type="button"
-                onClick={handleSalvarEdicaoParecer}
-                disabled={salvandoEdicaoParecer}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all"
-              >
-                <Save className="h-4 w-4" />
-                <span>{salvandoEdicaoParecer ? 'Salvando...' : 'Salvar Alterações'}</span>
-              </button>
+              {!isConcluida && (
+                <button
+                  type="button"
+                  onClick={handleSalvarEdicaoParecer}
+                  disabled={salvandoEdicaoParecer}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{salvandoEdicaoParecer ? 'Salvando...' : 'Salvar Alterações'}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

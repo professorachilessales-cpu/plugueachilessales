@@ -140,7 +140,7 @@ export function ProfessorDashboard() {
           (Array.isArray(turma.equipe_apoio_ids) && turma.equipe_apoio_ids.includes(professorAtual.id))
         );
 
-        if (sol && aluno && sol.status !== 'concluido' && r.status !== 'nao_entregue' && profPertenceATurma) {
+        if (sol && aluno && sol.status !== 'concluido' && r.status !== 'nao_entregue' && r.status !== 'nao_elaborado' && profPertenceATurma) {
           itens.push({
             relatorio: r,
             solicitacao: sol,

@@ -257,7 +257,15 @@ export async function GET() {
 
     try {
       const relProfRes = await executeTursoQuery('SELECT * FROM relatorios_professores');
-      relatoriosProfessores = relProfRes.rows;
+      const solicitacoesConcluidasIds = new Set(
+        solicitacoesRelatorio.filter((s: any) => s.status === 'concluido').map((s: any) => s.id)
+      );
+      relatoriosProfessores = relProfRes.rows.map((rp: any) => {
+        if (solicitacoesConcluidasIds.has(rp.solicitacao_id) && rp.status !== 'enviado') {
+          return { ...rp, status: 'nao_elaborado' };
+        }
+        return rp;
+      });
     } catch (e) {
       console.warn('Tabela relatorios_professores ainda não criada no Turso:', e);
     }

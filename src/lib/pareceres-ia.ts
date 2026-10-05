@@ -245,11 +245,16 @@ export function gerarConsolidadoHeuristico(params: {
 }
 
 /**
- * System Prompt Oficial Padronizado para Assistência de Redação Pedagógica Docente com Google Gemini
+ * System Prompt Oficial Padronizado para Assistência de Redação Pedagógica Docente com Google Gemini 3.8
  */
 export function montarSystemPromptPolimentoDocente(): string {
-  return `Você é um consultor pedagógico institucional sênior e linguista especializado em avaliação escolar formativa, operando via Google Gemini.
-Sua missão é aprimorar o relatório/parecer pedagógico inserido pelo docente, transformando anotações livres em um texto técnico-pedagógico formal, culto, articulado e impecável, idêntico ao padrão oficial homologado pela coordenação escolar.`;
+  return `Você é um consultor pedagógico institucional sênior e linguista especializado em avaliação escolar formativa, operando via Google Gemini 3.8.
+Sua missão é aprimorar o relatório/parecer pedagógico inserido pelo docente, transformando anotações livres em um texto técnico-pedagógico formal, culto, articulado e impecável, idêntico ao padrão oficial homologado pela coordenação escolar.
+
+Você realiza com rigor absoluto:
+1. ✍️ CORREÇÃO INTEGRAL DE PALAVRAS E ERROS GRÁFICOS: Corrige 100% dos erros de ortografia, digitação, trocas de letras, erros fonéticos, acentuação, internetês e desvios de pontuação.
+2. 🏛️ CORREÇÃO E ADEQUAÇÃO DE CONTEXTO: Eleva o registro linguístico, convertendo desabafos, adjetivos pejorativos ou anotações informais em diagnósticos pedagógicos construtivos e técnicos (ex.: autorregulação, postura reativa, cumprimento de combinados, mediação pedagógica e desenvolvimento socioemocional/cognitivo), preservando estritamente a verdade dos fatos relatados.
+3. 👥 CONCORDÂNCIA ESTRITA DE GÊNERO E SINTAXE: Aplica concordância gramatical precisa referente ao estudante e garante narrativa fluida e contínua, sem redundâncias ou cacofonias.`;
 }
 
 /**
@@ -268,30 +273,34 @@ export function montarPromptPolimentoDocente(params: {
   const disciplina = params.disciplinaNome?.trim() || 'Docência Geral / Polivalente';
 
   return `---
+MOTOR DE PROCESSAMENTO:
+Google Gemini 3.8 (Assistência de Redação Pedagógica Oficial)
+
+---
 METADADOS DO ESTUDANTE:
 - Nome Completo: ${params.estudanteNome}
 - Gênero Gramatical: ${generoFormatado}
 - Disciplina / Área do Professor: ${disciplina}
 
 ---
-DIRETRIZES OBRIGATÓRIAS DE REDAÇÃO E TRANSFORMAÇÃO:
+DIRETRIZES OBRIGATÓRIAS DE REDAÇÃO, CORREÇÃO DE PALAVRAS E CONTEXTO:
 
-1. 🏛️ Tom Estritamente Técnico e Institucional:
-   - Redija em linguagem formal, culta, técnica e objetiva, adequada a prontuários e boletins escolares oficiais.
-   - Traduza termos leigos, desabafos ou anotações informais em termos pedagógicos descritivos (ex.: desenvolvimento cognitivo, autorregulação, competências socioemocionais, mediação pedagógica, postura atitudinal e colaborativa).
+1. ✍️ Correção Rigorosa de Palavras (Tolerância Zero):
+   - Corrija 100% dos erros de ortografia, acentuação, digitação, trocas de letras e pontuação (ex.: palavras truncadas, abreviações e erros fonéticos).
+   - Aplique pontuação culta, parágrafos bem delimitados e conectivos adequados.
 
-2. ✍️ Saneamento Gramatical sem Falhas (Tolerância Zero):
-   - Corrija 100% dos erros de ortografia, acentuação, digitação e pontuação.
+2. 🏛️ Correção e Adequação de Contexto (Tom Técnico e Institucional):
+   - Contextualize o relato no ambiente escolar formativo: converta queixas, desabafos e termos informais/coloquiais em termos técnicos pedagógicos descritivos (ex.: autorregulação, convivência coletiva, mediação pedagógica, desenvolvimento socioemocional e cognitivo).
+   - Preserve integralmente o fato observado pelo professor, transformando-o em uma narrativa respeitosa, propositiva e institucional.
+
+3. 👥 Concordância Estrita de Gênero e Sujeito:
    - Aplique com rigor absoluto a concordância nominal de gênero e número referente a ${params.estudanteNome}.
-   - Garanta uniformidade e coerência temporal nos tempos verbais.
-
-3. 🔍 Respeito aos Fatos Observados:
-   - Preserve a essência do que o professor relatou; não invente dados clínicos, laudos ou episódios que não constem no texto original.
-   - Integre as observações em uma narrativa pedagógica fluida e contínua.
+   - Nunca duplique termos do sujeito (proibido: "a estudante [Nome] aluna..."). O sujeito deve fluir naturalmente.
+   - Garanta uniformidade temporal nos tempos verbais.
 
 4. 🚫 RESTRIÇÕES RÍGIDAS DE SAÍDA:
    - NÃO inclua seções de "Sugestões de melhoria", "Recomendações para a família", "Dicas" ou "Encaminhamentos".
-   - NÃO adicione saudações, introduções ou notas conversacionais (proibido: "Aqui está o relatório revisado:", "Segue o texto:", "Espero ter ajudado").
+   - NÃO adicione saudações, introduções ou notas conversacionais (proibido: "Aqui está o relatório:", "Segue o parecer:", "Espero ter ajudado").
    - Retorne EXCLUSIVAMENTE o corpo do texto pedagógico refinado, pronto para leitura e validação do docente.
 
 ---
@@ -378,8 +387,16 @@ export function simularPolimentoPedagogicoRelato(
   let texto = (textoOriginal || '').trim();
   if (!texto) return '';
 
+  // 0. Remove redundância inicial de sujeito se o relato começar com "o aluno / a aluna / o estudante / a estudante / aluna / aluno / ele / ela"
+  texto = texto.replace(/^(?:o\s+aluno|a\s+aluna|o\s+estudante|a\s+estudante|alun[oa]|estudante|ele\s+é|ela\s+é|ele|ela)\s+/i, '');
+
   // 1. Saneamento de internetês, abreviações e digitação rápida
   const abreviacoes: [RegExp, string][] = [
+    [palavraRegex('mutio'), 'muito'],
+    [palavraRegex('obadece|obadesse'), 'obedece'],
+    [palavraRegex('comandms|comandoms'), 'comandos'],
+    [palavraRegex('pobrema|poblema'), 'problema'],
+    [palavraRegex('pobremas|poblemas'), 'problemas'],
     [palavraRegex('vc'), 'você'],
     [palavraRegex('vcs'), 'vocês'],
     [palavraRegex('pq'), 'porque'],
@@ -485,8 +502,8 @@ export function simularPolimentoPedagogicoRelato(
     [palavraRegex('(?:paciencia|paciensia)'), 'paciência'],
     [palavraRegex('(?:inteligensia|inteligencia)'), 'inteligência'],
     [palavraRegex('(?:preguisa|preguiça|preguissa)'), 'resistência à rotina de estudos'],
-    [palavraRegex('preguicos[oa]s?'), 'resistente à rotina de estudos'],
-    [palavraRegex('preguiços[oa]s?'), 'resistente à rotina de estudos'],
+    [palavraRegex('preguicos[oa]s?'), 'mostra-se resistente à rotina de estudos'],
+    [palavraRegex('preguiços[oa]s?'), 'mostra-se resistente à rotina de estudos'],
     [palavraRegex('(?:timido|timida)'), isFeminino ? 'tímida' : 'tímido'],
     [palavraRegex('(?:rapido|rapida)'), isFeminino ? 'rápida' : 'rápido'],
     [palavraRegex('facil'), 'fácil'],
@@ -501,6 +518,12 @@ export function simularPolimentoPedagogicoRelato(
     [palavraRegex('(?:agrecivo|agreciva|agresivo|agresiva)'), isFeminino ? 'agressiva' : 'agressivo'],
     [palavraRegex('(?:ansioso|ansiosa|ancioco|ancioca)'), isFeminino ? 'ansiosa' : 'ansioso'],
     [palavraRegex('(?:hiperativo|hiperativa|iperativo|iperativa)'), isFeminino ? 'hiperativa' : 'hiperativo'],
+    [palavraRegex('(?:violente)'), isFeminino ? 'violenta' : 'violento'],
+    [palavraRegex('(?:enteresse|enterese|interese)'), 'interesse'],
+    [palavraRegex('(?:desenteresse|desenterese|desinterese)'), 'desinteresse'],
+    [palavraRegex('(?:desorganisado|desorganisada)'), isFeminino ? 'desorganizada' : 'desorganizado'],
+    [palavraRegex('(?:esquese|esquesse)'), 'esquece'],
+    [palavraRegex('(?:inrritado|inrritada|inritado|inritada)'), isFeminino ? 'irritada' : 'irritado'],
     [palavraRegex('(?:frequencia|frequensia)'), 'frequência'],
     [palavraRegex('(?:presenca|presensa)'), 'presença'],
     [palavraRegex('(?:enrrolado|enrrolada)'), 'disperso'],
@@ -548,6 +571,14 @@ export function simularPolimentoPedagogicoRelato(
 
   // 6. Transposição Natural para Linguagem Formal (sem fórmulas pré-moldadas nem jargões clínicos)
   const conversoesNaturais: [RegExp, string][] = [
+    [palavraRegex('(?:(?:é|está|tem)?\\s*(?:violente|violento|violenta)\\s+e\\s+n[aã]o\\s+(?:obedece|obadece)\\s+a?\\s*(?:comandos?|comandms?))'), 'apresenta momentos de desregulação comportamental com reações impulsivas que demandam constante mediação pedagógica, além de demonstrar resistência no acolhimento de combinados coletivos e orientações da equipe escolar'],
+    [palavraRegex('(?:chat[oa]s?\\s+e\\s+(?:muito|mutio)\\s+rude|chat[oa]s?\\s+e\\s+rude)'), 'encontra desafios significativos na convivência escolar e apresenta postura reativa nas interações com os pares'],
+    [palavraRegex('(?:é|está|tem)?\\s*(?:violente|violento|violenta)'), 'apresenta momentos de desregulação comportamental e reações impulsivas que demandam constante mediação pedagógica'],
+    [palavraRegex('(?:n[aã]o\\s+(?:obedece|obadece)\\s+a?\\s*(?:comandos?|comandms?)|desobedece\\s+a?\\s*(?:comandos?|comandms?))'), 'apresenta resistência no acolhimento de combinados coletivos e orientações pedagógicas da equipe docente'],
+    [palavraRegex('(?:sem\\s+limites?|n[aã]o\\s+tem\\s+limites?)'), 'necessita de constante mediação pedagógica para a compreensão e assimilação de limites no espaço coletivo'],
+    [palavraRegex('(?:responde\\s+mal|responde\\s+grosseir[oa]|fala\\s+torto)'), 'demonstra postura desafiadora nas respostas dirigidas aos educadores e colegas'],
+    [palavraRegex('(?:atrapalha\\s+a\\s+aula|atrapalha\\s+os\\s+colegas)'), 'costuma interferir na dinâmica coletiva da sala de aula'],
+    [palavraRegex('(?:n[aã]o\\s+copia\\s+nada|n[aã]o\\s+copia)'), 'apresenta resistência no registro das atividades propostas no caderno'],
     [palavraRegex('(?:n[aã]o\\s+para\\s+quiet[oa]|n[aã]o\\s+fica\\s+quiet[oa])'), 'demonstra inquietação e constante movimentação pela sala'],
     [palavraRegex('(?:n[aã]o\\s+faz\\s+nada|n[aã]o\\s+quer\\s+fazer\\s+nada|n[aã]o\\s+faz\\s+as\\s+atividades?|n[aã]o\\s+faz\\s+as\\s+lições)'), 'apresenta resistência e pouco engajamento na realização das tarefas escolares propostas'],
     [palavraRegex('(?:briga\\s+muito\\s+com\\s+(?:os|as)?\\s*colegas?|briga\\s+com\\s+(?:os|as)?\\s*colegas?|vive\\s+brigando)'), 'apresenta atritos e desentendimentos frequentes com os pares'],
@@ -660,6 +691,7 @@ export function simularPolimentoPedagogicoRelato(
   // 8. Limpeza de repetições e pontuação formal
   texto = texto
     .replace(/\be\s+e\b/gi, 'e')
+    .replace(/que demandam constante mediação pedagógica e apresenta resistência/gi, 'que demandam constante mediação pedagógica, demonstrando ainda resistência')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -667,18 +699,33 @@ export function simularPolimentoPedagogicoRelato(
   texto = texto.charAt(0).toUpperCase() + texto.slice(1);
   texto = texto.replace(/([.!?]\s+)([a-z])/g, (_, p1, p2) => p1 + p2.toUpperCase());
 
+  // Formatação amigável do nome se vier em caixa alta do banco
+  const formatarNome = (n: string) => {
+    if (!n) return '';
+    if (n === n.toUpperCase() && n.length > 3) {
+      return n
+        .toLowerCase()
+        .split(' ')
+        .map((p, idx) => (['da', 'de', 'do', 'das', 'dos', 'e'].includes(p) && idx > 0 ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+        .join(' ');
+    }
+    return n;
+  };
+  const nomeFormatado = formatarNome(nome);
+
   // Inserção orgânica do sujeito se ausente (sem fórmulas pré-moldadas)
-  const jaMenciona = nome && new RegExp(`\\b${nome.split(' ')[0]}\\b`, 'i').test(texto);
+  const jaMenciona = nomeFormatado && new RegExp(`\\b${nomeFormatado.split(' ')[0]}\\b`, 'i').test(texto);
   const jaTemSujeito = /^(a\s+aluna|o\s+aluno|a\s+estudante|o\s+estudante|ela|ele|durante|no|na|em|quanto)/i.test(texto);
+  const artigoEstudanteCapitalizado = isFeminino ? 'A estudante' : 'O estudante';
 
   if (!jaTemSujeito && !jaMenciona) {
-    const sujeito = nome ? `${artigoEstudante} ${nome}` : artigoEstudante;
+    const sujeito = nomeFormatado ? `${artigoEstudanteCapitalizado} ${nomeFormatado}` : artigoEstudanteCapitalizado;
     const primeiraLetra = texto.charAt(0).toLowerCase();
     texto = `${sujeito} ${primeiraLetra}${texto.slice(1)}`;
   } else if (/^ela\s+é(?:\s|$)/i.test(texto)) {
-    texto = texto.replace(/^ela\s+é(?:\s|$)/i, nome ? `${nome} é ` : 'A estudante é ');
+    texto = texto.replace(/^ela\s+é(?:\s|$)/i, nomeFormatado ? `${nomeFormatado} é ` : 'A estudante é ');
   } else if (/^ele\s+é(?:\s|$)/i.test(texto)) {
-    texto = texto.replace(/^ele\s+é(?:\s|$)/i, nome ? `${nome} é ` : 'O estudante é ');
+    texto = texto.replace(/^ele\s+é(?:\s|$)/i, nomeFormatado ? `${nomeFormatado} é ` : 'O estudante é ');
   }
 
   return texto.replace(/\s+/g, ' ').trim();

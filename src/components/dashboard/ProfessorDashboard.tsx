@@ -274,6 +274,8 @@ export function ProfessorDashboard() {
   const [modalReposicaoAberto, setModalReposicaoAberto] = useState(false);
   const [reposicaoSelecionada, setReposicaoSelecionada] = useState<ReposicaoAula | null>(null);
 
+  const [modalAtestadoAberto, setModalAtestadoAberto] = useState(false);
+
   if (!professorAtual) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[300px] p-8 space-y-3">

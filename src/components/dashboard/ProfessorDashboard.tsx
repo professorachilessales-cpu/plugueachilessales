@@ -49,39 +49,63 @@ export function ProfessorDashboard() {
   // Localiza o perfil de professor conectado
   const professorAtual = useMemo(() => {
     const cpfLimpoUser = usuarioLogado?.cpf?.replace(/\D/g, '');
-    return (
-      professores.find(p => {
-        const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
-        if (cpfLimpoUser && cpfLimpoProf && cpfLimpoUser === cpfLimpoProf) return true;
-        if (usuarioLogado?.id && (p.id === usuarioLogado.id || (p as any).user_id === usuarioLogado.id || p.profile_id === usuarioLogado.id)) return true;
-        if (usuarioLogado?.email && p.email?.toLowerCase() === usuarioLogado.email.toLowerCase()) return true;
-        if (usuarioLogado?.name && p.nome_completo?.toLowerCase() === usuarioLogado.name.toLowerCase()) return true;
-        return false;
-      }) ||
-      professores[0]
-    );
+    const encontrado = professores.find(p => {
+      if (!p) return false;
+      const cpfLimpoProf = p.cpf?.replace(/\D/g, '');
+      if (cpfLimpoUser && cpfLimpoProf && cpfLimpoUser === cpfLimpoProf) return true;
+      if (usuarioLogado?.id && (p.id === usuarioLogado.id || (p as any).user_id === usuarioLogado.id || p.profile_id === usuarioLogado.id)) return true;
+      if (usuarioLogado?.email && p.email?.toLowerCase() === usuarioLogado.email.toLowerCase()) return true;
+      if (usuarioLogado?.name && p.nome_completo?.toLowerCase() === usuarioLogado.name.toLowerCase()) return true;
+      return false;
+    });
+
+    if (encontrado) return encontrado;
+    if (professores.length > 0) return professores[0];
+
+    // Fallback gracioso com perfil temporário para evitar crashes durante carregamento inicial
+    if (usuarioLogado) {
+      return {
+        id: usuarioLogado.id || 'prof-temp',
+        nome_completo: usuarioLogado.name || 'Professor',
+        matricula: 'DOC-2026',
+        formacao: 'Docência',
+        disciplinas: [],
+        telefone: '',
+        email: usuarioLogado.email || '',
+        ativo: true,
+        eh_apoio: false,
+        eh_administrativo: false,
+        turmas_atribuidas_ids: [],
+        created_at: new Date().toISOString(),
+      } as Professor;
+    }
+
+    return null;
   }, [professores, usuarioLogado]);
 
   // Identifica se o perfil conectado é de Funcionário Administrativo
   const ehAdministrativo = useMemo(() => {
+    if (!professorAtual) return false;
     return isProfessorAdministrativo(professorAtual, users);
   }, [professorAtual, users]);
 
   // Turmas atribuídas ao professor conectado
   const turmasAtribuidas = useMemo(() => {
-    if (!professorAtual || ehAdministrativo) return [];
+    if (!professorAtual?.id || ehAdministrativo) return [];
     const profId = professorAtual.id;
     const profName = professorAtual.nome_completo?.trim().toLowerCase();
     const turmasAtribuidasIds = professorAtual.turmas_atribuidas_ids || [];
 
     return turmas.filter(t => 
-      (t.professores_ids && t.professores_ids.includes(profId)) ||
-      t.professor_regente_id === profId ||
-      (t.professor_regente_nome && profName && t.professor_regente_nome.trim().toLowerCase() === profName) ||
-      (t.id && turmasAtribuidasIds.includes(t.id)) ||
-      (t.nome && turmasAtribuidasIds.includes(t.nome)) ||
-      (t.equipe_apoio_ids && t.equipe_apoio_ids.includes(profId)) ||
-      (t.grade_horaria && Array.isArray(t.grade_horaria) && t.grade_horaria.some(h => h.professor_nome && profName && h.professor_nome.trim().toLowerCase() === profName))
+      t && (
+        (t.professores_ids && t.professores_ids.includes(profId)) ||
+        t.professor_regente_id === profId ||
+        (t.professor_regente_nome && profName && t.professor_regente_nome.trim().toLowerCase() === profName) ||
+        (t.id && turmasAtribuidasIds.includes(t.id)) ||
+        (t.nome && turmasAtribuidasIds.includes(t.nome)) ||
+        (t.equipe_apoio_ids && t.equipe_apoio_ids.includes(profId)) ||
+        (t.grade_horaria && Array.isArray(t.grade_horaria) && t.grade_horaria.some(h => h.professor_nome && profName && h.professor_nome.trim().toLowerCase() === profName))
+      )
     );
   }, [turmas, professorAtual, ehAdministrativo]);
 
@@ -90,7 +114,7 @@ export function ProfessorDashboard() {
   // 1. SOLICITAÇÕES ATIVAS PARA O PROFESSOR (Bloco de Alertas Críticos)
   // Professores administrativos não recebem notificações e não elaboram relatórios
   const relatoriosPendentesDoProfessor = useMemo(() => {
-    if (!professorAtual || ehAdministrativo) return [];
+    if (!professorAtual?.id || ehAdministrativo) return [];
 
     const itens: Array<{
       relatorio: RelatorioProfessor;
@@ -100,11 +124,11 @@ export function ProfessorDashboard() {
     }> = [];
 
     relatoriosProfessores
-      .filter(r => r.professor_id === professorAtual.id && r.status === 'pendente')
+      .filter(r => r && r.professor_id === professorAtual.id && r.status === 'pendente')
       .forEach(r => {
-        const sol = solicitacoesRelatorio.find(s => s.id === r.solicitacao_id);
-        const aluno = estudantes.find(e => e.id === sol?.aluno_id);
-        const turma = turmas.find(t => t.id === aluno?.turma_id);
+        const sol = solicitacoesRelatorio.find(s => s && s.id === r.solicitacao_id);
+        const aluno = estudantes.find(e => e && e.id === sol?.aluno_id);
+        const turma = turmas.find(t => t && t.id === aluno?.turma_id);
         if (sol && aluno && sol.status !== 'concluido' && r.status !== 'nao_entregue') {
           itens.push({
             relatorio: r,
@@ -120,9 +144,10 @@ export function ProfessorDashboard() {
 
   // 2. REPOSIÇÕES E AULAS DEVIDAS (Regra dos 30 dias)
   const reposicoesDoProfessor = useMemo(() => {
+    if (!professorAtual?.id) return [];
     const hoje = new Date();
     return reposicoesAulas
-      .filter(r => r.professor_id === professorAtual.id)
+      .filter(r => r && r.professor_id === professorAtual.id)
       .map(r => {
         const limite = new Date(r.data_limite_reposicao + 'T23:59:59');
         const diffMs = limite.getTime() - hoje.getTime();
@@ -144,7 +169,8 @@ export function ProfessorDashboard() {
 
   // 3. ATESTADOS DO PROFESSOR
   const atestadosDoProfessor = useMemo(() => {
-    return atestadosProfessor.filter(a => a.professor_id === professorAtual.id);
+    if (!professorAtual?.id) return [];
+    return atestadosProfessor.filter(a => a && a.professor_id === professorAtual.id);
   }, [atestadosProfessor, professorAtual]);
 
   // Helper para formatação segura de data sem problemas de fuso horário
@@ -248,7 +274,16 @@ export function ProfessorDashboard() {
   const [modalReposicaoAberto, setModalReposicaoAberto] = useState(false);
   const [reposicaoSelecionada, setReposicaoSelecionada] = useState<ReposicaoAula | null>(null);
 
-  const [modalAtestadoAberto, setModalAtestadoAberto] = useState(false);
+  if (!professorAtual) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[300px] p-8 space-y-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-school-blue-600 border-t-transparent" />
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+          Carregando painel do professor...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in-0 duration-300">

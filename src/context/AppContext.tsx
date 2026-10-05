@@ -376,8 +376,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('school_os_professores');
       } catch {}
 
-      setTurmas([]);
-      setProfessores([]);
+      setTurmas(initialTurmas);
+      setProfessores(initialProfessores);
 
       // Faltas persistidas
       const savedFaltas = localStorage.getItem('school_os_faltas');

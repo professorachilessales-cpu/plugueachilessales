@@ -850,6 +850,193 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      case 'criar_solicitacao_relatorio': {
+        const { solicitacao, relatorios_professores } = payload;
+        try {
+          if (solicitacao) {
+            await executeTursoQuery(
+              `INSERT INTO solicitacoes_relatorio (id, aluno_id, status, data_solicitacao, admin_solicitante_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 status = excluded.status,
+                 data_solicitacao = excluded.data_solicitacao`,
+              [
+                solicitacao.id,
+                solicitacao.aluno_id,
+                solicitacao.status || 'pendente',
+                solicitacao.data_solicitacao || new Date().toISOString().split('T')[0],
+                solicitacao.admin_solicitante_id || 'admin',
+                solicitacao.created_at || new Date().toISOString(),
+              ]
+            );
+          }
+          if (Array.isArray(relatorios_professores)) {
+            for (const rp of relatorios_professores) {
+              await executeTursoQuery(
+                `INSERT INTO relatorios_professores (id, solicitacao_id, professor_id, rascunho_original, texto_ia, texto_final, status, data_envio, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                   rascunho_original = COALESCE(excluded.rascunho_original, relatorios_professores.rascunho_original),
+                   texto_ia = COALESCE(excluded.texto_ia, relatorios_professores.texto_ia),
+                   texto_final = COALESCE(excluded.texto_final, relatorios_professores.texto_final),
+                   status = excluded.status`,
+                [
+                  rp.id,
+                  rp.solicitacao_id,
+                  rp.professor_id,
+                  rp.rascunho_original || '',
+                  rp.texto_ia || '',
+                  rp.texto_final || '',
+                  rp.status || 'pendente',
+                  rp.data_envio || null,
+                  rp.created_at || new Date().toISOString(),
+                ]
+              );
+            }
+          }
+        } catch (e: any) {
+          console.error('Erro ao criar solicitação de relatório no Turso:', e);
+          return NextResponse.json({ error: e?.message || 'Falha ao salvar solicitação no banco' }, { status: 500 });
+        }
+        return NextResponse.json({ success: true });
+      }
+
+      case 'salvar_rascunho_professor': {
+        const { relatorio_id, rascunho, texto_final } = payload;
+        try {
+          await executeTursoQuery(
+            `UPDATE relatorios_professores 
+             SET rascunho_original = ?, 
+                 texto_final = CASE WHEN (texto_final IS NULL OR texto_final = '') THEN ? ELSE texto_final END 
+             WHERE id = ?`,
+            [rascunho || '', texto_final || rascunho || '', relatorio_id]
+          );
+        } catch (e: any) {
+          console.error('Erro ao salvar rascunho do professor no Turso:', e);
+          return NextResponse.json({ error: e?.message || 'Falha ao salvar rascunho no banco' }, { status: 500 });
+        }
+        return NextResponse.json({ success: true });
+      }
+
+      case 'atualizar_relatorio_professor': {
+        const { relatorio_id, rascunho_original, texto_ia, texto_final, status } = payload;
+        try {
+          await executeTursoQuery(
+            `UPDATE relatorios_professores 
+             SET rascunho_original = COALESCE(?, rascunho_original),
+                 texto_ia = COALESCE(?, texto_ia),
+                 texto_final = COALESCE(?, texto_final),
+                 status = COALESCE(?, status)
+             WHERE id = ?`,
+            [
+              rascunho_original !== undefined ? rascunho_original : null,
+              texto_ia !== undefined ? texto_ia : null,
+              texto_final !== undefined ? texto_final : null,
+              status !== undefined ? status : null,
+              relatorio_id
+            ]
+          );
+        } catch (e: any) {
+          console.error('Erro ao atualizar relatório do professor no Turso:', e);
+          return NextResponse.json({ error: e?.message || 'Falha ao atualizar relatório no banco' }, { status: 500 });
+        }
+        return NextResponse.json({ success: true });
+      }
+
+      case 'enviar_relatorio_professor': {
+        const { relatorio_id, texto_final, data_envio, notificacao } = payload;
+        const envio = data_envio || new Date().toISOString();
+        try {
+          await executeTursoQuery(
+            `UPDATE relatorios_professores 
+             SET texto_final = ?, 
+                 status = 'enviado', 
+                 data_envio = ? 
+             WHERE id = ?`,
+            [texto_final || '', envio, relatorio_id]
+          );
+          if (notificacao) {
+            await executeTursoQuery(
+              `INSERT INTO notificacoes_admin (id, relatorio_professor_id, solicitacao_id, professor_id, professor_nome, aluno_nome, lido, data_criacao)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET lido = excluded.lido`,
+              [
+                notificacao.id,
+                notificacao.relatorio_professor_id || relatorio_id,
+                notificacao.solicitacao_id || null,
+                notificacao.professor_id || null,
+                notificacao.professor_nome || 'Docente',
+                notificacao.aluno_nome || 'Estudante',
+                notificacao.lido ? 1 : 0,
+                notificacao.data_criacao || envio,
+              ]
+            );
+          }
+        } catch (e: any) {
+          console.error('Erro ao enviar relatório do professor no Turso:', e);
+          return NextResponse.json({ error: e?.message || 'Falha ao enviar relatório no banco' }, { status: 500 });
+        }
+        return NextResponse.json({ success: true });
+      }
+
+      case 'salvar_relatorio_consolidado': {
+        const { consolidado, solicitacao_id, conteudo_final, data_geracao, arquivo_docx_url } = payload;
+        const solId = solicitacao_id || consolidado?.solicitacao_id;
+        const cId = consolidado?.id || `rel-cons-${Date.now()}`;
+        const cFinal = conteudo_final || consolidado?.conteudo_final || '';
+        const cData = data_geracao || consolidado?.data_geracao || new Date().toISOString();
+        const cDocx = arquivo_docx_url || consolidado?.arquivo_docx_url || `/api/relatorios/docx?solicitacao_id=${solId}`;
+        const cCreated = consolidado?.created_at || cData;
+
+        try {
+          await executeTursoQuery(
+            `INSERT INTO relatorios_consolidados (id, solicitacao_id, conteudo_final, data_geracao, arquivo_docx_url, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               conteudo_final = excluded.conteudo_final,
+               data_geracao = excluded.data_geracao,
+               arquivo_docx_url = excluded.arquivo_docx_url`,
+            [cId, solId, cFinal, cData, cDocx, cCreated]
+          );
+
+          if (solId) {
+            await executeTursoQuery(
+              `UPDATE solicitacoes_relatorio SET status = 'concluido' WHERE id = ?`,
+              [solId]
+            );
+          }
+        } catch (e: any) {
+          console.error('Erro ao salvar relatório consolidado no Turso:', e);
+          return NextResponse.json({ error: e?.message || 'Falha ao salvar consolidado no banco' }, { status: 500 });
+        }
+        return NextResponse.json({ success: true });
+      }
+
+      case 'marcar_notificacao_lida': {
+        const { notificacao_id, todas } = payload;
+        try {
+          if (todas) {
+            await executeTursoQuery('UPDATE notificacoes_admin SET lido = 1');
+          } else if (notificacao_id) {
+            await executeTursoQuery('UPDATE notificacoes_admin SET lido = 1 WHERE id = ?', [notificacao_id]);
+          }
+        } catch (e: any) {
+          console.error('Erro ao marcar notificação no Turso:', e);
+        }
+        return NextResponse.json({ success: true });
+      }
+
+      case 'delete_relatorio_professor': {
+        const { relatorio_id } = payload;
+        try {
+          await executeTursoQuery('DELETE FROM notificacoes_admin WHERE relatorio_professor_id = ?', [relatorio_id]);
+          await executeTursoQuery('DELETE FROM relatorios_professores WHERE id = ?', [relatorio_id]);
+        } catch (e: any) {
+          console.error('Erro ao excluir parecer docente no Turso:', e);
+        }
+        return NextResponse.json({ success: true });
+      }
+
       case 'delete_solicitacao': {
         const { solicitacao_id } = payload;
         try {

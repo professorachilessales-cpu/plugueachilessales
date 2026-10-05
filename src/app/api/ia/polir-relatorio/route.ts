@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeTextarea } from '@/lib/security';
 import { 
   determinarGeneroEstudante,
+  montarSystemPromptPolimentoDocente,
+  montarPromptPolimentoDocente,
   montarPromptPipelinePolimentoRelato, 
   limparMetatextoEEncerramentosRelato, 
   simularPolimentoPedagogicoRelato 
@@ -48,11 +50,11 @@ export async function POST(req: NextRequest) {
     });
 
     const numTentativa = Number(tentativa) || 1;
-    const promptPipeline = montarPromptPipelinePolimentoRelato({
+    const promptPipeline = montarPromptPolimentoDocente({
       estudanteNome: nomeFinal,
       generoGramatical: dadosGenero.generoGramatical,
-      textoRelatoLivre: rascunhoLimpo,
-      tentativa: numTentativa,
+      disciplinaNome: disciplina,
+      textoOriginalProfessor: rascunhoLimpo,
     });
 
     // 1. Provedor Primário: Google Gemini API Oficial
@@ -64,21 +66,19 @@ export async function POST(req: NextRequest) {
     if (geminiApiKey && !geminiApiKey.includes('your-key')) {
       const modelosGemini = [
         process.env.GEMINI_MODEL,
-        'gemini-3.8-flash',
-        'gemini-3.7-flash',
-        'gemini-3.5-flash-lite',
-        'gemini-flash-latest',
         'gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'gemini-2.0-flash',
         'gemini-1.5-flash',
+        'gemini-2.0-flash',
+        'gemini-2.5-pro',
+        'gemini-3.8-flash',
+        'gemini-flash-latest'
       ].filter(Boolean) as string[];
 
-      const systemInstructionText = `Você é um redator e consultor pedagógico especialista em língua portuguesa. Sua função é reescrever o relato do professor com padrão formal culto, excelente fluidez, elegância e naturalidade, corrigindo 100% dos erros ortográficos e garantindo concordância gramatical estrita com o(a) estudante (${dadosGenero.generoGramatical}). Não utilize fórmulas prontas, jargões artificiais nem diretrizes preestabelecidas; a cada chamada, explore uma nova reescrita autêntica e fresca. Retorne EXCLUSIVAMENTE o texto polido, sem saudações nem metatexto.`;
+      const systemInstructionText = montarSystemPromptPolimentoDocente();
 
       for (const modelo of modelosGemini) {
         try {
-          // Tentativa A: generateContent com systemInstruction e temperatura dinâmica
+          // Tentativa A: generateContent com systemInstruction e parâmetros equilibrados (temp 0.55, topP 0.95, topK 40, maxTokens 1500)
           const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
             {
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
                   },
                 ],
                 generationConfig: {
-                  temperature: 0.85, // Temperatura dinâmica para sempre tentar um novo texto
+                  temperature: 0.55, // Faixa 0.5 a 0.6 padronizada com o módulo administrativo
                   topP: 0.95,
                   topK: 40,
                   maxOutputTokens: 1500,
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
                     system_instruction: systemInstructionText,
                     input: promptPipeline,
                     generation_config: {
-                      temperature: 0.85,
+                      temperature: 0.55,
                       max_output_tokens: 1500,
                     }
                   }),
@@ -201,11 +201,11 @@ export async function POST(req: NextRequest) {
             messages: [
               {
                 role: 'system',
-                content: `Você é um consultor pedagógico institucional sênior. Sua função é polir relatos livres de professores escolares: aplicar linguagem formal culta, corrigir 100% dos erros de português, garantir concordância rigorosa de gênero com o estudante (${dadosGenero.generoGramatical}) e melhorar a narrativa pedagógica sem distorcer fatos. Retorne EXCLUSIVAMENTE o texto polido, sem saudações nem metatexto.`
+                content: montarSystemPromptPolimentoDocente()
               },
               { role: 'user', content: promptPipeline },
             ],
-            temperature: 0.3,
+            temperature: 0.55,
             top_p: 0.95,
             max_tokens: 1500,
           }),

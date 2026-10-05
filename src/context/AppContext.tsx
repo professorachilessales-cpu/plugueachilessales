@@ -604,21 +604,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setActivityLogs(tLogs);
             localStorage.setItem('school_os_activity_logs', JSON.stringify(tLogs));
           }
-          if (json.data.solicitacoesRelatorio && json.data.solicitacoesRelatorio.length > 0) {
-            setSolicitacoesRelatorio(json.data.solicitacoesRelatorio);
-            localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(json.data.solicitacoesRelatorio));
+          if (Array.isArray(json.data.solicitacoesRelatorio)) {
+            if (json.data.solicitacoesRelatorio.length > 0) {
+              setSolicitacoesRelatorio(json.data.solicitacoesRelatorio);
+              localStorage.setItem('school_os_solicitacoes_relatorio', JSON.stringify(json.data.solicitacoesRelatorio));
+            } else {
+              // Se o Turso ainda não possui solicitações, verifica e migra solicitações locais reais para o banco
+              const localSol = localStorage.getItem('school_os_solicitacoes_relatorio');
+              const localProf = localStorage.getItem('school_os_relatorios_professores');
+              if (localSol && localProf) {
+                try {
+                  const parsedSol = JSON.parse(localSol);
+                  const parsedProf = JSON.parse(localProf);
+                  const reaisSol = parsedSol.filter((s: any) => !['sol-1', 'sol-2', 'sol-3'].includes(s.id));
+                  if (reaisSol.length > 0) {
+                    setSolicitacoesRelatorio(reaisSol);
+                    const reaisProf = parsedProf.filter((p: any) => reaisSol.some((s: any) => s.id === p.solicitacao_id));
+                    setRelatoriosProfessores(reaisProf);
+                    for (const sol of reaisSol) {
+                      const profs = reaisProf.filter((p: any) => p.solicitacao_id === sol.id);
+                      fetch('/api/turso/sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'criar_solicitacao_relatorio',
+                          payload: { solicitacao: sol, relatorios_professores: profs },
+                        }),
+                      }).catch(() => {});
+                    }
+                  } else {
+                    setSolicitacoesRelatorio([]);
+                  }
+                } catch {
+                  setSolicitacoesRelatorio([]);
+                }
+              } else {
+                setSolicitacoesRelatorio([]);
+              }
+            }
           }
-          if (json.data.relatoriosProfessores && json.data.relatoriosProfessores.length > 0) {
-            setRelatoriosProfessores(json.data.relatoriosProfessores);
-            localStorage.setItem('school_os_relatorios_professores', JSON.stringify(json.data.relatoriosProfessores));
+          if (Array.isArray(json.data.relatoriosProfessores)) {
+            if (json.data.relatoriosProfessores.length > 0) {
+              setRelatoriosProfessores(json.data.relatoriosProfessores);
+              localStorage.setItem('school_os_relatorios_professores', JSON.stringify(json.data.relatoriosProfessores));
+            } else if (!localStorage.getItem('school_os_relatorios_professores')) {
+              setRelatoriosProfessores([]);
+            }
           }
-          if (json.data.relatoriosConsolidados && json.data.relatoriosConsolidados.length > 0) {
-            setRelatoriosConsolidados(json.data.relatoriosConsolidados);
-            localStorage.setItem('school_os_relatorios_consolidados', JSON.stringify(json.data.relatoriosConsolidados));
+          if (Array.isArray(json.data.relatoriosConsolidados)) {
+            if (json.data.relatoriosConsolidados.length > 0) {
+              setRelatoriosConsolidados(json.data.relatoriosConsolidados);
+              localStorage.setItem('school_os_relatorios_consolidados', JSON.stringify(json.data.relatoriosConsolidados));
+            } else {
+              setRelatoriosConsolidados([]);
+            }
           }
-          if (json.data.notificacoesAdmin && json.data.notificacoesAdmin.length > 0) {
-            setNotificacoesAdmin(json.data.notificacoesAdmin);
-            localStorage.setItem('school_os_notificacoes_admin', JSON.stringify(json.data.notificacoesAdmin));
+          if (Array.isArray(json.data.notificacoesAdmin)) {
+            if (json.data.notificacoesAdmin.length > 0) {
+              setNotificacoesAdmin(json.data.notificacoesAdmin);
+              localStorage.setItem('school_os_notificacoes_admin', JSON.stringify(json.data.notificacoesAdmin));
+            } else {
+              setNotificacoesAdmin([]);
+            }
           }
           if (Array.isArray(json.data.observacoesAluno)) {
             const ativas = json.data.observacoesAluno.filter((o: ObservacaoAluno) => {
@@ -1743,16 +1790,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  // 1. Relatórios Pedagógicos Colaborativos com IA
+  // 1. Relatórios Pedagógicos Colaborativos com IA (Persistidos no Banco de Dados Turso)
   const addSolicitacaoRelatorio = (alunoId: string, _adminId?: string, professoresIdsParam?: string[], _obs?: string): string => {
     const novaSolId = `sol-${Date.now()}`;
+    const agora = new Date().toISOString();
     const novaSol: SolicitacaoRelatorio = {
       id: novaSolId,
       aluno_id: alunoId,
       status: 'pendente',
-      data_solicitacao: new Date().toISOString().split('T')[0],
+      data_solicitacao: agora.split('T')[0],
       admin_solicitante_id: _adminId || currentUser.id,
-      created_at: new Date().toISOString(),
+      created_at: agora,
     };
 
     setSolicitacoesRelatorio(prev => [novaSol, ...prev]);
@@ -1782,10 +1830,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       texto_ia: '',
       texto_final: '',
       status: 'pendente',
-      created_at: new Date().toISOString(),
+      created_at: agora,
     }));
 
     setRelatoriosProfessores(prev => [...novosRelatoriosProfessores, ...prev]);
+
+    // Persistência direta e imediata no banco de dados Turso
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'criar_solicitacao_relatorio',
+        payload: {
+          solicitacao: novaSol,
+          relatorios_professores: novosRelatoriosProfessores,
+        },
+      }),
+    }).catch(err => console.error('[Turso Sync] Falha ao persistir solicitação no banco:', err));
+
     return novaSolId;
   };
 
@@ -1793,6 +1855,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setRelatoriosProfessores(prev =>
       prev.map(r => (r.id === relatorioId ? { ...r, rascunho_original: rascunho, texto_final: r.texto_final || rascunho } : r))
     );
+
+    // Persistência direta e imediata no banco de dados Turso
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'salvar_rascunho_professor',
+        payload: {
+          relatorio_id: relatorioId,
+          rascunho,
+        },
+      }),
+    }).catch(err => console.error('[Turso Sync] Falha ao salvar rascunho no banco:', err));
   };
 
   const polirRelatorioComIA = async (
@@ -1839,6 +1914,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       prev.map(r => (r.id === relatorioId ? { ...r, rascunho_original: rascunho, texto_ia: textoIa, texto_final: textoIa } : r))
     );
 
+    // Persistência direta e imediata do texto refinado no banco de dados Turso
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'atualizar_relatorio_professor',
+        payload: {
+          relatorio_id: relatorioId,
+          rascunho_original: rascunho,
+          texto_ia: textoIa,
+          texto_final: textoIa,
+        },
+      }),
+    }).catch(err => console.error('[Turso Sync] Falha ao persistir refinamento por IA no banco:', err));
+
     return textoIa;
   };
 
@@ -1869,26 +1959,89 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     setNotificacoesAdmin(prev => [novaNotif, ...prev]);
+
+    // Persistência direta e imediata no banco de dados Turso
+    try {
+      await fetch('/api/turso/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'enviar_relatorio_professor',
+          payload: {
+            relatorio_id: relatorioId,
+            texto_final: textoFinal,
+            data_envio: agora,
+            notificacao: novaNotif,
+          },
+        }),
+      });
+    } catch (err) {
+      console.error('[Turso Sync] Falha ao persistir envio de relatório no banco:', err);
+    }
   };
 
   const updateRelatorioProfessor = (relatorioId: string, updates: Partial<RelatorioProfessor>) => {
     setRelatoriosProfessores(prev =>
       prev.map(r => (r.id === relatorioId ? { ...r, ...updates } : r))
     );
+
+    // Persistência no banco de dados Turso
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'atualizar_relatorio_professor',
+        payload: {
+          relatorio_id: relatorioId,
+          rascunho_original: updates.rascunho_original,
+          texto_ia: updates.texto_ia,
+          texto_final: updates.texto_final,
+          status: updates.status,
+        },
+      }),
+    }).catch(err => console.error('[Turso Sync] Falha ao atualizar relatório no banco:', err));
   };
 
   const deleteRelatorioProfessor = (relatorioId: string) => {
     setRelatoriosProfessores(prev => prev.filter(r => r.id !== relatorioId));
+
+    // Persistência no banco de dados Turso
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'delete_relatorio_professor',
+        payload: { relatorio_id: relatorioId },
+      }),
+    }).catch(err => console.error('[Turso Sync] Falha ao excluir parecer docente no banco:', err));
   };
 
   const marcarNotificacaoLida = (notificacaoId: string) => {
     setNotificacoesAdmin(prev =>
       prev.map(n => (n.id === notificacaoId ? { ...n, lido: true } : n))
     );
+
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'marcar_notificacao_lida',
+        payload: { notificacao_id: notificacaoId },
+      }),
+    }).catch(() => {});
   };
 
   const marcarTodasNotificacoesLidas = () => {
     setNotificacoesAdmin(prev => prev.map(n => ({ ...n, lido: true })));
+
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'marcar_notificacao_lida',
+        payload: { todas: true },
+      }),
+    }).catch(() => {});
   };
 
   const consolidarRelatorioComIA = async (solicitacaoId: string, observacoesSecretaria?: string): Promise<string> => {
@@ -1922,8 +2075,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sexo: aluno?.sexo || aluno?.genero,
         turmaNome: turma?.nome || '',
         turma_nome: turma?.nome || '',
-        turno: turma?.turno || 'manha',
-        turma_turno: turma?.turno || 'manha',
+        turno: turma?.turno || 'manhã',
+        turma_turno: turma?.turno || 'manhã',
         pareceres: pareceresPayload,
         observacoesSecretaria,
       }),
@@ -1955,6 +2108,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' } : s))
     );
 
+    // Persistência no banco de dados Turso
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'salvar_relatorio_consolidado',
+        payload: {
+          consolidado: novoConsolidado,
+          solicitacao_id: solicitacaoId,
+        },
+      }),
+    }).catch(err => console.error('[Turso Sync] Falha ao persistir relatório consolidado no banco:', err));
+
     return conteudoConsolidado;
   };
 
@@ -1965,23 +2131,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       prev.map(s => (s.id === solicitacaoId ? { ...s, status: 'concluido' } : s))
     );
 
+    const novoConsolidado: RelatorioConsolidado = {
+      id: `rel-cons-${Date.now()}`,
+      solicitacao_id: solicitacaoId,
+      conteudo_final: conteudoFinal,
+      data_geracao: agora,
+      arquivo_docx_url: `/api/relatorios/docx?solicitacao_id=${solicitacaoId}`,
+      created_at: agora,
+    };
+
     setRelatoriosConsolidados(prev => {
       const existe = prev.find(c => c.solicitacao_id === solicitacaoId);
       if (existe) {
         return prev.map(c => (c.solicitacao_id === solicitacaoId ? { ...c, conteudo_final: conteudoFinal } : c));
       }
-      return [
-        {
-          id: `rel-cons-${Date.now()}`,
+      return [novoConsolidado, ...prev];
+    });
+
+    // Persistência direta no banco de dados Turso
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'salvar_relatorio_consolidado',
+        payload: {
+          consolidado: novoConsolidado,
           solicitacao_id: solicitacaoId,
           conteudo_final: conteudoFinal,
           data_geracao: agora,
-          arquivo_docx_url: `/api/relatorios/docx?solicitacao_id=${solicitacaoId}`,
-          created_at: agora,
         },
-        ...prev,
-      ];
-    });
+      }),
+    }).catch(err => console.error('[Turso Sync] Falha ao salvar relatório consolidado no banco:', err));
   };
 
   const excluirSolicitacaoRelatorio = async (solicitacaoId: string) => {

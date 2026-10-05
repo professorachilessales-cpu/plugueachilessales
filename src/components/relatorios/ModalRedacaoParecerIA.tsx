@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { 
   X, 
@@ -15,11 +15,16 @@ import {
   Loader2, 
   Wand2, 
   Edit3, 
-  Info
+  Info,
+  Copy, 
+  Check, 
+  RotateCcw, 
+  Key,
+  Undo2,
+  FileCheck2
 } from 'lucide-react';
 import { RelatorioProfessor, SolicitacaoRelatorio, Estudante, Turma } from '@/lib/types';
 import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
-import { Copy, Check, ArrowDownToLine, RotateCcw, Key } from 'lucide-react';
 
 interface ModalRedacaoParecerIAProps {
   isOpen: boolean;
@@ -40,9 +45,15 @@ export function ModalRedacaoParecerIA({
 }: ModalRedacaoParecerIAProps) {
   const { salvarRascunhoProfessor, polirRelatorioComIA, enviarRelatorioProfessor } = useApp();
 
-  const [rascunho, setRascunho] = useState(relatorio.rascunho_original || relatorio.texto_final || '');
-  const [textoIa, setTextoIa] = useState(relatorio.texto_ia || '');
-  const [textoFinal, setTextoFinal] = useState(relatorio.texto_final || relatorio.texto_ia || relatorio.rascunho_original || '');
+  const textoInicial = relatorio.texto_final || relatorio.texto_ia || relatorio.rascunho_original || '';
+  const rascunhoInicial = relatorio.rascunho_original || relatorio.texto_final || '';
+
+  // Estado unificado do editor (100% editável pelo docente)
+  const [textoParecer, setTextoParecer] = useState(textoInicial);
+  const [rascunhoOriginal, setRascunhoOriginal] = useState(rascunhoInicial);
+  const [versaoIaRefinada, setVersaoIaRefinada] = useState(relatorio.texto_ia || '');
+  const [foiRefinadoPorIa, setFoiRefinadoPorIa] = useState(Boolean(relatorio.texto_ia));
+
   const [polindo, setPolindo] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [sucessoEnviado, setSucessoEnviado] = useState(false);
@@ -54,7 +65,7 @@ export function ModalRedacaoParecerIA({
   const [chaveSalvaMsg, setChaveSalvaMsg] = useState(false);
 
   // Carrega chave personalizada do localStorage, se existente
-  React.useEffect(() => {
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const salva = localStorage.getItem('gemini_user_api_key') || '';
       setChaveManual(salva);
@@ -77,7 +88,7 @@ export function ModalRedacaoParecerIA({
   };
 
   // Identificação precisa do gênero gramatical para exibição e conferência
-  const dadosGenero = React.useMemo(() => {
+  const dadosGenero = useMemo(() => {
     return determinarGeneroEstudante({
       nome_completo: estudante.nome_completo,
       genero: estudante.genero || (estudante as any).sexo,
@@ -107,29 +118,39 @@ export function ModalRedacaoParecerIA({
   })();
 
   const handleSalvarRascunho = () => {
-    salvarRascunhoProfessor(relatorio.id, rascunho);
+    salvarRascunhoProfessor(relatorio.id, textoParecer);
   };
 
+  // Acionamento oficial do motor Google Gemini padronizado com o módulo administrativo
   const handlePolirComIA = async () => {
-    if (!rascunho || rascunho.trim().length < 5) {
-      setErro('Por favor, digite suas observações sobre o estudante antes de acionar a Inteligência Artificial.');
+    if (!textoParecer || textoParecer.trim().length < 5) {
+      setErro('Por favor, digite suas observações sobre o estudante antes de acionar a Assistência de Redação Pedagógica.');
       return;
     }
 
     setErro(null);
     setPolindo(true);
+
+    // Salva o rascunho anterior para permitir "Desfazer / Ver Original"
+    if (!rascunhoOriginal || rascunhoOriginal.trim().length === 0) {
+      setRascunhoOriginal(textoParecer);
+    }
+
     const proxTentativa = tentativa + 1;
     setTentativa(proxTentativa);
 
     try {
-      const resultado = await polirRelatorioComIA(relatorio.id, rascunho, {
+      const resultado = await polirRelatorioComIA(relatorio.id, textoParecer, {
         estudante,
         turma,
         tentativa: proxTentativa,
         apiKey: chaveManual.trim() || undefined,
       });
-      setTextoIa(resultado);
-      setTextoFinal(resultado);
+
+      // Preenchimento Reativo: preenche diretamente o campo de texto/editor do parecer
+      setTextoParecer(resultado);
+      setVersaoIaRefinada(resultado);
+      setFoiRefinadoPorIa(true);
     } catch (e: any) {
       setErro(e.message || 'Falha ao processar com a IA.');
       if (e.message?.includes('403') || e.message?.includes('PERMISSION_DENIED') || e.message?.includes('chave')) {
@@ -140,9 +161,31 @@ export function ModalRedacaoParecerIA({
     }
   };
 
+  // Ação de Desfazer / Resgatar Rascunho Inicial
+  const handleRestaurarOriginal = () => {
+    if (rascunhoOriginal && rascunhoOriginal.trim()) {
+      setTextoParecer(rascunhoOriginal);
+    }
+  };
+
+  // Ação de Resgatar Versão IA
+  const handleRestaurarIa = () => {
+    if (versaoIaRefinada && versaoIaRefinada.trim()) {
+      setTextoParecer(versaoIaRefinada);
+    }
+  };
+
+  // Ação de Copiar
+  const handleCopiar = () => {
+    if (navigator?.clipboard && textoParecer) {
+      navigator.clipboard.writeText(textoParecer);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    }
+  };
+
   const handleEnviarSecretaria = async () => {
-    const textoParaEnviar = textoFinal.trim() || textoIa.trim() || rascunho.trim();
-    if (!textoParaEnviar || textoParaEnviar.length < 10) {
+    if (!textoParecer || textoParecer.trim().length < 10) {
       setErro('O parecer precisa ter um texto pedagógico consistente antes do envio final.');
       return;
     }
@@ -150,7 +193,7 @@ export function ModalRedacaoParecerIA({
     setErro(null);
     setEnviando(true);
     try {
-      await enviarRelatorioProfessor(relatorio.id, textoParaEnviar);
+      await enviarRelatorioProfessor(relatorio.id, textoParecer.trim());
       setSucessoEnviado(true);
       setTimeout(() => {
         setSucessoEnviado(false);
@@ -163,11 +206,19 @@ export function ModalRedacaoParecerIA({
     }
   };
 
+  const temOriginalParaRestaurar = Boolean(
+    rascunhoOriginal && rascunhoOriginal.trim() && rascunhoOriginal.trim() !== textoParecer.trim()
+  );
+
+  const temIaParaRestaurar = Boolean(
+    versaoIaRefinada && versaoIaRefinada.trim() && versaoIaRefinada.trim() !== textoParecer.trim()
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0 duration-200">
       <div className="relative w-full max-w-4xl rounded-3xl bg-white shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden">
         
-        {/* HEADER: Foto, Nome Completo, Idade e Turma do Estudante */}
+        {/* HEADER: Foto, Nome Completo, Metadados e Gênero */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800 bg-gradient-to-r from-blue-50/80 via-white to-amber-50/50 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/30">
           <div className="flex items-center gap-4">
             <div className="relative h-14 w-14 rounded-2xl overflow-hidden border-2 border-school-blue-500 shadow-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
@@ -202,7 +253,7 @@ export function ModalRedacaoParecerIA({
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 <span>Idade: <strong className="text-slate-700 dark:text-slate-200">{idade}</strong></span>
                 <span>•</span>
-                <span>Turno: <strong className="text-slate-700 dark:text-slate-200">{turma?.turno === 'manha' ? 'Manhã' : turma?.turno === 'tarde' ? 'Tarde' : 'Noite'}</strong></span>
+                <span>Turno: <strong className="text-slate-700 dark:text-slate-200">{turma?.turno === 'manha' || turma?.turno === 'manhã' ? 'Manhã' : turma?.turno === 'tarde' ? 'Tarde' : 'Noite'}</strong></span>
                 <span>•</span>
                 <span>Solicitado em: <strong className="text-slate-700 dark:text-slate-200">{dataSolFormatada}</strong></span>
               </div>
@@ -218,10 +269,10 @@ export function ModalRedacaoParecerIA({
           </button>
         </div>
 
-        {/* CORPO MODAL COM SCROLL */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* CORPO DO MODAL */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
           
-          {/* AVISO EXPLICATIVO: 4 PILARES DO POLIMENTO DE RELATO */}
+          {/* BANNER INSTITUCIONAL: DIRETRIZES DA IA PADRONIZADAS */}
           <div className="rounded-2xl border border-blue-200/80 bg-blue-50/70 p-4 dark:border-blue-900/60 dark:bg-blue-950/30 flex items-start gap-3 shadow-sm">
             <div className="rounded-xl bg-school-blue-100 p-2 text-school-blue-700 dark:bg-school-blue-900/60 dark:text-school-gold-400 flex-shrink-0 mt-0.5">
               <Sparkles className="h-5 w-5" />
@@ -234,9 +285,12 @@ export function ModalRedacaoParecerIA({
                 <span className="rounded-md bg-school-blue-100 dark:bg-school-blue-900/80 px-2 py-0.5 text-[10px] font-bold text-school-blue-800 dark:text-blue-200">
                   Concordância Ativa: {dadosGenero.termo}
                 </span>
+                <span className="rounded-md bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300">
+                  Padrão Oficial da Coordenação
+                </span>
               </div>
               <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-1 leading-relaxed">
-                A Google IA pega o seu relato livre e lapida o texto: aplica <strong>linguagem formal culta</strong>, corrige todos os <strong>erros de português e ortografia</strong>, assegura rigorosa <strong>concordância em gênero ({dadosGenero.generoGramatical})</strong> com {estudante.nome_completo} e melhora a narrativa sem inventar fatos novos.
+                Transforma anotações e apontamentos livres em texto técnico-pedagógico institucional, culto e articulado. Corrige 100% da ortografia e pontuação, aplica rigorosa <strong>concordância de gênero ({dadosGenero.generoGramatical})</strong> e elimina metatextos ou sugestões indevidas.
               </p>
             </div>
           </div>
@@ -251,72 +305,123 @@ export function ModalRedacaoParecerIA({
           {sucessoEnviado && (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300 flex items-center gap-2 animate-in zoom-in-95">
               <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0" />
-              <span>Parecer enviado com sucesso à secretaria! O alerta foi emitido para a coordenação.</span>
+              <span>Parecer docente salvo e enviado com sucesso ao banco de dados institucional!</span>
             </div>
           )}
 
-          {/* ÁREA DE ESCRITA LIVRE DO PROFESSOR */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
+          {/* EDITOR PRINCIPAL REATIVO (100% EDITÁVEL PELO DOCENTE) */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                 <Edit3 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                <span>1. Seu Relato Livre & Observações Concretas</span>
+                <span>Parecer Pedagógico do Docente (100% Editável)</span>
               </label>
-              <span className="text-[11px] text-slate-400">
-                {rascunho.length} caracteres
-              </span>
+
+              <div className="flex items-center gap-2">
+                {foiRefinadoPorIa && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800">
+                    <Sparkles className="h-3 w-3 text-purple-600" />
+                    <span>Lapidado com Google Gemini</span>
+                  </span>
+                )}
+                <span className="text-[11px] text-slate-400">
+                  {textoParecer.length} caracteres
+                </span>
+              </div>
             </div>
 
+            {/* TEXTAREA PRINCIPAL */}
             <textarea
-              rows={4}
-              value={rascunho}
-              onChange={(e) => setRascunho(e.target.value)}
+              rows={8}
+              value={textoParecer}
+              onChange={(e) => setTextoParecer(e.target.value)}
               onBlur={handleSalvarRascunho}
-              placeholder="Digite suas observações concretas sobre o estudante. Ex: O aluno conversa bastante nas aulas mas quando estimulado faz as tarefas e ajuda os colegas..."
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-slate-700 dark:bg-slate-800/50 dark:text-white dark:focus:border-school-gold-400 transition-all resize-y min-h-[110px]"
+              placeholder="Digite suas observações ou anotações livres sobre o estudante (ex.: O estudante participa com empenho nas aulas de Ciências, porém precisa aprimorar a organização dos materiais...). Em seguida, clique em 'Assistência de Redação Pedagógica com Google IA' para transformar o texto no padrão institucional oficial."
+              className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-school-gold-400 transition-all resize-y min-h-[180px] font-sans"
             />
 
-            {/* CTA POLIMENTO GEMINI */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <Sparkles className="h-3.5 w-3.5 text-school-gold-500" />
-                  <span>A IA reescreverá o texto com fluidez natural, correção integral e concordância.</span>
-                </span>
+            {/* BARRA DE AÇÕES: GATILHO DA IA, DESFAZER/VER ORIGINAL E COPIAR */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              
+              {/* BLOCO ESQUERDO: GATILHO PRINCIPAL DA IA & BOTÕES DE CONTROLE */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePolirComIA}
+                  disabled={polindo || textoParecer.trim().length < 5}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-school-blue-700 via-school-blue-800 to-indigo-800 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-900/20 hover:from-school-blue-600 hover:to-indigo-700 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed group"
+                >
+                  {polindo ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
+                      <span>Refinando com Google Gemini...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 text-school-gold-400 group-hover:rotate-12 transition-transform" />
+                      <span>Assistência de Redação Pedagógica com Google IA</span>
+                    </>
+                  )}
+                </button>
 
+                {/* BOTÃO DESFAZER / VER ORIGINAL */}
+                {temOriginalParaRestaurar && (
+                  <button
+                    type="button"
+                    onClick={handleRestaurarOriginal}
+                    title="Restaurar as anotações iniciais antes do refinamento por IA"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <Undo2 className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Desfazer / Ver Original</span>
+                  </button>
+                )}
+
+                {/* BOTÃO RESTAURAR VERSÃO IA (caso tenha voltado ao original) */}
+                {temIaParaRestaurar && (
+                  <button
+                    type="button"
+                    onClick={handleRestaurarIa}
+                    title="Reaplicar o texto refinado gerado pela IA"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-bold text-purple-800 shadow-sm hover:bg-purple-100 dark:border-purple-900 dark:bg-purple-950/60 dark:text-purple-300 transition-colors"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Ver Versão IA</span>
+                  </button>
+                )}
+
+                {/* BOTÃO COPIAR */}
+                <button
+                  type="button"
+                  onClick={handleCopiar}
+                  disabled={!textoParecer.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                >
+                  {copiado ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-emerald-600 dark:text-emerald-400">Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Copiar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* BLOCO DIREITO: CHAVE DE API (OPCIONAL) */}
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setMostrarConfigChave(!mostrarConfigChave)}
                   className="inline-flex items-center gap-1 text-[11px] font-semibold text-school-blue-700 hover:text-school-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline underline-offset-2 transition-colors cursor-pointer"
                 >
                   <Key className="h-3 w-3" />
-                  <span>{chaveManual ? 'Chave Google Gemini Configurada' : 'Configurar Chave Google Gemini API'}</span>
+                  <span>{chaveManual ? 'Chave Gemini Customizada' : 'Chave Própria (Opcional)'}</span>
                 </button>
               </div>
-
-              <button
-                type="button"
-                onClick={handlePolirComIA}
-                disabled={polindo || rascunho.trim().length < 5}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-school-blue-700 via-school-blue-800 to-indigo-800 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-900/20 hover:from-school-blue-600 hover:to-indigo-700 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed group"
-              >
-                {polindo ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
-                    <span>Reescrevendo Relato com Google Gemini...</span>
-                  </>
-                ) : (textoIa || relatorio.texto_ia) ? (
-                  <>
-                    <RotateCcw className="h-4 w-4 text-school-gold-400 group-hover:-rotate-90 transition-transform" />
-                    <span>Reescrever com Google IA (Gerar Novo Texto)</span>
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-4 w-4 text-school-gold-400 group-hover:rotate-12 transition-transform" />
-                    <span>Polir com Google IA (Linguagem Formal & Concordância)</span>
-                  </>
-                )}
-              </button>
             </div>
 
             {/* PAINEL OPCIONAL: CONFIGURAÇÃO DE CHAVE GOOGLE GEMINI API */}
@@ -326,7 +431,7 @@ export function ModalRedacaoParecerIA({
                   <div className="flex items-center gap-2">
                     <Key className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
                     <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                      Chave da Google Gemini API Oficial
+                      Chave da Google Gemini API (Opcional / Substitui padrão do servidor)
                     </span>
                   </div>
                   <a
@@ -335,7 +440,7 @@ export function ModalRedacaoParecerIA({
                     rel="noreferrer"
                     className="text-[11px] font-bold text-school-blue-600 hover:underline dark:text-school-gold-400"
                   >
-                    Obter Chave Gratuita no Google AI Studio ↗
+                    Obter Chave no Google AI Studio ↗
                   </a>
                 </div>
 
@@ -370,93 +475,12 @@ export function ModalRedacaoParecerIA({
 
                 {chaveSalvaMsg && (
                   <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <Check className="h-3.5 w-3.5" /> Chave salva com sucesso! Ela será utilizada para as reescritas com Google Gemini.
+                    <Check className="h-3.5 w-3.5" /> Chave salva com sucesso! Ela será priorizada nas requisições do Gemini.
                   </p>
                 )}
               </div>
             )}
           </div>
-
-          {/* VERSÃO GERADA PELA IA EM CAMPO EDITÁVEL */}
-          {(textoIa || relatorio.texto_ia) && (
-            <div className="space-y-2 pt-2 animate-in fade-in-0 duration-300">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label className="text-xs font-bold text-school-blue-900 dark:text-blue-300 flex items-center gap-2">
-                  <Sparkles className="h-3.5 w-3.5 text-school-gold-500" />
-                  <span>2. Versão Pedagógica Reescrita com Google IA</span>
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                    ✓ Português Polido
-                  </span>
-                  <span className="text-[10px] font-semibold text-school-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                    ✓ Concordância {dadosGenero.termo}
-                  </span>
-                  {tentativa > 1 && (
-                    <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-                      Nova Versão #{tentativa}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <textarea
-                rows={5}
-                value={textoFinal}
-                onChange={(e) => setTextoFinal(e.target.value)}
-                placeholder="Aqui você pode ajustar qualquer detalhe antes de encaminhar à secretaria..."
-                className="w-full rounded-2xl border-2 border-school-blue-200 bg-white p-4 text-sm leading-relaxed text-slate-900 focus:border-school-blue-600 focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-blue-900/80 dark:bg-slate-800 dark:text-white transition-all resize-y min-h-[140px]"
-              />
-
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <Info className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 flex-shrink-0" />
-                  <span>
-                    Você tem total liberdade para realizar ajustes ou aceitar o texto refinado integralmente.
-                  </span>
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRascunho(textoFinal);
-                      salvarRascunhoProfessor(relatorio.id, textoFinal);
-                    }}
-                    title="Substituir o relato original pelo texto refinado pela IA"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <ArrowDownToLine className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                    <span>Substituir no Relato Livre</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (navigator?.clipboard) {
-                        navigator.clipboard.writeText(textoFinal);
-                        setCopiado(true);
-                        setTimeout(() => setCopiado(false), 2000);
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    {copiado ? (
-                      <>
-                        <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-emerald-600 dark:text-emerald-400">Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5 text-slate-500" />
-                        <span>Copiar Texto</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
         </div>
 
@@ -467,33 +491,33 @@ export function ModalRedacaoParecerIA({
             onClick={onClose}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
           >
-            Cancelar / Salvar Depois
+            Cancelar / Sair
           </button>
 
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={handleSalvarRascunho}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-colors"
             >
-              <span>Salvar Rascunho</span>
+              <span>Salvar Rascunho no Banco</span>
             </button>
 
             <button
               type="button"
               onClick={handleEnviarSecretaria}
-              disabled={enviando || (!textoFinal && !rascunho)}
+              disabled={enviando || !textoParecer.trim()}
               className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/30 hover:bg-school-blue-700 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               {enviando ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
-                  <span>Enviando...</span>
+                  <span>Enviando ao Banco...</span>
                 </>
               ) : (
                 <>
                   <Send className="h-4 w-4 text-school-gold-400" />
-                  <span>Enviar à Secretaria</span>
+                  <span>Enviar Parecer à Secretaria</span>
                 </>
               )}
             </button>

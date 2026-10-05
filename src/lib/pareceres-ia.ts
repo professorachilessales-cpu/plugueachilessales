@@ -245,43 +245,82 @@ export function gerarConsolidadoHeuristico(params: {
 }
 
 /**
- * Constrói o Prompt Oficial com Técnica de Lapidação Pedagógica e Padrão Institucional via Google Gemini
+ * System Prompt Oficial Padronizado para Assistência de Redação Pedagógica Docente com Google Gemini
+ */
+export function montarSystemPromptPolimentoDocente(): string {
+  return `Você é um consultor pedagógico institucional sênior e linguista especializado em avaliação escolar formativa, operando via Google Gemini.
+Sua missão é aprimorar o relatório/parecer pedagógico inserido pelo docente, transformando anotações livres em um texto técnico-pedagógico formal, culto, articulado e impecável, idêntico ao padrão oficial homologado pela coordenação escolar.`;
+}
+
+/**
+ * Constrói o Prompt Oficial Padronizado com Metadados, Diretrizes Institucionais e Texto do Docente
+ */
+export function montarPromptPolimentoDocente(params: {
+  estudanteNome: string;
+  generoGramatical: 'masculino' | 'feminino';
+  disciplinaNome?: string;
+  textoOriginalProfessor: string;
+}): string {
+  const isFeminino = params.generoGramatical === 'feminino';
+  const generoFormatado = isFeminino
+    ? 'FEMININO (ela, a estudante, a aluna, engajada, participativa)'
+    : 'MASCULINO (ele, o estudante, o aluno, engajado, participativo)';
+  const disciplina = params.disciplinaNome?.trim() || 'Docência Geral / Polivalente';
+
+  return `---
+METADADOS DO ESTUDANTE:
+- Nome Completo: ${params.estudanteNome}
+- Gênero Gramatical: ${generoFormatado}
+- Disciplina / Área do Professor: ${disciplina}
+
+---
+DIRETRIZES OBRIGATÓRIAS DE REDAÇÃO E TRANSFORMAÇÃO:
+
+1. 🏛️ Tom Estritamente Técnico e Institucional:
+   - Redija em linguagem formal, culta, técnica e objetiva, adequada a prontuários e boletins escolares oficiais.
+   - Traduza termos leigos, desabafos ou anotações informais em termos pedagógicos descritivos (ex.: desenvolvimento cognitivo, autorregulação, competências socioemocionais, mediação pedagógica, postura atitudinal e colaborativa).
+
+2. ✍️ Saneamento Gramatical sem Falhas (Tolerância Zero):
+   - Corrija 100% dos erros de ortografia, acentuação, digitação e pontuação.
+   - Aplique com rigor absoluto a concordância nominal de gênero e número referente a ${params.estudanteNome}.
+   - Garanta uniformidade e coerência temporal nos tempos verbais.
+
+3. 🔍 Respeito aos Fatos Observados:
+   - Preserve a essência do que o professor relatou; não invente dados clínicos, laudos ou episódios que não constem no texto original.
+   - Integre as observações em uma narrativa pedagógica fluida e contínua.
+
+4. 🚫 RESTRIÇÕES RÍGIDAS DE SAÍDA:
+   - NÃO inclua seções de "Sugestões de melhoria", "Recomendações para a família", "Dicas" ou "Encaminhamentos".
+   - NÃO adicione saudações, introduções ou notas conversacionais (proibido: "Aqui está o relatório revisado:", "Segue o texto:", "Espero ter ajudado").
+   - Retorne EXCLUSIVAMENTE o corpo do texto pedagógico refinado, pronto para leitura e validação do docente.
+
+---
+TEXTO DO PROFESSOR A SER REFINADO:
+"""
+${params.textoOriginalProfessor.trim()}
+"""`;
+}
+
+/**
+ * Constrói o Prompt Oficial com Técnica de Lapidação Pedagógica (compatibilidade retroativa)
  */
 export function montarPromptPipelinePolimentoRelato(params: {
   estudanteNome: string;
   generoGramatical: 'masculino' | 'feminino';
   textoRelatoLivre: string;
+  disciplinaNome?: string;
   tentativa?: number;
 }): string {
-  const isFeminino = params.generoGramatical === 'feminino';
-  const generoFormatado = isFeminino
-    ? 'feminino (a estudante, a aluna, ela, dedicada, atenta, participativa)'
-    : 'masculino (o estudante, o aluno, ele, dedicado, atento, participativo)';
-
-  const variacaoInstrucao = params.tentativa && params.tentativa > 1
-    ? `Esta é uma nova tentativa (#${params.tentativa}). Formule uma construção textual diferente da anterior, variando o vocabulário e a ordem das orações para oferecer um texto inédito.`
-    : 'Escreva um texto fluente, novo e autêntico.';
-
-  return `Você é um redator pedagógico especialista em língua portuguesa e avaliação escolar oficial.
-Sua missão é reescrever o relato livre a seguir com linguagem formal culta, elegância e naturalidade.
-
-REQUISITOS DA REESCRITA:
-1. Reescreva todo o texto com excelente fluidez e padrão formal em português brasileiro.
-2. Corrija integralmente todos os erros ortográficos, gramaticais, de pontuação e vícios de oralidade/digitação.
-3. Assegure concordância de gênero estrita com o(a) estudante: ${generoFormatado}.
-4. Mantenha com total fidelidade todos os fatos, avanços e desafios reais observados pelo professor, sem inventar informações não relatadas.
-5. NÃO utilize diretrizes preestabelecidas engessadas, jargões artificiais nem frases prontas clichês.
-6. ${variacaoInstrucao}
-7. Retorne EXCLUSIVAMENTE o texto final reescrito, sem aspas, títulos ou introduções explicativas.
-
-RELATO LIVRE ORIGINAL:
-"""
-${params.textoRelatoLivre.trim()}
-"""`;
+  return montarPromptPolimentoDocente({
+    estudanteNome: params.estudanteNome,
+    generoGramatical: params.generoGramatical,
+    disciplinaNome: params.disciplinaNome,
+    textoOriginalProfessor: params.textoRelatoLivre,
+  });
 }
 
 /**
- * Remove qualquer metatexto, saudações de IA, aspas externas ou notas de encerramento
+ * Remove qualquer metatexto, saudações de IA, aspas externas ou seções proibidas (sugestões, dicas, encaminhamentos)
  */
 export function limparMetatextoEEncerramentosRelato(texto: string): string {
   if (!texto) return '';
@@ -297,11 +336,15 @@ export function limparMetatextoEEncerramentosRelato(texto: string): string {
   }
 
   // Remove saudações ou metatexto introdutório da IA
-  const introRegex = /^(?:aqui\s+está\s+(?:o\s+texto\s+revisado|o\s+texto|a\s+versão\s+refinada|a\s+versão\s+corrigida|a\s+versão\s+revisada)|segue\s+(?:a\s+versão\s+refinada|o\s+texto\s+revisado|o\s+texto|a\s+versão\s+corrigida)|versão\s+(?:refinada|corrigida|revisada)|texto\s+revisado|em\s+síntese|olá|prezado|relato\s+revisado|parecer\s+revisado).*?:\s*\n*/i;
+  const introRegex = /^(?:aqui\s+está\s+(?:o\s+relatório\s+revisado|o\s+parecer\s+revisado|o\s+texto\s+revisado|o\s+texto|a\s+versão\s+refinada|a\s+versão\s+corrigida|a\s+versão\s+revisada)|segue\s+(?:o\s+relatório|o\s+parecer|a\s+versão\s+refinada|o\s+texto\s+revisado|o\s+texto|a\s+versão\s+corrigida)|versão\s+(?:refinada|corrigida|revisada)|texto\s+(?:refinado|revisado|corrigido)|em\s+síntese|olá|prezado|relato\s+revisado|parecer\s+revisado).*?:\s*\n*/i;
   limpo = limpo.replace(introRegex, '');
 
+  // Remove seções proibidas no final do texto (Sugestões de melhoria, Recomendações, Encaminhamentos, Dicas, etc.)
+  const secoesProibidasRegex = /\n+(?:#{1,4}\s*)?(?:sugestões\s+de\s+melhoria|sugestões\s+pedagógicas|recomendações\s+para\s+a\s+família|recomendações\s+aos\s+responsáveis|recomendações\s+pedagógicas|encaminhamentos|próximos\s+passos|dicas\s+para\s+os\s+pais|dicas\s+de\s+estudo|orientações\s+para\s+a\s+família|em\s+resumo|conclusão\s+e\s+recomendações)[:\s\S]*$/i;
+  limpo = limpo.replace(secoesProibidasRegex, '');
+
   // Remove notas de encerramento da IA
-  const encerramentoRegex = /\n+(?:espero\s+(?:ter\s+ajudado|que\s+ajude)|qualquer\s+dúvida|atenciosamente|estou\s+à\s+disposição|em\s+resumo|conclusão)[\s\S]*$/i;
+  const encerramentoRegex = /\n+(?:espero\s+(?:ter\s+ajudado|que\s+ajude)|qualquer\s+dúvida|atenciosamente|estou\s+à\s+disposição|caso\s+precise)[\s\S]*$/i;
   limpo = limpo.replace(encerramentoRegex, '');
 
   return limpo.trim();

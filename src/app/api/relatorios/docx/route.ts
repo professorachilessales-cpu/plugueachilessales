@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateDocxReport, DocxReportData } from '@/lib/docx-generator';
 import { initialEstudantes, initialTurmas, initialEscolaConfig, initialSolicitacoesRelatorio, initialRelatoriosConsolidados } from '@/lib/mock-data';
+import { executeTursoQuery } from '@/lib/turso';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,22 +59,66 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'solicitacao_id é obrigatório.' }, { status: 400 });
     }
 
-    const solicitacao = initialSolicitacoesRelatorio.find(s => s.id === solicitacaoId);
-    const consolidado = initialRelatoriosConsolidados.find(c => c.solicitacao_id === solicitacaoId);
+    let solicitacao: any = null;
+    let consolidado: any = null;
+    let aluno: any = null;
+    let turma: any = null;
+    let config: any = null;
 
+    try {
+      const solRes = await executeTursoQuery('SELECT * FROM solicitacoes_relatorio WHERE id = ?', [solicitacaoId]);
+      if (solRes.rows && solRes.rows.length > 0) {
+        solicitacao = solRes.rows[0];
+      }
+      const consRes = await executeTursoQuery('SELECT * FROM relatorios_consolidados WHERE solicitacao_id = ? ORDER BY created_at DESC LIMIT 1', [solicitacaoId]);
+      if (consRes.rows && consRes.rows.length > 0) {
+        consolidado = consRes.rows[0];
+      }
+      if (solicitacao?.aluno_id) {
+        const alRes = await executeTursoQuery('SELECT * FROM estudantes WHERE id = ?', [solicitacao.aluno_id]);
+        if (alRes.rows && alRes.rows.length > 0) {
+          aluno = alRes.rows[0];
+        }
+      }
+      if (aluno?.turma_id) {
+        const turRes = await executeTursoQuery('SELECT * FROM turmas WHERE id = ?', [aluno.turma_id]);
+        if (turRes.rows && turRes.rows.length > 0) {
+          turma = turRes.rows[0];
+        }
+      }
+      const cfgRes = await executeTursoQuery('SELECT * FROM escola_config LIMIT 1');
+      if (cfgRes.rows && cfgRes.rows.length > 0) {
+        config = cfgRes.rows[0];
+      }
+    } catch (e) {
+      console.warn('Erro ao consultar Turso no endpoint docx:', e);
+    }
+
+    // Fallbacks para dados locais/mock se não encontrados no banco
+    if (!solicitacao) {
+      solicitacao = initialSolicitacoesRelatorio.find(s => s.id === solicitacaoId);
+    }
+    if (!consolidado) {
+      consolidado = initialRelatoriosConsolidados.find(c => c.solicitacao_id === solicitacaoId);
+    }
     const alunoId = solicitacao?.aluno_id || 'est-1';
-    const aluno = initialEstudantes.find(e => e.id === alunoId) || initialEstudantes[0];
-    const turma = initialTurmas.find(t => t.id === aluno.turma_id) || initialTurmas[0];
+    if (!aluno) {
+      aluno = initialEstudantes.find(e => e.id === alunoId) || initialEstudantes[0];
+    }
+    if (!turma) {
+      turma = initialTurmas.find(t => t.id === aluno.turma_id) || initialTurmas[0];
+    }
 
-    const turnoNome = turma.turno === 'manha' ? 'MANHÃ' : turma.turno === 'tarde' ? 'TARDE' : turma.turno ? turma.turno.toUpperCase() : 'MANHÃ';
+    const rawTurno = turma.turno ? String(turma.turno).toLowerCase().trim() : '';
+    const turnoNome = (rawTurno === 'manha' || rawTurno === 'manhã') ? 'MANHÃ' : rawTurno === 'tarde' ? 'TARDE' : rawTurno === 'noite' ? 'NOITE' : rawTurno.toUpperCase() || 'MANHÃ';
 
     const docxBuffer = generateDocxReport({
       escola: {
-        nome: initialEscolaConfig.nome_escola,
-        cnpj: initialEscolaConfig.cnpj,
-        endereco: initialEscolaConfig.endereco,
-        contato: initialEscolaConfig.telefone,
-        anoLetivo: initialEscolaConfig.ano_letivo_ativo,
+        nome: config?.nome_escola || initialEscolaConfig.nome_escola,
+        cnpj: config?.cnpj || initialEscolaConfig.cnpj,
+        endereco: config?.endereco || initialEscolaConfig.endereco,
+        contato: config?.telefone || initialEscolaConfig.telefone,
+        anoLetivo: config?.ano_letivo_ativo || initialEscolaConfig.ano_letivo_ativo,
       },
       aluno: {
         nome: aluno.nome_completo,

@@ -6,8 +6,6 @@ import {
   BookOpen, 
   Plus, 
   Clock, 
-  Video, 
-  ExternalLink, 
   Users, 
   Calendar, 
   CheckCircle2, 
@@ -30,7 +28,8 @@ import {
   Printer,
   FileText,
   FileSpreadsheet,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Turno, HorarioAula, Turma, GrupoTurma, GRUPOS_TURMAS_LISTA, Professor } from '@/lib/types';
 import { analisarFaixaEtariaTurma, AnaliseTurmaFaixaEtaria } from '@/lib/faixa-etaria';
@@ -343,14 +342,15 @@ export default function TurmasPage() {
     equipe_apoio_ids: [] as string[],
   });
 
-  // Form Novo Horário
-  const [formHorario, setFormHorario] = useState({
-    dia_semana: 'Segunda' as 'Segunda' | 'Terça' | 'Quarta' | 'Quinta' | 'Sexta',
-    horario_inicio: '07:15',
-    horario_fim: '08:05',
-    disciplina: '',
+  // Form Nova Aula na Grade
+  const [formHorario, setFormHorario] = useState<{
+    dia_semana: 'Segunda' | 'Terça' | 'Quarta' | 'Quinta' | 'Sexta';
+    professor_nome: string;
+    quantidade_aulas: number | string;
+  }>({
+    dia_semana: 'Segunda',
     professor_nome: '',
-    link_sala_virtual: '',
+    quantidade_aulas: 1,
   });
 
   const handleCadastrarTurma = (e: React.FormEvent) => {
@@ -600,19 +600,40 @@ export default function TurmasPage() {
 
   const handleAdicionarHorario = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!turmaSelecionada || !formHorario.disciplina) return;
+    if (!turmaSelecionada || !formHorario.professor_nome) return;
+
+    const qtd = Number(formHorario.quantidade_aulas);
+    if (!qtd || isNaN(qtd) || qtd < 1) {
+      alert('Por favor, informe uma quantidade válida de aulas (mínimo 1).');
+      return;
+    }
 
     const novoItem: HorarioAula = {
       id: `h-${Date.now()}`,
       dia_semana: formHorario.dia_semana,
-      horario_inicio: formHorario.horario_inicio,
-      horario_fim: formHorario.horario_fim,
-      disciplina: formHorario.disciplina,
-      professor_nome: formHorario.professor_nome || 'A definir',
-      link_sala_virtual: formHorario.link_sala_virtual || undefined,
+      professor_nome: formHorario.professor_nome.trim(),
+      quantidade_aulas: Math.floor(qtd),
     };
 
-    const novaGrade = [...(turmaSelecionada.grade_horaria || []), novoItem];
+    const gradeAtual = turmaSelecionada.grade_horaria || [];
+    // Se o professor já possui lançamento no mesmo dia, atualiza a quantidade de aulas
+    const indexExistente = gradeAtual.findIndex(
+      (h) =>
+        h.dia_semana === formHorario.dia_semana &&
+        h.professor_nome.trim().toLowerCase() === formHorario.professor_nome.trim().toLowerCase()
+    );
+
+    let novaGrade: HorarioAula[];
+    if (indexExistente >= 0) {
+      novaGrade = [...gradeAtual];
+      novaGrade[indexExistente] = {
+        ...novaGrade[indexExistente],
+        quantidade_aulas: Math.floor(qtd),
+      };
+    } else {
+      novaGrade = [...gradeAtual, novoItem];
+    }
+
     updateTurma(turmaSelecionada.id, { grade_horaria: novaGrade });
     
     // Atualiza turma selecionada local
@@ -620,12 +641,16 @@ export default function TurmasPage() {
     setModalNovoHorarioAberto(false);
     setFormHorario({
       dia_semana: 'Segunda',
-      horario_inicio: '07:15',
-      horario_fim: '08:05',
-      disciplina: '',
       professor_nome: '',
-      link_sala_virtual: '',
+      quantidade_aulas: 1,
     });
+  };
+
+  const handleRemoverHorario = (idHorario: string) => {
+    if (!turmaSelecionada) return;
+    const novaGrade = (turmaSelecionada.grade_horaria || []).filter((h) => h.id !== idHorario);
+    updateTurma(turmaSelecionada.id, { grade_horaria: novaGrade });
+    setTurmaSelecionada({ ...turmaSelecionada, grade_horaria: novaGrade });
   };
 
   const diasSemana: ('Segunda' | 'Terça' | 'Quarta' | 'Quinta' | 'Sexta')[] = [
@@ -1261,53 +1286,89 @@ export default function TurmasPage() {
               const aulasDoDia = (turmaSelecionada.grade_horaria || []).filter(
                 (h) => h.dia_semana === dia
               );
+              const totalAulasDia = aulasDoDia.reduce(
+                (acc, h) => acc + (Number(h.quantidade_aulas) || 1),
+                0
+              );
 
               return (
                 <div
                   key={dia}
-                  className="flex flex-col rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/50"
+                  className="flex flex-col rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/50"
                 >
-                  <div className="border-b border-slate-200 pb-2 text-center dark:border-slate-700">
-                    <span className="text-xs font-black uppercase tracking-wider text-school-blue-900 dark:text-school-gold-400">
-                      {dia}
-                    </span>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2 dark:border-slate-700">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xs font-black uppercase tracking-wider text-school-blue-900 dark:text-school-gold-400">
+                        {dia}
+                      </span>
+                      {totalAulasDia > 0 && (
+                        <span className="rounded-full bg-school-blue-100/70 px-1.5 py-0.2 text-[10px] font-bold text-school-blue-800 dark:bg-school-blue-950 dark:text-school-blue-300">
+                          {totalAulasDia} {totalAulasDia === 1 ? 'aula' : 'aulas'}
+                        </span>
+                      )}
+                    </div>
+                    {role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormHorario((prev) => ({ ...prev, dia_semana: dia }));
+                          setModalNovoHorarioAberto(true);
+                        }}
+                        className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-school-blue-600 dark:hover:bg-slate-800 dark:hover:text-school-gold-400 transition-colors"
+                        title={`Adicionar aula na ${dia}`}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="mt-3 flex-1 space-y-3">
+                  <div className="mt-3 flex-1 space-y-2.5">
                     {aulasDoDia.length === 0 ? (
                       <p className="py-6 text-center text-[11px] text-slate-400 italic">
                         Sem aulas cadastradas
                       </p>
                     ) : (
-                      aulasDoDia.map((aula) => (
-                        <div
-                          key={aula.id}
-                          className="rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
-                        >
-                          <div className="font-mono text-[10px] font-bold text-school-blue-600 dark:text-school-gold-400">
-                            {aula.horario_inicio} - {aula.horario_fim}
-                          </div>
-                          <div className="mt-1 font-black text-slate-900 dark:text-white">
-                            {aula.disciplina}
-                          </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                            {aula.professor_nome}
-                          </div>
+                      aulasDoDia.map((aula) => {
+                        const qtd = aula.quantidade_aulas ?? 1;
+                        return (
+                          <div
+                            key={aula.id}
+                            className="group relative rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-xs transition-all hover:border-school-blue-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="h-7 w-7 rounded-full bg-school-blue-600/10 text-school-blue-700 dark:text-school-blue-300 flex items-center justify-center font-bold text-xs shrink-0">
+                                  {aula.professor_nome.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <h5
+                                    className="font-bold text-slate-900 dark:text-white truncate"
+                                    title={aula.professor_nome}
+                                  >
+                                    {aula.professor_nome}
+                                  </h5>
+                                  <div className="mt-1 flex items-center gap-1.5">
+                                    <span className="inline-flex items-center rounded-md bg-school-blue-50 px-2 py-0.5 text-[11px] font-bold text-school-blue-700 dark:bg-school-blue-950 dark:text-school-blue-300 border border-school-blue-200/60 dark:border-school-blue-800/60">
+                                      {qtd} {qtd === 1 ? 'aula no dia' : 'aulas no dia'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
 
-                          {aula.link_sala_virtual && (
-                            <a
-                              href={aula.link_sala_virtual}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-50 py-1 text-[11px] font-bold text-school-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-school-blue-300 dark:hover:bg-blue-900/60 transition-colors"
-                            >
-                              <Video className="h-3.5 w-3.5" />
-                              <span>Sala Virtual</span>
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          )}
-                        </div>
-                      ))
+                              {role === 'admin' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoverHorario(aula.id)}
+                                  className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                                  title={`Remover aula de ${aula.professor_nome}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -1960,76 +2021,71 @@ export default function TurmasPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Horário Início *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={formHorario.horario_inicio}
-                    onChange={(e) => setFormHorario({ ...formHorario, horario_inicio: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Horário Fim *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={formHorario.horario_fim}
-                    onChange={(e) => setFormHorario({ ...formHorario, horario_fim: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Disciplina / Matéria *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Física Quântica, Matemática, Redação"
-                  value={formHorario.disciplina}
-                  onChange={(e) => setFormHorario({ ...formHorario, disciplina: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Professor Responsável
+                  Docente *
                 </label>
                 <select
+                  required
                   value={formHorario.professor_nome}
                   onChange={(e) => setFormHorario({ ...formHorario, professor_nome: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                 >
                   <option value="">Selecione um docente</option>
-                  {professores
-                    .filter((p) => p.ativo !== false && (p.tipo_profissional === 'docente' || !p.tipo_profissional))
-                    .map((p) => (
-                      <option key={p.id} value={p.nome_completo}>
-                        {p.nome_completo} ({p.disciplinas?.join(', ') || 'Docente'})
-                      </option>
-                  ))}
+                  {(() => {
+                    const profsTurmaIds = turmaSelecionada
+                      ? (turmaSelecionada.professores_ids && turmaSelecionada.professores_ids.length > 0
+                          ? turmaSelecionada.professores_ids
+                          : turmaSelecionada.professor_regente_id ? [turmaSelecionada.professor_regente_id] : [])
+                      : [];
+                    const docentesElegiveis = professores.filter(
+                      (p) => p.ativo !== false && !isProfessorAdministrativo(p) && !isProfessorApoio(p)
+                    );
+                    const daTurma = docentesElegiveis.filter((p) => profsTurmaIds.includes(p.id));
+                    const outros = docentesElegiveis.filter((p) => !profsTurmaIds.includes(p.id));
+
+                    return (
+                      <>
+                        {daTurma.length > 0 && (
+                          <optgroup label="Docentes da Turma">
+                            {daTurma.map((p) => (
+                              <option key={p.id} value={p.nome_completo}>
+                                {p.nome_completo} {p.disciplinas?.length ? `(${p.disciplinas.join(', ')})` : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label={daTurma.length > 0 ? "Demais Docentes" : "Docentes"}>
+                          {outros.map((p) => (
+                            <option key={p.id} value={p.nome_completo}>
+                              {p.nome_completo} {p.disciplinas?.length ? `(${p.disciplinas.join(', ')})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    );
+                  })()}
                 </select>
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Link de Sala Virtual / Videochamada
+                  Quantidade de aulas *
                 </label>
                 <input
-                  type="url"
-                  placeholder="https://meet.google.com/abc-xyz"
-                  value={formHorario.link_sala_virtual}
-                  onChange={(e) => setFormHorario({ ...formHorario, link_sala_virtual: e.target.value })}
+                  type="number"
+                  required
+                  min={1}
+                  step={1}
+                  placeholder="Ex: 2"
+                  value={formHorario.quantidade_aulas}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormHorario({
+                      ...formHorario,
+                      quantidade_aulas: val === '' ? '' : Math.max(1, parseInt(val, 10) || 1),
+                    });
+                  }}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                 />
               </div>

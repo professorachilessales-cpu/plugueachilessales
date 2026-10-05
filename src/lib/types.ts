@@ -64,10 +64,12 @@ export type Turno = 'manha' | 'manhã' | 'tarde' | 'noite';
 export interface HorarioAula {
   id: string;
   dia_semana: 'Segunda' | 'Terça' | 'Quarta' | 'Quinta' | 'Sexta';
-  horario_inicio: string;
-  horario_fim: string;
-  disciplina: string;
+  quantidade_aulas: number;
   professor_nome: string;
+  professor_id?: string;
+  horario_inicio?: string;
+  horario_fim?: string;
+  disciplina?: string;
   link_sala_virtual?: string;
 }
 

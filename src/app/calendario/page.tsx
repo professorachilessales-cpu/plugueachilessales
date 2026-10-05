@@ -28,9 +28,11 @@ import {
   Lock,
   Check,
   AlertCircle,
-  Pencil
+  Pencil,
+  Repeat,
+  RotateCcw
 } from 'lucide-react';
-import { EventoEscolar, CalendarioCategoria } from '@/lib/types';
+import { EventoEscolar, CalendarioCategoria, RecorrenciaTipo } from '@/lib/types';
 import { PrintHeader } from '@/components/layout/PrintHeader';
 
 // Paleta de cores rápidas para seleção
@@ -78,6 +80,69 @@ function formatarIntervalo(inicio: string, fim?: string): string {
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
   return `${dataIniFormatada} a ${dataFimFormatada} (${diffDays} dias)`;
+}
+
+// Determina se um evento ocorre em uma data específica considerando span de datas e recorrência persistida
+function eventoOcorreNoDia(
+  ev: EventoEscolar,
+  dataString: string,
+  diaNum: number,
+  mesNum: number, // 1..12
+  anoNum: number
+): boolean {
+  const inicioStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
+  const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T')
+    ? (ev.data_fim || ev.data_inicio).split('T')[0]
+    : (ev.data_fim || ev.data_inicio);
+
+  // 1. Verificação direta do período base cadastrado
+  if (dataString >= inicioStr && dataString <= fimStr) {
+    return true;
+  }
+
+  // 2. Se a recorrência não estiver ativa ou for 'NENHUMA', encerra
+  if (!ev.recorrencia_ativa || !ev.recorrencia_tipo || ev.recorrencia_tipo === 'NENHUMA') {
+    return false;
+  }
+
+  // 3. Se a data atual do grid for anterior ao início original do evento, não ocorre
+  if (dataString < inicioStr) {
+    return false;
+  }
+
+  // 4. Se houver data limite de expiração da recorrência e o dia a ultrapassar
+  if (ev.recorrencia_data_limite) {
+    const limiteStr = ev.recorrencia_data_limite.includes('T')
+      ? ev.recorrencia_data_limite.split('T')[0]
+      : ev.recorrencia_data_limite;
+    if (dataString > limiteStr) {
+      return false;
+    }
+  }
+
+  // Cálculo de duração do evento base em dias
+  const [iniAno, iniMes, iniDia] = inicioStr.split('-').map(Number);
+  const [fimAno, fimMes, fimDia] = fimStr.split('-').map(Number);
+  const dtIni = new Date(iniAno, iniMes - 1, iniDia);
+  const dtFim = new Date(fimAno, fimMes - 1, fimDia);
+  const diffDias = Math.max(0, Math.round((dtFim.getTime() - dtIni.getTime()) / (1000 * 60 * 60 * 24)));
+
+  const baseDia = ev.recorrencia_dia != null ? Number(ev.recorrencia_dia) : iniDia;
+
+  // 5. Recorrência MENSAL
+  if (ev.recorrencia_tipo === 'MENSAL') {
+    return diaNum >= baseDia && diaNum <= baseDia + diffDias;
+  }
+
+  // 6. Recorrência ANUAL
+  if (ev.recorrencia_tipo === 'ANUAL') {
+    const baseMes = ev.recorrencia_mes != null ? Number(ev.recorrencia_mes) : iniMes;
+    if (mesNum === baseMes) {
+      return diaNum >= baseDia && diaNum <= baseDia + diffDias;
+    }
+  }
+
+  return false;
 }
 
 export default function CalendarioPage() {

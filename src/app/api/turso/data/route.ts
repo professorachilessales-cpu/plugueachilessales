@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
 import { garantirTabelasObservacoes } from '@/lib/observacoes-service';
+import { garantirSchemaRecorrenciaEventos } from '@/lib/calendario-service';
 import { isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,7 @@ export async function GET() {
     }
 
     await garantirTabelasObservacoes();
+    await garantirSchemaRecorrenciaEventos();
 
     // 1. Config Escola
     let escolaConfig = null;
@@ -84,14 +86,37 @@ export async function GET() {
       console.error('Erro ao ler professores do Turso:', e);
     }
 
+    // 3.1 Vínculos Relacionais Estritos (turma_professores)
+    let turmaProfessores: any[] = [];
+    try {
+      const tpRes = await executeTursoQuery('SELECT * FROM turma_professores');
+      turmaProfessores = tpRes.rows || [];
+    } catch (e) {
+      console.warn('Tabela turma_professores ainda não encontrada:', e);
+    }
+
+    // Vincula turmas atribuídas aos professores a partir de turma_professores
+    if (turmaProfessores.length > 0) {
+      professores = professores.map((p: any) => {
+        const relTurmas = turmaProfessores.filter((tp: any) => tp.professor_id === p.id).map((tp: any) => tp.turma_id);
+        return {
+          ...p,
+          turmas_atribuidas_ids: relTurmas.length > 0 ? relTurmas : p.turmas_atribuidas_ids,
+        };
+      });
+    }
+
     // 4. Turmas
     let turmas: any[] = [];
     try {
       const turmasRes = await executeTursoQuery('SELECT * FROM turmas ORDER BY nome ASC');
       turmas = turmasRes.rows.map((row: any) => {
-        const rawProfs: string[] = row.professores_ids
-          ? (typeof row.professores_ids === 'string' ? JSON.parse(row.professores_ids) : row.professores_ids)
-          : (row.professor_regente_id ? [row.professor_regente_id] : []);
+        const relProfs = turmaProfessores.filter((tp: any) => tp.turma_id === row.id).map((tp: any) => tp.professor_id);
+        const rawProfs: string[] = relProfs.length > 0
+          ? relProfs
+          : (row.professores_ids
+              ? (typeof row.professores_ids === 'string' ? JSON.parse(row.professores_ids) : row.professores_ids)
+              : (row.professor_regente_id ? [row.professor_regente_id] : []));
 
         const validProfs = (rawProfs || []).filter((id: string) => {
           const prof = professores.find(p => p.id === id);
@@ -169,7 +194,15 @@ export async function GET() {
     let eventos: any[] = [];
     try {
       const eventosRes = await executeTursoQuery('SELECT * FROM eventos ORDER BY data_inicio ASC');
-      eventos = eventosRes.rows;
+      eventos = (eventosRes.rows || []).map((row: any) => ({
+        ...row,
+        all_day: true,
+        recorrencia_tipo: row.recorrencia_tipo || 'NENHUMA',
+        recorrencia_dia: row.recorrencia_dia != null ? Number(row.recorrencia_dia) : null,
+        recorrencia_mes: row.recorrencia_mes != null ? Number(row.recorrencia_mes) : null,
+        recorrencia_ativa: toBoolean(row.recorrencia_ativa),
+        recorrencia_data_limite: row.recorrencia_data_limite || null,
+      }));
     } catch (e) {
       console.error('Erro ao ler eventos do Turso:', e);
     }
@@ -417,6 +450,7 @@ export async function GET() {
         users,
         professores,
         turmas,
+        turmaProfessores,
         estudantes,
         faltasProfessores,
         eventos,

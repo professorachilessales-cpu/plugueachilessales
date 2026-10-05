@@ -310,6 +310,15 @@ export interface CalendarioCategoria {
 }
 
 export type CategoriaEvento = string;
+export type RecorrenciaTipo = 'NENHUMA' | 'ANUAL' | 'MENSAL';
+
+export interface TurmaProfessor {
+  id: string;
+  turma_id: string;
+  professor_id: string;
+  disciplina?: string;
+  created_at?: string;
+}
 
 export interface EventoEscolar {
   id: string;
@@ -322,6 +331,12 @@ export interface EventoEscolar {
   publico_alvo?: string;
   all_day?: boolean;
   created_at: string;
+  // Campos de Recorrência Estruturada
+  recorrencia_tipo?: RecorrenciaTipo;
+  recorrencia_dia?: number | null;
+  recorrencia_mes?: number | null;
+  recorrencia_ativa?: boolean;
+  recorrencia_data_limite?: string | null;
 }
 
 // -------------------------------------------------------------

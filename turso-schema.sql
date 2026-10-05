@@ -109,6 +109,8 @@ CREATE TABLE IF NOT EXISTS professores (
     contato_emergencia_nome TEXT,
     contato_emergencia_parentesco TEXT,
     observacoes TEXT,
+    nome TEXT,
+    deleted_at TEXT DEFAULT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -127,8 +129,22 @@ CREATE TABLE IF NOT EXISTS turmas (
     sala TEXT,
     ativa INTEGER DEFAULT 1, -- 1 = Ativa, 0 = Inativa (Trancada)
     grade_horaria TEXT DEFAULT '[]', -- JSON Array string
+    deleted_at TEXT DEFAULT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 4.1 TABELA DE ASSOCIAÇÃO RELACIONAL ESTRITA (TURMA-PROFESSORES)
+CREATE TABLE IF NOT EXISTS turma_professores (
+    id TEXT PRIMARY KEY,
+    turma_id TEXT NOT NULL REFERENCES turmas(id) ON DELETE CASCADE,
+    professor_id TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
+    disciplina TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(turma_id, professor_id, disciplina)
+);
+
+CREATE INDEX IF NOT EXISTS idx_turma_prof_turma ON turma_professores(turma_id);
+CREATE INDEX IF NOT EXISTS idx_turma_prof_prof ON turma_professores(professor_id);
 
 -- 5. TABELA DE ESTUDANTES
 CREATE TABLE IF NOT EXISTS estudantes (
@@ -221,7 +237,7 @@ VALUES
     ('cat-culturais', 'Culturais & Feiras', '#10B981', 1, 0),
     ('cat-gestao', 'Planejamento Interno / Gestão', '#64748B', 0, 0);
 
--- 8.1 TABELA DE CALENDÁRIO E EVENTOS ESCOLARES
+-- 8.1 TABELA DE CALENDÁRIO E EVENTOS ESCOLARES (COM SUPORTE A RECORRÊNCIA ESTRUTURADA)
 CREATE TABLE IF NOT EXISTS eventos (
     id TEXT PRIMARY KEY,
     titulo TEXT NOT NULL,
@@ -231,6 +247,28 @@ CREATE TABLE IF NOT EXISTS eventos (
     categoria TEXT NOT NULL,
     cor TEXT DEFAULT '#2563EB',
     publico_alvo TEXT DEFAULT 'Todos',
+    recorrencia_tipo TEXT DEFAULT 'NENHUMA' CHECK(recorrencia_tipo IN ('NENHUMA', 'ANUAL', 'MENSAL')),
+    recorrencia_dia INTEGER,
+    recorrencia_mes INTEGER,
+    recorrencia_ativa INTEGER DEFAULT 0,
+    recorrencia_data_limite TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS calendario_eventos (
+    id TEXT PRIMARY KEY,
+    titulo TEXT NOT NULL,
+    descricao TEXT,
+    data_inicio TEXT NOT NULL,
+    data_fim TEXT NOT NULL,
+    categoria TEXT NOT NULL,
+    cor TEXT DEFAULT '#2563EB',
+    publico_alvo TEXT DEFAULT 'Todos',
+    recorrencia_tipo TEXT DEFAULT 'NENHUMA' CHECK(recorrencia_tipo IN ('NENHUMA', 'ANUAL', 'MENSAL')),
+    recorrencia_dia INTEGER,
+    recorrencia_mes INTEGER,
+    recorrencia_ativa INTEGER DEFAULT 0,
+    recorrencia_data_limite TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

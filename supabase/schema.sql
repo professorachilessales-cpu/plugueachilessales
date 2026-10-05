@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS public.professores (
     disciplinas TEXT[] DEFAULT '{}',
     telefone VARCHAR(30),
     email VARCHAR(255) NOT NULL,
-    ativo BOOLEAN DEFAULT TRUE,
+    nome VARCHAR(255),
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -57,8 +58,22 @@ CREATE TABLE IF NOT EXISTS public.turmas (
     professor_regente_id UUID REFERENCES public.professores(id) ON DELETE SET NULL,
     sala VARCHAR(50),
     grade_horaria JSONB DEFAULT '[]'::jsonb,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- 4.1 TABELA DE ASSOCIAÇÃO RELACIONAL ESTRITA (TURMA-PROFESSORES)
+CREATE TABLE IF NOT EXISTS public.turma_professores (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    turma_id UUID NOT NULL REFERENCES public.turmas(id) ON DELETE CASCADE,
+    professor_id UUID NOT NULL REFERENCES public.professores(id) ON DELETE CASCADE,
+    disciplina VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(turma_id, professor_id, disciplina)
+);
+
+CREATE INDEX IF NOT EXISTS idx_turma_prof_turma ON public.turma_professores(turma_id);
+CREATE INDEX IF NOT EXISTS idx_turma_prof_prof ON public.turma_professores(professor_id);
 
 -- 5. TABELA DE ESTUDANTES
 CREATE TABLE IF NOT EXISTS public.estudantes (

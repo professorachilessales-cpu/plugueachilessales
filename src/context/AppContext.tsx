@@ -165,6 +165,7 @@ interface AppContextType {
 
   // Ações Eventos & Categorias
   addEvento: (evento: Omit<EventoEscolar, 'id' | 'created_at'>) => void;
+  updateEvento: (id: string, evento: Partial<EventoEscolar>) => void;
   deleteEvento: (id: string) => void;
   addCategoriaEvento: (cat: Omit<CalendarioCategoria, 'id'>) => Promise<{ success: boolean; error?: string }>;
   updateCategoriaEvento: (id: string, cat: Partial<CalendarioCategoria>) => Promise<{ success: boolean; error?: string }>;
@@ -369,54 +370,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setEstudantes(initialEstudantes);
       }
 
-      // Turmas persistidas
-      const savedTurmas = localStorage.getItem('school_os_turmas');
-      if (savedTurmas) {
-        try {
-          const parsedTurmas: Turma[] = JSON.parse(savedTurmas);
-          const hasLegacyTurmas = parsedTurmas.some(t => t.id === 'turma-1' && t.nome.includes('Ensino Médio'));
-          if (hasLegacyTurmas || parsedTurmas.length < 10) {
-            setTurmas(initialTurmas);
-            localStorage.setItem('school_os_turmas', JSON.stringify(initialTurmas));
-          } else {
-            const sanitizedTurmas = parsedTurmas.map((t) => ({
-              ...t,
-              professores_ids: t.professores_ids || (t.professor_regente_id ? [t.professor_regente_id] : []),
-              equipe_apoio_ids: t.equipe_apoio_ids || [],
-            }));
-            setTurmas(sanitizedTurmas);
-          }
-        } catch (e) {
-          console.error('Falha ao ler school_os_turmas:', e);
-          setTurmas(initialTurmas);
-        }
-      } else {
-        setTurmas(initialTurmas);
-      }
+      // Limpeza de cache local obsoleto para garantir dados relacionais estritos do banco
+      try {
+        localStorage.removeItem('school_os_turmas');
+        localStorage.removeItem('school_os_professores');
+      } catch {}
 
-      // Professores persistidos (com validação de integridade pós-migração)
-      const savedProfessores = localStorage.getItem('school_os_professores');
-      if (savedProfessores) {
-        try {
-          const parsedProfessores: Professor[] = JSON.parse(savedProfessores);
-          const hasLegacyDummy = parsedProfessores.some(p => p.id.startsWith('prof-'));
-          if (hasLegacyDummy || parsedProfessores.length < 20) {
-            setProfessores(initialProfessores);
-            localStorage.setItem('school_os_professores', JSON.stringify(initialProfessores));
-          } else {
-            const sanitizedProfessores = parsedProfessores.map((p) => ({
-              ...p,
-              ativo: p.ativo !== false,
-            }));
-            setProfessores(sanitizedProfessores);
-          }
-        } catch (e) {
-          console.error('Falha ao ler school_os_professores:', e);
-          setProfessores(initialProfessores);
-        }
-      } else {
-        setProfessores(initialProfessores);
-      }
+      setTurmas([]);
+      setProfessores([]);
 
       // Faltas persistidas
       const savedFaltas = localStorage.getItem('school_os_faltas');
@@ -578,7 +539,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 return p;
               });
             setProfessores(cleanProf);
-            localStorage.setItem('school_os_professores', JSON.stringify(cleanProf));
           }
           if (tTurmas && tTurmas.length > 0) {
             const cleanTurmas = tTurmas.map((t: Turma) => {
@@ -607,7 +567,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               };
             });
             setTurmas(cleanTurmas);
-            localStorage.setItem('school_os_turmas', JSON.stringify(cleanTurmas));
           }
           if (tEst && tEst.length > 0) {
             const cleanEst = tEst.map((e: Estudante) => ({
@@ -738,23 +697,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [estudantes, isInitialized]);
 
-  useEffect(() => {
-    if (!isInitialized) return;
-    try {
-      localStorage.setItem('school_os_turmas', JSON.stringify(turmas));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [turmas, isInitialized]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    try {
-      localStorage.setItem('school_os_professores', JSON.stringify(professores));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [professores, isInitialized]);
+  // Turmas e Professores são estritamente relacionais (sem cache em localStorage)
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -1228,7 +1171,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     setTurmas((prev) => {
       const updated = [...prev, turmaCriada];
-      localStorage.setItem('school_os_turmas', JSON.stringify(updated));
       return updated;
     });
     syncWithTurso('save_turma', turmaCriada);
@@ -1266,7 +1208,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         return t;
       });
-      localStorage.setItem('school_os_turmas', JSON.stringify(updated));
       return updated;
     });
 
@@ -1295,7 +1236,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     setProfessores((prev) => {
       const updated = [...prev, profCriado];
-      localStorage.setItem('school_os_professores', JSON.stringify(updated));
       return updated;
     });
     syncWithTurso('save_professor', profCriado);
@@ -1316,7 +1256,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         return p;
       });
-      localStorage.setItem('school_os_professores', JSON.stringify(updated));
       return updated;
     });
 
@@ -1377,9 +1316,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             return t;
           });
-          if (anyTurmaChanged) {
-            localStorage.setItem('school_os_turmas', JSON.stringify(updatedTurmas));
-          }
           return updatedTurmas;
         });
       }
@@ -1397,7 +1333,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         return p;
       });
-      localStorage.setItem('school_os_professores', JSON.stringify(updated));
       return updated;
     });
 
@@ -1430,9 +1365,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             return t;
           });
-          if (anyTurmaChanged) {
-            localStorage.setItem('school_os_turmas', JSON.stringify(updatedTurmas));
-          }
           return updatedTurmas;
         });
       }
@@ -1455,7 +1387,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         return p;
       });
-      localStorage.setItem('school_os_professores', JSON.stringify(updated));
       return updated;
     });
 
@@ -1491,9 +1422,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             return t;
           });
-          if (anyTurmaChanged) {
-            localStorage.setItem('school_os_turmas', JSON.stringify(updatedTurmas));
-          }
           return updatedTurmas;
         });
       }
@@ -1538,6 +1466,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     setEventos((prev) => [...prev, eventoCriado]);
     syncWithTurso('save_evento', eventoCriado);
+  };
+
+  const updateEvento = (id: string, dadosAtualizados: Partial<EventoEscolar>) => {
+    setEventos((prev) => {
+      const idx = prev.findIndex((ev) => ev.id === id);
+      if (idx === -1) return prev;
+      const updated: EventoEscolar = { ...prev[idx], ...dadosAtualizados };
+      const nextList = [...prev];
+      nextList[idx] = updated;
+      syncWithTurso('save_evento', updated);
+      return nextList;
+    });
   };
 
   const deleteEvento = (id: string) => {
@@ -2718,6 +2658,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addFaltaProfessor,
         toggleHomologarFalta,
         addEvento,
+        updateEvento,
         deleteEvento,
         categoriasEvento,
         addCategoriaEvento,

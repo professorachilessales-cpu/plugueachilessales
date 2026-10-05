@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
 import { removerObservacaoComAuditoria } from '@/lib/observacoes-service';
+import { garantirSchemaRecorrenciaEventos, toBooleanStrict, validarParametrosRecorrencia } from '@/lib/calendario-service';
 
 export async function POST(req: NextRequest) {
   try {
@@ -174,12 +175,36 @@ export async function POST(req: NextRequest) {
           ]
         );
 
-        // Se o nome da turma foi modificado, sincroniza o turma_nome dos estudantes vinculados preservando seu turma_id intacto
+        // Se o nome da turma foi modificado, sincroniza o turma_nome dos estudantes vinculados
         if (t.id && t.nome) {
           await executeTursoQuery(
             'UPDATE estudantes SET turma_nome = ? WHERE turma_id = ?',
             [t.nome, t.id]
           );
+        }
+
+        // Sincroniza vínculos relacionais estritos na tabela turma_professores
+        if (t.id && Array.isArray(sanitizedProfsIds)) {
+          try {
+            await executeTursoQuery('DELETE FROM turma_professores WHERE turma_id = ?', [t.id]);
+            for (const pid of sanitizedProfsIds) {
+              const pInfo = await executeTursoQuery('SELECT disciplinas FROM professores WHERE id = ?', [pid]);
+              let disc = 'Geral';
+              try {
+                const parsedD = JSON.parse(pInfo.rows[0]?.disciplinas || '[]');
+                if (parsedD.length > 0) disc = parsedD.join(' / ');
+              } catch {}
+              const relId = `tp-${t.id}-${pid}`;
+              await executeTursoQuery(
+                `INSERT INTO turma_professores (id, turma_id, professor_id, disciplina)
+                 VALUES (?, ?, ?, ?)
+                 ON CONFLICT(turma_id, professor_id, disciplina) DO NOTHING`,
+                [relId, t.id, pid, disc]
+              );
+            }
+          } catch (errTp) {
+            console.error('Erro ao sincronizar turma_professores em save_turma:', errTp);
+          }
         }
 
         return NextResponse.json({ success: true });
@@ -449,6 +474,32 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Sincroniza vínculos relacionais estritos na tabela turma_professores
+        if (p.id) {
+          try {
+            await executeTursoQuery('UPDATE professores SET nome = nome_completo WHERE id = ? AND (nome IS NULL OR nome = "")', [p.id]);
+            await executeTursoQuery('DELETE FROM turma_professores WHERE professor_id = ?', [p.id]);
+            if (!isAdmin && Array.isArray(turmasAtribuidas)) {
+              let disc = 'Geral';
+              try {
+                const parsedD = Array.isArray(p.disciplinas) ? p.disciplinas : JSON.parse(p.disciplinas || '[]');
+                if (parsedD.length > 0) disc = parsedD.join(' / ');
+              } catch {}
+              for (const tid of turmasAtribuidas) {
+                const relId = `tp-${tid}-${p.id}`;
+                await executeTursoQuery(
+                  `INSERT INTO turma_professores (id, turma_id, professor_id, disciplina)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(turma_id, professor_id, disciplina) DO NOTHING`,
+                  [relId, tid, p.id, disc]
+                );
+              }
+            }
+          } catch (errTp) {
+            console.error('Erro ao sincronizar turma_professores em save_professor:', errTp);
+          }
+        }
+
         return NextResponse.json({ success: true });
       }
 
@@ -493,11 +544,20 @@ export async function POST(req: NextRequest) {
       // ----------------------------------------------------
       case 'save_evento': {
         const ev = payload;
-        await executeTursoQuery(
-          `INSERT INTO eventos (
+        await garantirSchemaRecorrenciaEventos();
+
+        const recTipo = ev.recorrencia_tipo || 'NENHUMA';
+        const recDia = recTipo !== 'NENHUMA' && ev.recorrencia_dia != null ? Number(ev.recorrencia_dia) : null;
+        const recMes = recTipo === 'ANUAL' && ev.recorrencia_mes != null ? Number(ev.recorrencia_mes) : null;
+        const recAtiva = recTipo !== 'NENHUMA' && toBooleanStrict(ev.recorrencia_ativa) ? 1 : 0;
+        const recLimite = recTipo !== 'NENHUMA' && ev.recorrencia_data_limite ? ev.recorrencia_data_limite : null;
+
+        const sqlEventos = `
+          INSERT INTO eventos (
             id, titulo, descricao, data_inicio, data_fim, categoria, cor,
-            publico_alvo, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            publico_alvo, recorrencia_tipo, recorrencia_dia, recorrencia_mes,
+            recorrencia_ativa, recorrencia_data_limite, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             titulo = excluded.titulo,
             descricao = excluded.descricao,
@@ -505,24 +565,43 @@ export async function POST(req: NextRequest) {
             data_fim = excluded.data_fim,
             categoria = excluded.categoria,
             cor = excluded.cor,
-            publico_alvo = excluded.publico_alvo`,
-          [
-            ev.id,
-            ev.titulo,
-            ev.descricao || '',
-            ev.data_inicio,
-            ev.data_fim,
-            ev.categoria || 'cultural',
-            ev.cor || '#2563EB',
-            ev.publico_alvo || 'Todos',
-            ev.created_at || new Date().toISOString()
-          ]
-        );
+            publico_alvo = excluded.publico_alvo,
+            recorrencia_tipo = excluded.recorrencia_tipo,
+            recorrencia_dia = excluded.recorrencia_dia,
+            recorrencia_mes = excluded.recorrencia_mes,
+            recorrencia_ativa = excluded.recorrencia_ativa,
+            recorrencia_data_limite = excluded.recorrencia_data_limite
+        `;
+
+        const args = [
+          ev.id,
+          ev.titulo,
+          ev.descricao || '',
+          ev.data_inicio,
+          ev.data_fim,
+          ev.categoria || 'cultural',
+          ev.cor || '#2563EB',
+          ev.publico_alvo || 'Todos',
+          recTipo,
+          recDia,
+          recMes,
+          recAtiva,
+          recLimite,
+          ev.created_at || new Date().toISOString()
+        ];
+
+        await executeTursoQuery(sqlEventos, args);
+
+        // Espelha em paralelo na tabela calendario_eventos para compatibilidade plena
+        const sqlCal = sqlEventos.replace('INTO eventos', 'INTO calendario_eventos');
+        await executeTursoQuery(sqlCal, args);
+
         return NextResponse.json({ success: true });
       }
 
       case 'delete_evento': {
         await executeTursoQuery('DELETE FROM eventos WHERE id = ?', [payload.id]);
+        await executeTursoQuery('DELETE FROM calendario_eventos WHERE id = ?', [payload.id]);
         return NextResponse.json({ success: true });
       }
 

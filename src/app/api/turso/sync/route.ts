@@ -953,6 +953,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
+      case 'limpar_rascunho_professor': {
+        const { relatorio_id } = payload;
+        try {
+          await executeTursoQuery(
+            `UPDATE relatorios_professores 
+             SET rascunho_original = '', 
+                 texto_ia = '', 
+                 texto_final = CASE WHEN status = 'enviado' THEN texto_final ELSE '' END
+             WHERE id = ?`,
+            [relatorio_id]
+          );
+        } catch (e: any) {
+          console.error('Erro ao limpar rascunho do professor no Turso:', e);
+          return NextResponse.json({ error: e?.message || 'Falha ao limpar rascunho no banco' }, { status: 500 });
+        }
+        return NextResponse.json({ success: true });
+      }
+
       case 'atualizar_relatorio_professor': {
         const { relatorio_id, rascunho_original, texto_ia, texto_final, status } = payload;
         try {

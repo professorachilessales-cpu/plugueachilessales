@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import { 
   X, 
@@ -20,7 +20,8 @@ import {
   Check, 
   RotateCcw, 
   Undo2,
-  FileCheck2
+  FileCheck2,
+  Trash2
 } from 'lucide-react';
 import { RelatorioProfessor, SolicitacaoRelatorio, Estudante, Turma } from '@/lib/types';
 import { determinarGeneroEstudante } from '@/lib/pareceres-ia';
@@ -42,7 +43,9 @@ export function ModalRedacaoParecerIA({
   estudante,
   turma,
 }: ModalRedacaoParecerIAProps) {
-  const { salvarRascunhoProfessor, polirRelatorioComIA, enviarRelatorioProfessor } = useApp();
+  const { salvarRascunhoProfessor, limparRascunhoProfessor, polirRelatorioComIA, enviarRelatorioProfessor } = useApp();
+
+  const isCancellingRef = useRef(false);
 
   const textoInicial = relatorio.texto_final || relatorio.texto_ia || relatorio.rascunho_original || '';
   const rascunhoInicial = relatorio.rascunho_original || relatorio.texto_final || '';
@@ -59,6 +62,19 @@ export function ModalRedacaoParecerIA({
   const [copiado, setCopiado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(1);
+
+  // Sincroniza estado com a prop relatorio e limpa flags de cancelamento
+  useEffect(() => {
+    if (isOpen) {
+      isCancellingRef.current = false;
+      const textoAtual = relatorio.texto_final || relatorio.texto_ia || relatorio.rascunho_original || '';
+      setTextoParecer(textoAtual);
+      setRascunhoOriginal(relatorio.rascunho_original || relatorio.texto_final || '');
+      setVersaoIaRefinada(relatorio.texto_ia || '');
+      setFoiRefinadoPorIa(Boolean(relatorio.texto_ia));
+      setErro(null);
+    }
+  }, [isOpen, relatorio.id, relatorio.texto_final, relatorio.texto_ia, relatorio.rascunho_original]);
 
   // Identificação precisa do gênero gramatical para exibição e conferência
   const dadosGenero = useMemo(() => {
@@ -91,7 +107,35 @@ export function ModalRedacaoParecerIA({
   })();
 
   const handleSalvarRascunho = () => {
+    if (isCancellingRef.current) return;
+    if (!textoParecer || !textoParecer.trim()) return;
     salvarRascunhoProfessor(relatorio.id, textoParecer);
+  };
+
+  // Ação de Cancelar / Sair: Apaga todo cache no banco/browser e deixa o campo 100% limpo
+  const handleCancelarSair = () => {
+    isCancellingRef.current = true;
+    setTextoParecer('');
+    setRascunhoOriginal('');
+    setVersaoIaRefinada('');
+    setFoiRefinadoPorIa(false);
+    setErro(null);
+    limparRascunhoProfessor(relatorio.id);
+    onClose();
+  };
+
+  // Ação de Limpar Campo: Limpa o editor e apaga qualquer cache do rascunho
+  const handleLimparCampo = () => {
+    isCancellingRef.current = true;
+    setTextoParecer('');
+    setRascunhoOriginal('');
+    setVersaoIaRefinada('');
+    setFoiRefinadoPorIa(false);
+    setErro(null);
+    limparRascunhoProfessor(relatorio.id);
+    setTimeout(() => {
+      isCancellingRef.current = false;
+    }, 100);
   };
 
   // Acionamento oficial do motor Google Gemini padronizado com o módulo administrativo
@@ -230,8 +274,10 @@ export function ModalRedacaoParecerIA({
           </div>
 
           <button
-            onClick={onClose}
-            aria-label="Fechar"
+            type="button"
+            onMouseDown={() => { isCancellingRef.current = true; }}
+            onClick={handleCancelarSair}
+            aria-label="Fechar e Limpar"
             className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
@@ -375,6 +421,19 @@ export function ModalRedacaoParecerIA({
                   </>
                 )}
               </button>
+
+              {/* BOTÃO LIMPAR CAMPO */}
+              {textoParecer.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleLimparCampo}
+                  title="Limpar todo o texto do campo e apagar rascunho em cache"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 shadow-sm hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                  <span>Limpar Campo</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -384,8 +443,9 @@ export function ModalRedacaoParecerIA({
         <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/90">
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+            onMouseDown={() => { isCancellingRef.current = true; }}
+            onClick={handleCancelarSair}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
           >
             Cancelar / Sair
           </button>

@@ -99,6 +99,7 @@ interface AppContextType {
   addSolicitacaoRelatorio: (alunoId: string, adminId?: string, professoresIdsParam?: string[], obs?: string) => string;
   updateSolicitacaoRelatorio?: (id: string, updates: any) => void;
   salvarRascunhoProfessor: (relatorioId: string, rascunho: string) => void;
+  limparRascunhoProfessor: (relatorioId: string) => void;
   updateRelatorioProfessor: (relatorioId: string, updates: Partial<RelatorioProfessor>) => void;
   deleteRelatorioProfessor: (relatorioId: string) => void;
   polirRelatorioComIA: (
@@ -1870,6 +1871,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }).catch(err => console.error('[Turso Sync] Falha ao salvar rascunho no banco:', err));
   };
 
+  const limparRascunhoProfessor = (relatorioId: string) => {
+    setRelatoriosProfessores(prev => {
+      const updated = prev.map(r => (r.id === relatorioId ? {
+        ...r,
+        rascunho_original: '',
+        texto_ia: '',
+        texto_final: r.status === 'enviado' ? r.texto_final : ''
+      } : r));
+      try {
+        localStorage.setItem('school_os_relatorios_professores', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+
+    // Remove qualquer cache no localStorage e sessionStorage
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`rascunho_parecer_${relatorioId}`);
+        sessionStorage.removeItem(`rascunho_parecer_${relatorioId}`);
+        localStorage.removeItem(`draft_relatorio_${relatorioId}`);
+        sessionStorage.removeItem(`draft_relatorio_${relatorioId}`);
+      }
+    } catch (_) {}
+
+    // Sincroniza a limpeza diretamente no banco de dados Turso
+    fetch('/api/turso/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'limpar_rascunho_professor',
+        payload: {
+          relatorio_id: relatorioId,
+        },
+      }),
+    }).catch(err => console.error('[Turso Sync] Falha ao limpar rascunho no banco:', err));
+  };
+
   const polirRelatorioComIA = async (
     relatorioId: string, 
     rascunho: string,
@@ -2794,6 +2832,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notificacoesAdmin,
         addSolicitacaoRelatorio,
         salvarRascunhoProfessor,
+        limparRascunhoProfessor,
         updateRelatorioProfessor,
         deleteRelatorioProfessor,
         polirRelatorioComIA,

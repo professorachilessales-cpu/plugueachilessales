@@ -250,7 +250,6 @@ export async function GET() {
           atestado_drive_id: row.atestado_drive_id || row.drive_file_id || undefined,
           observacao: row.observacao || undefined,
           usuario_registro_id: row.usuario_registro_id || undefined,
-          homologado: toBoolean(row.homologado),
         };
       });
     } catch (e) {

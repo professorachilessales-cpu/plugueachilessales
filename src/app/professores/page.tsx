@@ -187,6 +187,27 @@ export default function ProfessoresPage() {
     setTimeout(() => setFeedbackReposicao(null), 4000);
   };
 
+  const handleConfirmarPagamentoParcial = async (dados: {
+    aulasPagasQtd: number;
+    dataReposicao: string;
+    observacao?: string;
+  }) => {
+    if (!faltaParaPagamentoParcial) return;
+    try {
+      await pagarParcialAusencia(faltaParaPagamentoParcial.falta.id, {
+        aulasPagasQtd: dados.aulasPagasQtd,
+        dataReposicao: dados.dataReposicao,
+        observacao: dados.observacao,
+        usuarioId: currentUser?.id,
+        usuarioNome: currentUser?.name,
+      });
+      mostrarFeedbackReposicao(`Pagamento parcial de ${dados.aulasPagasQtd} aula(s) registrado com sucesso!`);
+      setFaltaParaPagamentoParcial(null);
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao registrar pagamento parcial.');
+    }
+  };
+
   const [modalNovoProfAberto, setModalNovoProfAberto] = useState(false);
   const [modalNovoFuncAberto, setModalNovoFuncAberto] = useState(false);
   const [modalEditProfAberto, setModalEditProfAberto] = useState(false);

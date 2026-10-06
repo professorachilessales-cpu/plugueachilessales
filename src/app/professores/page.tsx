@@ -1419,100 +1419,68 @@ export default function ProfessoresPage() {
               </div>
             )}
 
-            {/* KPI Cards Consolidados do Módulo */}
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Total de Aulas Devidas
-                </span>
-                <div className="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                  {totalGeralDevido}
-                </div>
-                <span className="text-[10px] text-slate-400 dark:text-slate-300">faltas registradas</span>
-              </div>
-
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-800/60 dark:bg-emerald-950/40">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                  Aulas Pagas (Repostas)
-                </span>
-                <div className="mt-2 text-2xl sm:text-3xl font-black text-emerald-700 dark:text-emerald-200">
-                  {totalGeralPagas}
-                </div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Quitações realizadas
-                </span>
-              </div>
-
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-800/60 dark:bg-amber-950/40">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                  Aulas Abonadas
-                </span>
-                <div className="mt-2 text-2xl sm:text-3xl font-black text-amber-700 dark:text-amber-200">
-                  {totalGeralAbonadas}
-                </div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                  <ShieldCheck className="h-3 w-3" />
-                  Dispensadas pela gestão
-                </span>
-              </div>
-
-              <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 dark:border-rose-800/60 dark:bg-rose-950/40">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">
-                  Saldo Devedor Geral
-                </span>
-                <div className="mt-2 text-2xl sm:text-3xl font-black text-rose-700 dark:text-rose-200">
-                  {totalGeralSaldo}
-                </div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-400">
-                  <AlertCircle className="h-3 w-3" />
-                  A repor / regularizar
-                </span>
-              </div>
-
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-800/60 dark:bg-blue-950/40 col-span-2 sm:col-span-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
-                  Docentes em Débito
-                </span>
-                <div className="mt-2 text-2xl sm:text-3xl font-black text-blue-700 dark:text-blue-200">
-                  {totalComDebito}{' '}
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    / {dadosDocentes.length}
-                  </span>
-                </div>
-                <span className="text-[10px] text-blue-600 dark:text-blue-400">
-                  Com pendências ativas
-                </span>
-              </div>
-            </div>
-
             {/* SEÇÃO PRINCIPAL: Débito de Reposições por Docente */}
             <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-school-dark-surface space-y-5">
-              {/* Cabeçalho da Seção */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
+              {/* Cabeçalho da Seção com Filtros */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
                 <div>
                   <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                     <Clock className="h-5 w-5 text-rose-600" />
                     <span>Débito de Reposições por Docente</span>
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Controle de saldo devedor, faltas nos últimos 30 dias e quitações por reposição ou abono institucional.
+                    Controle de saldo devedor, faltas nos últimos 30 dias e quitações por reposição ou abono institucional de docentes ativos.
                   </p>
                 </div>
 
                 {/* Filtros e Busca */}
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* Busca por Professor Ativo */}
                   <div className="relative">
                     <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                     <input
                       type="text"
-                      placeholder="Buscar docente..."
+                      placeholder="Buscar professor ativo..."
                       value={buscaDebito}
                       onChange={(e) => setBuscaDebito(e.target.value)}
-                      className="w-48 sm:w-60 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      className="w-48 sm:w-56 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     />
                   </div>
 
+                  {/* Intervalo de Datas */}
+                  <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/80 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <input
+                      type="date"
+                      value={filtroDataInicioDebito}
+                      onChange={(e) => setFiltroDataInicioDebito(e.target.value)}
+                      className="bg-transparent text-[11px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none"
+                      title="Data Inicial da ausência"
+                    />
+                    <span className="text-[10px] text-slate-400">a</span>
+                    <input
+                      type="date"
+                      value={filtroDataFimDebito}
+                      onChange={(e) => setFiltroDataFimDebito(e.target.value)}
+                      className="bg-transparent text-[11px] font-medium text-slate-700 dark:text-slate-200 focus:outline-none"
+                      title="Data Final da ausência"
+                    />
+                    {(filtroDataInicioDebito || filtroDataFimDebito) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltroDataInicioDebito('');
+                          setFiltroDataFimDebito('');
+                        }}
+                        className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        title="Limpar filtro de datas"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Chips de Status */}
                   <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
                     <button
                       type="button"
@@ -1549,6 +1517,7 @@ export default function ProfessoresPage() {
                     </button>
                   </div>
 
+                  {/* Expandir / Recolher */}
                   <div className="flex gap-1.5">
                     <button
                       type="button"

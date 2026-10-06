@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { 
   AlertTriangle, 
@@ -19,7 +19,10 @@ import {
   Trash2, 
   ShieldAlert,
   GraduationCap,
-  HeartHandshake
+  HeartHandshake,
+  ChevronLeft,
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { ModalRedacaoParecerIA } from '@/components/relatorios/ModalRedacaoParecerIA';
 import { ModalRegistrarReposicao } from '@/components/professores/ModalRegistrarReposicao';
@@ -40,6 +43,7 @@ export function ProfessorDashboard() {
     solicitacoesRelatorio, 
     relatoriosProfessores, 
     reposicoesAulas, 
+    faltasProfessores,
     atestadosProfessor,
     deleteAtestadoProfessor 
   } = useApp();
@@ -153,7 +157,97 @@ export function ProfessorDashboard() {
     return itens;
   }, [relatoriosProfessores, solicitacoesRelatorio, estudantes, turmas, professorAtual, ehAdministrativo]);
 
-  // 2. REPOSIÇÕES E AULAS DEVIDAS (Regra dos 30 dias)
+  // 2. FALTAS E AUSÊNCIAS DO PROFESSOR (Tabela faltas_professores - Regra dos 30 dias)
+  const [faltasDiretas, setFaltasDiretas] = useState<any[] | null>(null);
+  const [carregandoFaltas, setCarregandoFaltas] = useState(false);
+  const [paginaFaltas, setPaginaFaltas] = useState(1);
+  const ITENS_POR_PAGINA_FALTAS = 10;
+
+  useEffect(() => {
+    if (!professorAtual?.id) return;
+    let isMounted = true;
+    setCarregandoFaltas(true);
+    fetch(`/api/professores/${professorAtual.id}/faltas`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data.success && Array.isArray(data.faltas)) {
+          setFaltasDiretas(data.faltas);
+        }
+      })
+      .catch((err) => {
+        console.warn('Fallback para faltas em memória do AppContext:', err);
+      })
+      .finally(() => {
+        if (isMounted) setCarregandoFaltas(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [professorAtual?.id]);
+
+  const faltasDoProfessor = useMemo(() => {
+    if (!professorAtual?.id) return [];
+
+    let lista: any[] = [];
+    if (faltasDiretas !== null) {
+      lista = [...faltasDiretas];
+    } else {
+      lista = (faltasProfessores || [])
+        .filter((f) => f && f.professor_id === professorAtual.id)
+        .map((f) => {
+          const dataInicio = f.data_inicio || f.data_falta || '';
+          const dataFim = f.data_fim || dataInicio;
+          const totalDevido = Number(
+            f.aulas_totais_devidas ?? f.aulas_faltadas ?? (f as any).total_aulas_devidas ?? (f as any).aulas_calculadas ?? 1
+          );
+          const atestadoUrl = f.atestado_drive_url || f.atestado_drive_link || undefined;
+          const apresentouAtestado = Boolean(atestadoUrl || f.drive_file_id || (f as any).apresentou_atestado);
+          return {
+            id: f.id,
+            professor_id: f.professor_id,
+            data_inicio: dataInicio,
+            data_fim: dataFim,
+            data_falta: f.data_falta || dataInicio,
+            aulas_totais_devidas: totalDevido,
+            apresentou_atestado: apresentouAtestado,
+            atestado_drive_url: atestadoUrl,
+            status_reposicao: f.status_reposicao || 'A pagar',
+            motivo: f.motivo || f.justificativa || '',
+          };
+        });
+    }
+
+    // Ordenar estritamente de forma decrescente pela data mais recente (ORDER BY data_inicio DESC)
+    return lista.sort((a, b) => {
+      const dataA = a.data_inicio || a.data_falta || '';
+      const dataB = b.data_inicio || b.data_falta || '';
+      return dataB.localeCompare(dataA);
+    });
+  }, [faltasDiretas, faltasProfessores, professorAtual?.id]);
+
+  const totalFaltas = faltasDoProfessor.length;
+  const totalPaginasFaltas = Math.max(1, Math.ceil(totalFaltas / ITENS_POR_PAGINA_FALTAS));
+  const paginaValidaFaltas = Math.min(Math.max(1, paginaFaltas), totalPaginasFaltas);
+  const indiceInicioFaltas = (paginaValidaFaltas - 1) * ITENS_POR_PAGINA_FALTAS;
+  const indiceFimFaltas = Math.min(indiceInicioFaltas + ITENS_POR_PAGINA_FALTAS, totalFaltas);
+  const faltasPaginadas = faltasDoProfessor.slice(indiceInicioFaltas, indiceFimFaltas);
+
+  // Helper de formatação de data para o padrão brasileiro DD/MM/AAAA
+  const formatarDataBr = (dataStr?: string): string => {
+    if (!dataStr) return '—';
+    try {
+      const limpo = dataStr.split('T')[0];
+      const partes = limpo.split('-').map(Number);
+      if (partes.length === 3 && !isNaN(partes[0])) {
+        return `${String(partes[2]).padStart(2, '0')}/${String(partes[1]).padStart(2, '0')}/${partes[0]}`;
+      }
+      return limpo;
+    } catch {
+      return dataStr;
+    }
+  };
+
+  // Compatibilidade legada
   const reposicoesDoProfessor = useMemo(() => {
     if (!professorAtual?.id) return [];
     const hoje = new Date();

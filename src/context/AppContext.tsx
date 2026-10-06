@@ -167,6 +167,9 @@ interface AppContextType {
   deleteFaltaProfessor: (id: string, fileId?: string, nomeArquivo?: string) => Promise<void>;
   deleteAtestadoFalta: (faltaId: string, fileId?: string, nomeArquivo?: string) => Promise<void>;
   toggleHomologarFalta: (id: string) => void;
+  pagarTodasAulasAusencia: (faltaId: string, usuarioId?: string, usuarioNome?: string) => Promise<void>;
+  pagarParcialAusencia: (faltaId: string, dados: { aulasPagasQtd: number; dataReposicao?: string; observacao?: string; usuarioId?: string; usuarioNome?: string }) => Promise<void>;
+  abonarAulasAusencia: (faltaId: string, usuarioId?: string, usuarioNome?: string) => Promise<void>;
 
   // Ações Eventos & Categorias
   addEvento: (evento: Omit<EventoEscolar, 'id' | 'created_at'>) => void;
@@ -1499,6 +1502,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       aulas_calculadas_sistema: aulasCalc,
       aulas_totais_devidas: aulasTotais,
       aulas_faltadas: aulasTotais,
+      aulas_pagas: novaFalta.aulas_pagas || 0,
+      aulas_abonadas: novaFalta.aulas_abonadas || 0,
+      status_reposicao: novaFalta.status_reposicao || 'A pagar',
+      historico_pagamentos: novaFalta.historico_pagamentos || [],
       motivo: motivoTexto,
       justificativa: motivoTexto,
       atestado_drive_url: novaFalta.atestado_drive_url || novaFalta.atestado_drive_link,
@@ -1619,6 +1626,168 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
     if (updatedFalta) {
       syncWithTurso('save_falta', updatedFalta);
+    }
+  };
+
+  const pagarTodasAulasAusencia = async (faltaId: string, usuarioId?: string, usuarioNome?: string) => {
+    let updatedFalta: FaltaProfessor | undefined;
+    let historicoItem: HistoricoReposicaoPagamento | undefined;
+
+    setFaltasProfessores((prev) =>
+      prev.map((f) => {
+        if (f.id === faltaId) {
+          const totalDevido = Number(f.aulas_totais_devidas ?? f.aulas_faltadas ?? 1);
+          const aulasPagasAtual = Number(f.aulas_pagas ?? 0);
+          const aulasAbonadasAtual = Number(f.aulas_abonadas ?? 0);
+          const saldoRestante = Math.max(0, totalDevido - (aulasPagasAtual + aulasAbonadasAtual));
+          if (saldoRestante <= 0) return f;
+
+          const novasAulasPagas = totalDevido - aulasAbonadasAtual;
+          const novoStatus: StatusReposicaoAusencia = 'Totalmente Pago';
+
+          historicoItem = {
+            id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            ausencia_id: faltaId,
+            aulas_abatidas: saldoRestante,
+            tipo_baixa: 'PAGAMENTO',
+            data_registro: new Date().toISOString(),
+            usuario_id: usuarioId || currentUser?.id,
+            usuario_nome: usuarioNome || currentUser?.name || 'Administração',
+            observacao: 'Quitação integral de saldo de reposição',
+          };
+
+          const novoHistorico = [historicoItem, ...(f.historico_pagamentos || [])];
+
+          updatedFalta = {
+            ...f,
+            aulas_pagas: novasAulasPagas,
+            status_reposicao: novoStatus,
+            historico_pagamentos: novoHistorico,
+          };
+          return updatedFalta;
+        }
+        return f;
+      })
+    );
+
+    if (updatedFalta && historicoItem) {
+      syncWithTurso('save_baixa_reposicao', {
+        ausencia_id: faltaId,
+        aulas_pagas: updatedFalta.aulas_pagas,
+        aulas_abonadas: updatedFalta.aulas_abonadas ?? 0,
+        status_reposicao: updatedFalta.status_reposicao,
+        historico: historicoItem,
+      });
+    }
+  };
+
+  const pagarParcialAusencia = async (
+    faltaId: string,
+    dados: { aulasPagasQtd: number; dataReposicao?: string; observacao?: string; usuarioId?: string; usuarioNome?: string }
+  ) => {
+    let updatedFalta: FaltaProfessor | undefined;
+    let historicoItem: HistoricoReposicaoPagamento | undefined;
+
+    setFaltasProfessores((prev) =>
+      prev.map((f) => {
+        if (f.id === faltaId) {
+          const totalDevido = Number(f.aulas_totais_devidas ?? f.aulas_faltadas ?? 1);
+          const aulasPagasAtual = Number(f.aulas_pagas ?? 0);
+          const aulasAbonadasAtual = Number(f.aulas_abonadas ?? 0);
+          const saldoRestante = Math.max(0, totalDevido - (aulasPagasAtual + aulasAbonadasAtual));
+          if (saldoRestante <= 0) return f;
+          
+          const qtd = Math.min(saldoRestante, Math.max(1, Number(dados.aulasPagasQtd) || 1));
+          const novasAulasPagas = aulasPagasAtual + qtd;
+          const novoSaldo = Math.max(0, totalDevido - (novasAulasPagas + aulasAbonadasAtual));
+          const novoStatus: StatusReposicaoAusencia = novoSaldo === 0 ? 'Totalmente Pago' : 'Pago Parcialmente';
+
+          historicoItem = {
+            id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            ausencia_id: faltaId,
+            aulas_abatidas: qtd,
+            tipo_baixa: 'PAGAMENTO',
+            data_reposicao: dados.dataReposicao || new Date().toISOString().split('T')[0],
+            observacao: dados.observacao?.trim() || undefined,
+            data_registro: new Date().toISOString(),
+            usuario_id: dados.usuarioId || currentUser?.id,
+            usuario_nome: dados.usuarioNome || currentUser?.name || 'Administração',
+          };
+
+          const novoHistorico = [historicoItem, ...(f.historico_pagamentos || [])];
+
+          updatedFalta = {
+            ...f,
+            aulas_pagas: novasAulasPagas,
+            status_reposicao: novoStatus,
+            historico_pagamentos: novoHistorico,
+          };
+          return updatedFalta;
+        }
+        return f;
+      })
+    );
+
+    if (updatedFalta && historicoItem) {
+      syncWithTurso('save_baixa_reposicao', {
+        ausencia_id: faltaId,
+        aulas_pagas: updatedFalta.aulas_pagas,
+        aulas_abonadas: updatedFalta.aulas_abonadas ?? 0,
+        status_reposicao: updatedFalta.status_reposicao,
+        historico: historicoItem,
+      });
+    }
+  };
+
+  const abonarAulasAusencia = async (faltaId: string, usuarioId?: string, usuarioNome?: string) => {
+    let updatedFalta: FaltaProfessor | undefined;
+    let historicoItem: HistoricoReposicaoPagamento | undefined;
+
+    setFaltasProfessores((prev) =>
+      prev.map((f) => {
+        if (f.id === faltaId) {
+          const totalDevido = Number(f.aulas_totais_devidas ?? f.aulas_faltadas ?? 1);
+          const aulasPagasAtual = Number(f.aulas_pagas ?? 0);
+          const aulasAbonadasAtual = Number(f.aulas_abonadas ?? 0);
+          const saldoRestante = Math.max(0, totalDevido - (aulasPagasAtual + aulasAbonadasAtual));
+          if (saldoRestante <= 0) return f;
+
+          const novasAulasAbonadas = totalDevido - aulasPagasAtual;
+          const novoStatus: StatusReposicaoAusencia = 'Abonadas';
+
+          historicoItem = {
+            id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            ausencia_id: faltaId,
+            aulas_abatidas: saldoRestante,
+            tipo_baixa: 'ABONO',
+            data_registro: new Date().toISOString(),
+            usuario_id: usuarioId || currentUser?.id,
+            usuario_nome: usuarioNome || currentUser?.name || 'Gestão Escolar',
+            observacao: 'Abono autorizado pela gestão escolar',
+          };
+
+          const novoHistorico = [historicoItem, ...(f.historico_pagamentos || [])];
+
+          updatedFalta = {
+            ...f,
+            aulas_abonadas: novasAulasAbonadas,
+            status_reposicao: novoStatus,
+            historico_pagamentos: novoHistorico,
+          };
+          return updatedFalta;
+        }
+        return f;
+      })
+    );
+
+    if (updatedFalta && historicoItem) {
+      syncWithTurso('save_baixa_reposicao', {
+        ausencia_id: faltaId,
+        aulas_pagas: updatedFalta.aulas_pagas ?? 0,
+        aulas_abonadas: updatedFalta.aulas_abonadas,
+        status_reposicao: updatedFalta.status_reposicao,
+        historico: historicoItem,
+      });
     }
   };
 
@@ -3087,6 +3256,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteFaltaProfessor,
         deleteAtestadoFalta,
         toggleHomologarFalta,
+        pagarTodasAulasAusencia,
+        pagarParcialAusencia,
+        abonarAulasAusencia,
         addEvento,
         updateEvento,
         deleteEvento,

@@ -515,11 +515,29 @@ export async function POST(req: NextRequest) {
           'ALTER TABLE faltas_professores ADD COLUMN data_fim TEXT',
           'ALTER TABLE faltas_professores ADD COLUMN aulas_calculadas_sistema INTEGER DEFAULT 0',
           'ALTER TABLE faltas_professores ADD COLUMN aulas_totais_devidas INTEGER DEFAULT 1',
+          'ALTER TABLE faltas_professores ADD COLUMN aulas_pagas INTEGER DEFAULT 0',
+          'ALTER TABLE faltas_professores ADD COLUMN aulas_abonadas INTEGER DEFAULT 0',
+          'ALTER TABLE faltas_professores ADD COLUMN status_reposicao TEXT DEFAULT "A pagar"',
           'ALTER TABLE faltas_professores ADD COLUMN motivo TEXT',
           'ALTER TABLE faltas_professores ADD COLUMN atestado_drive_url TEXT',
           'ALTER TABLE faltas_professores ADD COLUMN drive_file_id TEXT',
           'ALTER TABLE faltas_professores ADD COLUMN observacao TEXT',
           'ALTER TABLE faltas_professores ADD COLUMN usuario_registro_id TEXT',
+          'ALTER TABLE ausencias_docentes ADD COLUMN aulas_pagas INTEGER DEFAULT 0',
+          'ALTER TABLE ausencias_docentes ADD COLUMN aulas_abonadas INTEGER DEFAULT 0',
+          'ALTER TABLE ausencias_docentes ADD COLUMN status_reposicao TEXT DEFAULT "A pagar"',
+          `CREATE TABLE IF NOT EXISTS historico_reposicoes_pagamentos (
+            id TEXT PRIMARY KEY,
+            ausencia_id TEXT NOT NULL,
+            aulas_abatidas INTEGER NOT NULL DEFAULT 1,
+            tipo_baixa TEXT NOT NULL CHECK(tipo_baixa IN ('PAGAMENTO', 'ABONO')),
+            data_reposicao TEXT,
+            observacao TEXT,
+            data_registro TEXT DEFAULT CURRENT_TIMESTAMP,
+            usuario_id TEXT,
+            usuario_nome TEXT
+          )`,
+          'CREATE INDEX IF NOT EXISTS idx_hist_rep_ausencia ON historico_reposicoes_pagamentos(ausencia_id)',
         ];
         for (const sql of colunasAusencia) {
           try {
@@ -532,6 +550,13 @@ export async function POST(req: NextRequest) {
         const dataFim = f.data_fim || dataIni;
         const aulasTotais = Number(f.aulas_totais_devidas ?? f.aulas_faltadas ?? 1);
         const aulasCalc = Number(f.aulas_calculadas_sistema ?? 0);
+        const aulasPagas = Number(f.aulas_pagas ?? 0);
+        const aulasAbonadas = Number(f.aulas_abonadas ?? 0);
+        const statusReposicao = f.status_reposicao || (
+          (aulasPagas === 0 && aulasAbonadas === 0) ? 'A pagar' :
+          (aulasTotais - (aulasPagas + aulasAbonadas) <= 0) ? (aulasAbonadas >= aulasTotais ? 'Abonadas' : 'Totalmente Pago') :
+          'Pago Parcialmente'
+        );
         const motivoTexto = (f.motivo || f.justificativa || '').toUpperCase();
         const driveUrl = f.atestado_drive_url || f.atestado_drive_link || null;
         const driveId = f.drive_file_id || f.atestado_drive_id || null;
@@ -542,10 +567,11 @@ export async function POST(req: NextRequest) {
           `INSERT INTO faltas_professores (
             id, professor_id, professor_nome, tipo_registro, data_inicio, data_fim, data_falta,
             aulas_calculadas_sistema, aulas_totais_devidas, aulas_faltadas,
+            aulas_pagas, aulas_abonadas, status_reposicao,
             motivo, justificativa, atestado_drive_url, atestado_drive_link,
             drive_file_id, atestado_drive_id, observacao, usuario_registro_id,
             homologado, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             professor_id = excluded.professor_id,
             professor_nome = excluded.professor_nome,
@@ -556,6 +582,9 @@ export async function POST(req: NextRequest) {
             aulas_calculadas_sistema = excluded.aulas_calculadas_sistema,
             aulas_totais_devidas = excluded.aulas_totais_devidas,
             aulas_faltadas = excluded.aulas_faltadas,
+            aulas_pagas = excluded.aulas_pagas,
+            aulas_abonadas = excluded.aulas_abonadas,
+            status_reposicao = excluded.status_reposicao,
             motivo = excluded.motivo,
             justificativa = excluded.justificativa,
             atestado_drive_url = excluded.atestado_drive_url,
@@ -576,6 +605,9 @@ export async function POST(req: NextRequest) {
             aulasCalc,
             aulasTotais,
             aulasTotais,
+            aulasPagas,
+            aulasAbonadas,
+            statusReposicao,
             motivoTexto,
             motivoTexto,
             driveUrl,
@@ -594,9 +626,10 @@ export async function POST(req: NextRequest) {
             `INSERT INTO ausencias_docentes (
               id, professor_id, tipo_registro, data_inicio, data_fim,
               aulas_calculadas_sistema, aulas_totais_devidas,
+              aulas_pagas, aulas_abonadas, status_reposicao,
               motivo, atestado_drive_url, drive_file_id,
               observacao, usuario_registro_id, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               professor_id = excluded.professor_id,
               tipo_registro = excluded.tipo_registro,
@@ -604,6 +637,9 @@ export async function POST(req: NextRequest) {
               data_fim = excluded.data_fim,
               aulas_calculadas_sistema = excluded.aulas_calculadas_sistema,
               aulas_totais_devidas = excluded.aulas_totais_devidas,
+              aulas_pagas = excluded.aulas_pagas,
+              aulas_abonadas = excluded.aulas_abonadas,
+              status_reposicao = excluded.status_reposicao,
               motivo = excluded.motivo,
               atestado_drive_url = excluded.atestado_drive_url,
               drive_file_id = excluded.drive_file_id,
@@ -617,6 +653,9 @@ export async function POST(req: NextRequest) {
               dataFim,
               aulasCalc,
               aulasTotais,
+              aulasPagas,
+              aulasAbonadas,
+              statusReposicao,
               motivoTexto,
               driveUrl,
               driveId,
@@ -630,12 +669,82 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
+      case 'save_baixa_reposicao': {
+        const b = payload;
+        const colunasGarantir = [
+          'ALTER TABLE faltas_professores ADD COLUMN aulas_pagas INTEGER DEFAULT 0',
+          'ALTER TABLE faltas_professores ADD COLUMN aulas_abonadas INTEGER DEFAULT 0',
+          'ALTER TABLE faltas_professores ADD COLUMN status_reposicao TEXT DEFAULT "A pagar"',
+          'ALTER TABLE ausencias_docentes ADD COLUMN aulas_pagas INTEGER DEFAULT 0',
+          'ALTER TABLE ausencias_docentes ADD COLUMN aulas_abonadas INTEGER DEFAULT 0',
+          'ALTER TABLE ausencias_docentes ADD COLUMN status_reposicao TEXT DEFAULT "A pagar"',
+          `CREATE TABLE IF NOT EXISTS historico_reposicoes_pagamentos (
+            id TEXT PRIMARY KEY,
+            ausencia_id TEXT NOT NULL,
+            aulas_abatidas INTEGER NOT NULL DEFAULT 1,
+            tipo_baixa TEXT NOT NULL CHECK(tipo_baixa IN ('PAGAMENTO', 'ABONO')),
+            data_reposicao TEXT,
+            observacao TEXT,
+            data_registro TEXT DEFAULT CURRENT_TIMESTAMP,
+            usuario_id TEXT,
+            usuario_nome TEXT
+          )`,
+          'CREATE INDEX IF NOT EXISTS idx_hist_rep_ausencia ON historico_reposicoes_pagamentos(ausencia_id)',
+        ];
+        for (const sql of colunasGarantir) {
+          try {
+            await executeTursoQuery(sql);
+          } catch {}
+        }
+
+        if (b.historico) {
+          await executeTursoQuery(
+            `INSERT INTO historico_reposicoes_pagamentos (
+              id, ausencia_id, aulas_abatidas, tipo_baixa,
+              data_reposicao, observacao, data_registro,
+              usuario_id, usuario_nome
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              b.historico.id,
+              b.historico.ausencia_id,
+              b.historico.aulas_abatidas,
+              b.historico.tipo_baixa,
+              b.historico.data_reposicao || null,
+              b.historico.observacao || null,
+              b.historico.data_registro || new Date().toISOString(),
+              b.historico.usuario_id || null,
+              b.historico.usuario_nome || null
+            ]
+          );
+        }
+
+        if (b.ausencia_id) {
+          await executeTursoQuery(
+            `UPDATE faltas_professores
+             SET aulas_pagas = ?, aulas_abonadas = ?, status_reposicao = ?
+             WHERE id = ?`,
+            [Number(b.aulas_pagas ?? 0), Number(b.aulas_abonadas ?? 0), b.status_reposicao, b.ausencia_id]
+          );
+          try {
+            await executeTursoQuery(
+              `UPDATE ausencias_docentes
+               SET aulas_pagas = ?, aulas_abonadas = ?, status_reposicao = ?
+               WHERE id = ?`,
+              [Number(b.aulas_pagas ?? 0), Number(b.aulas_abonadas ?? 0), b.status_reposicao, b.ausencia_id]
+            );
+          } catch {}
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
       case 'delete_falta': {
         const { id } = payload;
         if (id) {
           await executeTursoQuery('DELETE FROM faltas_professores WHERE id = ?', [id]);
           try {
             await executeTursoQuery('DELETE FROM ausencias_docentes WHERE id = ?', [id]);
+            await executeTursoQuery('DELETE FROM historico_reposicoes_pagamentos WHERE ausencia_id = ?', [id]);
           } catch {}
         }
         return NextResponse.json({ success: true });

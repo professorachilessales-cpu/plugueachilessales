@@ -31,14 +31,19 @@ import {
   Loader2,
   Trash2,
   CalendarRange,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  CheckCheck,
+  History
 } from 'lucide-react';
-import { Professor, FaltaProfessor, TitulacaoDocente, FuncaoEscola, TipoProfissional } from '@/lib/types';
+import { Professor, FaltaProfessor, TitulacaoDocente, FuncaoEscola, TipoProfissional, StatusReposicaoAusencia } from '@/lib/types';
 import { formatarTelefone, formatarCPF, formatarCEP, validarCPF } from '@/lib/validations';
 import FuncaoEscolaSelector from '@/components/professores/FuncaoEscolaSelector';
 import ModalNovoFuncionario from '@/components/professores/ModalNovoFuncionario';
 import { ModalRegistrarAusencia } from '@/components/professores/ModalRegistrarAusencia';
 import { ModalSubstituirAtestadoFalta } from '@/components/professores/ModalSubstituirAtestadoFalta';
+import { ModalPagamentoParcialReposicao } from '@/components/professores/ModalPagamentoParcialReposicao';
 
 const TITULACOES_DOCENTE: TitulacaoDocente[] = [
   'GRADUAÇÃO',
@@ -148,6 +153,10 @@ export default function ProfessoresPage() {
     deleteFaltaProfessor,
     deleteAtestadoFalta,
     toggleHomologarFalta, 
+    pagarTodasAulasAusencia,
+    pagarParcialAusencia,
+    abonarAulasAusencia,
+    currentUser,
     turmas,
     reposicoesAulas,
     atestadosProfessor,
@@ -164,6 +173,19 @@ export default function ProfessoresPage() {
   const [filtroStatus, setFiltroStatus] = useState<'ativos' | 'inativos' | 'todos'>('ativos');
   // Busca textual rápida
   const [buscaTermo, setBuscaTermo] = useState('');
+
+  // Estados para Gestão de Reposições & Débitos
+  const [docentesExpandidosDebito, setDocentesExpandidosDebito] = useState<Record<string, boolean>>({});
+  const [buscaDebito, setBuscaDebito] = useState<string>('');
+  const [filtroDebitoStatus, setFiltroDebitoStatus] = useState<'todos' | 'com_debito' | 'regularizados'>('todos');
+  const [faltaParaPagamentoParcial, setFaltaParaPagamentoParcial] = useState<{ falta: FaltaProfessor; saldoRestante: number } | null>(null);
+  const [faltaHistoricoExpandido, setFaltaHistoricoExpandido] = useState<Record<string, boolean>>({});
+  const [feedbackReposicao, setFeedbackReposicao] = useState<string | null>(null);
+
+  const mostrarFeedbackReposicao = (msg: string) => {
+    setFeedbackReposicao(msg);
+    setTimeout(() => setFeedbackReposicao(null), 4000);
+  };
 
   const [modalNovoProfAberto, setModalNovoProfAberto] = useState(false);
   const [modalNovoFuncAberto, setModalNovoFuncAberto] = useState(false);
@@ -534,7 +556,7 @@ export default function ProfessoresPage() {
           }`}
         >
           <Clock className="h-4 w-4" />
-          <span>Reposições (Regra 30d) ({reposicoesAulas.length})</span>
+          <span>Débito de Reposições</span>
         </button>
 
         <button
@@ -1158,242 +1180,886 @@ export default function ProfessoresPage() {
         );
       })()}
 
-      {/* ABA 3: Gestão de Reposições de Aulas (Regra dos 30 Dias) */}
+      {/* ABA 3: Gestão de Débito de Reposições por Docente */}
       {abaAtiva === 'reposicoes' && (() => {
-        const totalAulasARepor = reposicoesAulas.filter(r => r.status === 'pendente' || r.status === 'Pendente').reduce((a, c) => a + (c.qtd_aulas_faltantes || c.aulas_total || 0), 0);
-        const reposicoesPendentes = reposicoesAulas.filter(r => r.status === 'pendente' || r.status === 'Pendente');
-        const reposicoesVencidas = reposicoesPendentes.filter(r => {
-          const limiteStr = r.data_limite_reposicao || r.data_limite || '';
-          const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-          return diff < 0;
+        const formatarDataBr = (d?: string) => {
+          if (!d) return '-';
+          const limpa = d.split('T')[0];
+          const [ano, mes, dia] = limpa.split('-');
+          if (!ano || !mes || !dia) return d;
+          return `${dia}/${mes}/${ano}`;
+        };
+
+        const normalizarTexto = (texto?: string) => {
+          if (!texto) return '';
+          return texto
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+            .toLowerCase();
+        };
+
+        // 1. Exclusão estrita de Administrativos e filtro de docentes com aulas ativas na grade
+        const turmasAtivas = (turmas || []).filter(t => t.ativa !== false && t.ativa !== 0);
+
+        const docentesElegiveis = professores.filter((prof) => {
+          // Exclusão estrita de administrativos
+          const func = normalizarTexto(prof.funcao_escola);
+          if (
+            prof.eh_administrativo ||
+            func === 'administrativo' ||
+            prof.tipo_profissional === 'funcionario'
+          ) {
+            return false;
+          }
+
+          // Docentes com aulas ativas na grade horária ou turmas atribuídas
+          const temAulasNaGrade = turmasAtivas.some((t) => {
+            const naGrade = (t.grade_horaria || []).some((h) => {
+              if (h.professor_id && h.professor_id === prof.id) return true;
+              if (h.professor_nome && prof.nome_completo) {
+                return normalizarTexto(h.professor_nome) === normalizarTexto(prof.nome_completo);
+              }
+              return false;
+            });
+            const naTurma =
+              (t.professores_ids || []).includes(prof.id) ||
+              (prof.turmas_atribuidas_ids || []).includes(t.id);
+            return naGrade || naTurma;
+          });
+
+          const temFaltasCadastradas = faltasProfessores.some((f) => f.professor_id === prof.id);
+
+          return temAulasNaGrade || temFaltasCadastradas;
         });
-        const reposicoesAlerta = reposicoesPendentes.filter(r => {
-          const limiteStr = r.data_limite_reposicao || r.data_limite || '';
-          const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-          return diff >= 0 && diff <= 5;
+
+        // 2. Apuração das 5 Métricas Consolidadas por Docente
+        const agora = new Date();
+        const limite30Dias = new Date();
+        limite30Dias.setDate(limite30Dias.getDate() - 30);
+        limite30Dias.setHours(0, 0, 0, 0);
+
+        const mesAtual = agora.getMonth();
+        const anoAtual = agora.getFullYear();
+
+        type MetricasDocente = {
+          prof: Professor;
+          faltasDoDocente: FaltaProfessor[];
+          totalDevido: number;
+          faltas30Dias: number;
+          faltasMesAtual: number;
+          aulasPagas: number;
+          aulasAbonadas: number;
+          saldoDevedor: number;
+        };
+
+        const dadosDocentes: MetricasDocente[] = docentesElegiveis.map((prof) => {
+          const faltasDoDocente = faltasProfessores
+            .filter((f) => f.professor_id === prof.id)
+            .sort((a, b) => {
+              const dataA = a.data_inicio || a.data_falta || '';
+              const dataB = b.data_inicio || b.data_falta || '';
+              return dataB.localeCompare(dataA); // Cronológica: mais recentes primeiro
+            });
+
+          let totalDevido = 0;
+          let faltas30Dias = 0;
+          let faltasMesAtual = 0;
+          let aulasPagas = 0;
+          let aulasAbonadas = 0;
+
+          faltasDoDocente.forEach((f) => {
+            const devidas = Number(f.aulas_totais_devidas ?? f.aulas_faltadas ?? 0);
+            const pagas = Number(f.aulas_pagas ?? 0);
+            const abonadas = Number(f.aulas_abonadas ?? 0);
+
+            totalDevido += devidas;
+            aulasPagas += pagas;
+            aulasAbonadas += abonadas;
+
+            const dataStr = f.data_inicio || f.data_falta;
+            if (dataStr) {
+              const dt = new Date(dataStr + 'T12:00:00');
+              if (dt >= limite30Dias && dt <= agora) {
+                faltas30Dias += devidas;
+              }
+              if (dt.getFullYear() === anoAtual && dt.getMonth() === mesAtual) {
+                faltasMesAtual += devidas;
+              }
+            }
+          });
+
+          // Saldo Devedor = Total Devido - (Aulas Pagas + Aulas Abonadas)
+          const saldoDevedor = Math.max(0, totalDevido - (aulasPagas + aulasAbonadas));
+
+          return {
+            prof,
+            faltasDoDocente,
+            totalDevido,
+            faltas30Dias,
+            faltasMesAtual,
+            aulasPagas,
+            aulasAbonadas,
+            saldoDevedor,
+          };
         });
-        const reposicoesRegulares = reposicoesPendentes.filter(r => {
-          const limiteStr = r.data_limite_reposicao || r.data_limite || '';
-          const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-          return diff > 5;
+
+        // Totais gerais consolidados
+        const totalGeralDevido = dadosDocentes.reduce((acc, d) => acc + d.totalDevido, 0);
+        const totalGeralPagas = dadosDocentes.reduce((acc, d) => acc + d.aulasPagas, 0);
+        const totalGeralAbonadas = dadosDocentes.reduce((acc, d) => acc + d.aulasAbonadas, 0);
+        const totalGeralSaldo = dadosDocentes.reduce((acc, d) => acc + d.saldoDevedor, 0);
+        const totalComDebito = dadosDocentes.filter((d) => d.saldoDevedor > 0).length;
+
+        // Filtragem para busca e status
+        const termoBuscaNorm = normalizarTexto(buscaDebito);
+        const dadosFiltrados = dadosDocentes.filter((d) => {
+          if (filtroDebitoStatus === 'com_debito' && d.saldoDevedor === 0) return false;
+          if (filtroDebitoStatus === 'regularizados' && d.saldoDevedor > 0) return false;
+
+          if (!termoBuscaNorm) return true;
+          const nomeNorm = normalizarTexto(d.prof.nome_completo);
+          const matNorm = normalizarTexto(d.prof.matricula);
+          const discNorm = normalizarTexto(d.prof.disciplinas?.join(' '));
+          return nomeNorm.includes(termoBuscaNorm) || matNorm.includes(termoBuscaNorm) || discNorm.includes(termoBuscaNorm);
         });
-        const reposicoesHomologadas = reposicoesAulas.filter(r => r.status === 'reposta' || r.status === 'Reposta' || r.homologado_por_admin);
+
+        // Handlers das Ações Rápidas
+        const handlePagarTodas = async (falta: FaltaProfessor, saldoRestante: number) => {
+          if (saldoRestante <= 0) return;
+          const confirmou = window.confirm(
+            `Confirmar a quitação total de ${saldoRestante} aula(s) devida(s) de ${falta.professor_nome}?\nO status da reposição será atualizado automaticamente para "Totalmente Pago".`
+          );
+          if (!confirmou) return;
+
+          try {
+            await pagarTodasAulasAusencia(falta.id, currentUser?.id, currentUser?.name);
+            mostrarFeedbackReposicao(`Quitação total de ${saldoRestante} aula(s) registrada com sucesso!`);
+          } catch (err: any) {
+            alert(err?.message || 'Erro ao registrar quitação.');
+          }
+        };
+
+        const handleAbonar = async (falta: FaltaProfessor, saldoRestante: number) => {
+          if (saldoRestante <= 0) return;
+          const confirmou = window.confirm(
+            `Confirmar o abono das ${saldoRestante} aula(s) pendente(s) de ${falta.professor_nome}?\nO débito de reposição será dispensado e o status passará para "Abonadas".`
+          );
+          if (!confirmou) return;
+
+          try {
+            await abonarAulasAusencia(falta.id, currentUser?.id, currentUser?.name);
+            mostrarFeedbackReposicao(`Abono de ${saldoRestante} aula(s) registrado com sucesso!`);
+          } catch (err: any) {
+            alert(err?.message || 'Erro ao registrar abono.');
+          }
+        };
+
+        const toggleDocenteExpandido = (profId: string) => {
+          setDocentesExpandidosDebito((prev) => ({
+            ...prev,
+            [profId]: !prev[profId],
+          }));
+        };
+
+        const alternarTodosDocentes = (expandir: boolean) => {
+          const novoEstado: Record<string, boolean> = {};
+          dadosFiltrados.forEach((d) => {
+            novoEstado[d.prof.id] = expandir;
+          });
+          setDocentesExpandidosDebito(novoEstado);
+        };
+
+        const toggleHistoricoAusencia = (faltaId: string) => {
+          setFaltaHistoricoExpandido((prev) => ({
+            ...prev,
+            [faltaId]: !prev[faltaId],
+          }));
+        };
 
         return (
-          <div className="space-y-6">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-300">
-                  Total de Aulas a Repor
-                </span>
-                <div className="mt-2 text-3xl font-black text-slate-900 dark:text-white">
-                  {totalAulasARepor}
+          <div className="space-y-6 animate-in fade-in-50 duration-200">
+            {/* Feedback Toast */}
+            {feedbackReposicao && (
+              <div className="flex items-center justify-between rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-200 shadow-md">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>{feedbackReposicao}</span>
                 </div>
-                <span className="text-[10px] text-slate-400 dark:text-slate-300">em aberto</span>
+                <button
+                  type="button"
+                  onClick={() => setFeedbackReposicao(null)}
+                  className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* KPI Cards Consolidados do Módulo */}
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Total de Aulas Devidas
+                </span>
+                <div className="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  {totalGeralDevido}
+                </div>
+                <span className="text-[10px] text-slate-400 dark:text-slate-300">faltas registradas</span>
               </div>
 
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-800/60 dark:bg-emerald-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                  No Prazo (&gt; 5 dias)
+                  Aulas Pagas (Repostas)
                 </span>
-                <div className="mt-2 text-3xl font-black text-emerald-700 dark:text-emerald-200">
-                  {reposicoesRegulares.length}
+                <div className="mt-2 text-2xl sm:text-3xl font-black text-emerald-700 dark:text-emerald-200">
+                  {totalGeralPagas}
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                   <CheckCircle2 className="h-3 w-3" />
-                  Situação Regular
+                  Quitações realizadas
                 </span>
               </div>
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-800/60 dark:bg-amber-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                  Vencendo (≤ 5 dias)
+                  Aulas Abonadas
                 </span>
-                <div className="mt-2 text-3xl font-black text-amber-700 dark:text-amber-200">
-                  {reposicoesAlerta.length}
+                <div className="mt-2 text-2xl sm:text-3xl font-black text-amber-700 dark:text-amber-200">
+                  {totalGeralAbonadas}
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                  <Clock className="h-3 w-3" />
-                  Alerta Próximo
+                  <ShieldCheck className="h-3 w-3" />
+                  Dispensadas pela gestão
                 </span>
               </div>
 
               <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 dark:border-rose-800/60 dark:bg-rose-950/40">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">
-                  Vencidas (&gt; 30 dias)
+                  Saldo Devedor Geral
                 </span>
-                <div className="mt-2 text-3xl font-black text-rose-700 dark:text-rose-200">
-                  {reposicoesVencidas.length}
+                <div className="mt-2 text-2xl sm:text-3xl font-black text-rose-700 dark:text-rose-200">
+                  {totalGeralSaldo}
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-400">
                   <AlertCircle className="h-3 w-3" />
-                  Débito Crítico
+                  A repor / regularizar
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-800/60 dark:bg-blue-950/40">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-800/60 dark:bg-blue-950/40 col-span-2 sm:col-span-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
-                  Homologadas
+                  Docentes em Débito
                 </span>
-                <div className="mt-2 text-3xl font-black text-blue-700 dark:text-blue-200">
-                  {reposicoesHomologadas.length}
+                <div className="mt-2 text-2xl sm:text-3xl font-black text-blue-700 dark:text-blue-200">
+                  {totalComDebito}{' '}
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    / {dadosDocentes.length}
+                  </span>
                 </div>
-                <span className="text-[10px] text-blue-600 dark:text-blue-400">Aulas validadas</span>
+                <span className="text-[10px] text-blue-600 dark:text-blue-400">
+                  Com pendências ativas
+                </span>
               </div>
             </div>
 
-            {/* Ranking de Débito de Reposições por Professor */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <Clock className="h-4 w-4 text-rose-600" />
-                Ranking de Débito de Reposições por Docente (Regra dos 30 Dias)
-              </h4>
+            {/* SEÇÃO PRINCIPAL: Débito de Reposições por Docente */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-school-dark-surface space-y-5">
+              {/* Cabeçalho da Seção */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
+                <div>
+                  <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-rose-600" />
+                    <span>Débito de Reposições por Docente</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Controle de saldo devedor, faltas nos últimos 30 dias e quitações por reposição ou abono institucional.
+                  </p>
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {professores.map((prof) => {
-                  const repsProf = reposicoesAulas.filter(r => r.professor_id === prof.id && (r.status === 'pendente' || r.status === 'Pendente'));
-                  const totalAulas = repsProf.reduce((a, c) => a + (c.qtd_aulas_faltantes || c.aulas_total || 0), 0);
-                  const vencidas = repsProf.filter(r => {
-                    const limiteStr = r.data_limite_reposicao || r.data_limite || '';
-                    const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                    return diff < 0;
-                  }).length;
+                {/* Filtros e Busca */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar docente..."
+                      value={buscaDebito}
+                      onChange={(e) => setBuscaDebito(e.target.value)}
+                      className="w-48 sm:w-60 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
 
-                  return (
-                    <div key={prof.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-700 dark:bg-slate-900/60 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-slate-900 dark:text-white text-xs block">
-                          {prof.nome_completo}
-                        </span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-300">
-                          {prof.disciplinas?.join(', ') || 'Polivalente'}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-base font-black ${totalAulas > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                          {totalAulas} aula(s)
-                        </span>
-                        {vencidas > 0 && (
-                          <span className="text-[9px] font-bold text-red-600 dark:text-red-400 block">
-                            {vencidas} vencida(s)!
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                  <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setFiltroDebitoStatus('todos')}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                        filtroDebitoStatus === 'todos'
+                          ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-700 dark:text-white'
+                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                      }`}
+                    >
+                      Todos ({dadosDocentes.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroDebitoStatus('com_debito')}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                        filtroDebitoStatus === 'com_debito'
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'text-rose-600 hover:text-rose-800 dark:text-rose-400'
+                      }`}
+                    >
+                      Com Débito ({totalComDebito})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroDebitoStatus('regularizados')}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                        filtroDebitoStatus === 'regularizados'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-emerald-700 hover:text-emerald-900 dark:text-emerald-400'
+                      }`}
+                    >
+                      Regularizados ({dadosDocentes.length - totalComDebito})
+                    </button>
+                  </div>
+
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => alternarTodosDocentes(true)}
+                      className="rounded-xl border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Expandir Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alternarTodosDocentes(false)}
+                      className="rounded-xl border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Recolher
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Tabela de Reposições */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
-                  <tr>
-                    <th className="px-4 py-3">Docente</th>
-                    <th className="px-4 py-3">Data Falta</th>
-                    <th className="px-4 py-3">Data Limite (30d)</th>
-                    <th className="px-4 py-3">Tolerância</th>
-                    <th className="px-4 py-3">Aulas</th>
-                    <th className="px-4 py-3">Conteúdo Previsto</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Ação Direção</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80">
-                  {reposicoesAulas.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400 dark:text-slate-300">
-                        Nenhuma reposição de aula registrada.
-                      </td>
-                    </tr>
-                  ) : (
-                    reposicoesAulas.map((rep) => {
-                      const prof = professores.find(p => p.id === rep.professor_id);
-                      const limiteStr = rep.data_limite_reposicao || rep.data_limite || '';
-                      const diff = Math.ceil((new Date(limiteStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                      const vencida = diff < 0;
-                      const alerta = diff >= 0 && diff <= 5;
-                      const homologada = rep.status === 'reposta' || rep.status === 'Reposta' || rep.homologado_por_admin;
+              {/* Listagem de Docentes Elegíveis com Métricas Consolidadas */}
+              {dadosFiltrados.length === 0 ? (
+                <div className="py-12 text-center">
+                  <UserCheck className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600 mb-2" />
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    Nenhum docente localizado com os critérios de filtro selecionados.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {dadosFiltrados.map((item) => {
+                    const {
+                      prof,
+                      faltasDoDocente,
+                      totalDevido,
+                      faltas30Dias,
+                      faltasMesAtual,
+                      aulasPagas,
+                      aulasAbonadas,
+                      saldoDevedor,
+                    } = item;
 
-                      return (
-                        <tr key={rep.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                          <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
-                            {prof?.nome_completo || 'Docente'}
-                          </td>
-                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                            {new Date(rep.data_falta + 'T00:00:00').toLocaleDateString('pt-BR')}
-                          </td>
-                          <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
-                            {new Date((rep.data_limite_reposicao || rep.data_limite || rep.data_falta) + 'T00:00:00').toLocaleDateString('pt-BR')}
-                          </td>
-                          <td className="px-4 py-3.5">
-                            {homologada ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-extrabold text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-300/80 dark:border-blue-700/60">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Reposta
+                    const expandido = Boolean(docentesExpandidosDebito[prof.id]);
+
+                    return (
+                      <div
+                        key={prof.id}
+                        className={`rounded-2xl border transition-all ${
+                          saldoDevedor > 0
+                            ? 'border-rose-200/80 bg-rose-50/20 dark:border-rose-900/40 dark:bg-rose-950/10'
+                            : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60'
+                        } overflow-hidden shadow-xs`}
+                      >
+                        {/* Linha Resumo do Docente (Card / Accordion Header) */}
+                        <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                          {/* Identificação do Professor */}
+                          <div className="flex items-start gap-3 min-w-[260px]">
+                            <div
+                              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-black text-sm ${
+                                saldoDevedor > 0
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                              }`}
+                            >
+                              {prof.nome_completo.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 dark:text-white text-sm">
+                                  {prof.nome_completo}
+                                </span>
+                                {saldoDevedor > 0 ? (
+                                  <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                                    Débito Ativo
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                    Regularizado
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-2">
+                                <span>Matrícula: {prof.matricula || 'N/A'}</span>
+                                <span>•</span>
+                                <span>{prof.disciplinas?.join(', ') || 'Docente Polivalente'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 5 Contadores Consolidados */}
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 flex-1 max-w-3xl">
+                            {/* 1. Faltas nos Últimos 30 Dias */}
+                            <div className="rounded-xl border border-slate-200/80 bg-white p-2.5 text-center dark:border-slate-700 dark:bg-slate-800 shadow-xs">
+                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight block">
+                                📅 Últimos 30d
                               </span>
-                            ) : vencida ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-extrabold text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300/80 dark:border-rose-700/60">
-                                <AlertTriangle className="h-3 w-3" />
-                                Vencida ({Math.abs(diff)}d em atraso)
-                              </span>
-                            ) : alerta ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60">
-                                <Clock className="h-3 w-3" />
-                                Vencendo ({diff}d restantes)
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60">
-                                <CheckCircle2 className="h-3 w-3" />
-                                No prazo ({diff}d restantes)
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 font-bold text-slate-800 dark:text-white">
-                            {rep.qtd_aulas_faltantes || rep.aulas_total || 0} aula(s)
-                          </td>
-                          <td className="px-4 py-3.5 text-slate-600 dark:text-slate-200 max-w-xs truncate">
-                            {rep.conteudo_programatico || 'Reposição curricular'}
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <span className="uppercase text-[10px] font-black tracking-wider text-slate-600 dark:text-slate-200">
-                              {rep.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => homologarReposicaoAula(rep.id, !homologada)}
-                                className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors ${
-                                  homologada
-                                    ? 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                              <span
+                                className={`text-base font-black ${
+                                  faltas30Dias > 0
+                                    ? 'text-rose-600 dark:text-rose-400'
+                                    : 'text-slate-700 dark:text-slate-300'
                                 }`}
                               >
-                                {homologada ? 'Reabrir' : 'Homologar'}
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  if (confirm('Excluir este registro de reposição de aula?')) {
-                                    deleteReposicaoAula(rep.id);
-                                  }
-                                }}
-                                className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                                title="Excluir"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                                {faltas30Dias}
+                              </span>
+                              <span className="text-[9px] text-slate-400 block font-medium">aulas devidas</span>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+
+                            {/* 2. Faltas no Mês Atual */}
+                            <div className="rounded-xl border border-slate-200/80 bg-white p-2.5 text-center dark:border-slate-700 dark:bg-slate-800 shadow-xs">
+                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight block">
+                                🗓️ Mês Atual
+                              </span>
+                              <span
+                                className={`text-base font-black ${
+                                  faltasMesAtual > 0
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : 'text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                {faltasMesAtual}
+                              </span>
+                              <span className="text-[9px] text-slate-400 block font-medium">aulas devidas</span>
+                            </div>
+
+                            {/* 3. Aulas Pagas */}
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-2.5 text-center dark:border-emerald-800/60 dark:bg-emerald-950/40 shadow-xs">
+                              <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-tight block">
+                                🟢 Aulas Pagas
+                              </span>
+                              <span className="text-base font-black text-emerald-700 dark:text-emerald-300">
+                                {aulasPagas}
+                              </span>
+                              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 block font-medium">
+                                repostas
+                              </span>
+                            </div>
+
+                            {/* 4. Aulas Abonadas */}
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-2.5 text-center dark:border-amber-800/60 dark:bg-amber-950/40 shadow-xs">
+                              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-tight block">
+                                🟡 Abonadas
+                              </span>
+                              <span className="text-base font-black text-amber-700 dark:text-amber-300">
+                                {aulasAbonadas}
+                              </span>
+                              <span className="text-[9px] text-amber-600 dark:text-amber-400 block font-medium">
+                                dispensadas
+                              </span>
+                            </div>
+
+                            {/* 5. Saldo Devedor */}
+                            <div
+                              className={`rounded-xl border p-2.5 text-center shadow-xs col-span-2 sm:col-span-1 ${
+                                saldoDevedor > 0
+                                  ? 'border-rose-300 bg-rose-100/70 text-rose-900 dark:border-rose-800 dark:bg-rose-950/80 dark:text-rose-200'
+                                  : 'border-emerald-200 bg-emerald-50/50 text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200'
+                              }`}
+                            >
+                              <span className="text-[10px] font-bold uppercase tracking-tight block">
+                                🔴 Saldo Devedor
+                              </span>
+                              <span
+                                className={`text-base font-black ${
+                                  saldoDevedor > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'
+                                }`}
+                              >
+                                {saldoDevedor}
+                              </span>
+                              <span className="text-[9px] opacity-80 block font-medium">
+                                {saldoDevedor > 0 ? 'a repor' : 'regular'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Botão para Expandir / Recolher Detalhamento Individual */}
+                          <div className="flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => toggleDocenteExpandido(prof.id)}
+                              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                                expandido
+                                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                                  : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+                              }`}
+                            >
+                              <span>
+                                {expandido ? 'Recolher Pendências' : `Ver Ausências (${faltasDoDocente.length})`}
+                              </span>
+                              {expandido ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* DETALHAMENTO INDIVIDUAL DE AUSÊNCIAS (Cronológico) */}
+                        {expandido && (
+                          <div className="border-t border-slate-200 bg-slate-50/60 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/80 animate-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <h5 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                                <Calendar className="h-3.5 w-3.5 text-school-blue-600" />
+                                Detalhamento Individual de Ausências do Docente
+                              </h5>
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                Total de registros:{' '}
+                                <strong className="text-slate-800 dark:text-slate-200">
+                                  {faltasDoDocente.length}
+                                </strong>
+                              </span>
+                            </div>
+
+                            {faltasDoDocente.length === 0 ? (
+                              <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                                Nenhuma falta ou ausência registrada para este docente. Situação totalmente regular.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs dark:border-slate-700 dark:bg-school-dark-surface">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800/90 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                                    <tr>
+                                      <th className="px-4 py-3">Data / Período</th>
+                                      <th className="px-4 py-3">Motivo</th>
+                                      <th className="px-4 py-3 text-center">Total Devido</th>
+                                      <th className="px-4 py-3 text-center">Aulas Pagas</th>
+                                      <th className="px-4 py-3 text-center">Aulas Abonadas</th>
+                                      <th className="px-4 py-3 text-center">Saldo Restante</th>
+                                      <th className="px-4 py-3 text-center">Status Atual</th>
+                                      <th className="px-4 py-3 text-right">Ações Rápidas</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {faltasDoDocente.map((falta) => {
+                                      const totalDevidoFalta = Number(
+                                        falta.aulas_totais_devidas ?? falta.aulas_faltadas ?? 1
+                                      );
+                                      const pagasFalta = Number(falta.aulas_pagas ?? 0);
+                                      const abonadasFalta = Number(falta.aulas_abonadas ?? 0);
+                                      const saldoFalta = Math.max(
+                                        0,
+                                        totalDevidoFalta - (pagasFalta + abonadasFalta)
+                                      );
+
+                                      // Status Oficial Permitido:
+                                      // 🔴 A pagar | 🟠 Pago Parcialmente | 🟢 Totalmente Pago | ⚪ Abonadas
+                                      let statusOficial: 'A pagar' | 'Pago Parcialmente' | 'Totalmente Pago' | 'Abonadas';
+                                      if (pagasFalta === 0 && abonadasFalta === 0) {
+                                        statusOficial = 'A pagar';
+                                      } else if (saldoFalta === 0) {
+                                        statusOficial =
+                                          abonadasFalta >= totalDevidoFalta
+                                            ? 'Abonadas'
+                                            : 'Totalmente Pago';
+                                      } else {
+                                        statusOficial = 'Pago Parcialmente';
+                                      }
+
+                                      const ehPeriodo =
+                                        falta.tipo_registro === 'PERIODO' &&
+                                        falta.data_fim &&
+                                        falta.data_fim !== falta.data_inicio;
+                                      const dataInicio = falta.data_inicio || falta.data_falta;
+                                      const dataFim = falta.data_fim || dataInicio;
+
+                                      const historicoAberto = Boolean(faltaHistoricoExpandido[falta.id]);
+                                      const historicos = falta.historico_pagamentos || [];
+
+                                      return (
+                                        <React.Fragment key={falta.id}>
+                                          <tr className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                                            {/* Data / Período */}
+                                            <td className="px-4 py-3.5 whitespace-nowrap">
+                                              <div className="flex items-center gap-2">
+                                                <span
+                                                  className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider border ${
+                                                    ehPeriodo
+                                                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800'
+                                                      : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+                                                  }`}
+                                                >
+                                                  {ehPeriodo ? 'Período' : '1 Dia'}
+                                                </span>
+                                                <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">
+                                                  {ehPeriodo ? (
+                                                    <>
+                                                      {formatarDataBr(dataInicio)} a {formatarDataBr(dataFim)}
+                                                    </>
+                                                  ) : (
+                                                    formatarDataBr(dataInicio)
+                                                  )}
+                                                </span>
+                                              </div>
+                                            </td>
+
+                                            {/* Motivo */}
+                                            <td className="px-4 py-3.5 max-w-xs">
+                                              <div className="font-semibold text-slate-800 dark:text-slate-200 uppercase line-clamp-1">
+                                                {falta.motivo || falta.justificativa || 'Ausência Registrada'}
+                                              </div>
+                                              {falta.observacao && (
+                                                <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                                  {falta.observacao}
+                                                </div>
+                                              )}
+                                              {falta.atestado_drive_url && (
+                                                <a
+                                                  href={falta.atestado_drive_url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-school-blue-600 hover:underline dark:text-school-gold-400 mt-0.5"
+                                                >
+                                                  <FileText className="h-3 w-3" />
+                                                  Atestado Anexo
+                                                  <ExternalLink className="h-2.5 w-2.5" />
+                                                </a>
+                                              )}
+                                            </td>
+
+                                            {/* Total de Aulas Devidas */}
+                                            <td className="px-4 py-3.5 text-center font-bold text-slate-800 dark:text-white">
+                                              <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-black text-slate-800 dark:bg-slate-800 dark:text-slate-200">
+                                                {totalDevidoFalta}
+                                              </span>
+                                            </td>
+
+                                            {/* Aulas Pagas */}
+                                            <td className="px-4 py-3.5 text-center font-bold text-emerald-700 dark:text-emerald-400">
+                                              <span className="inline-flex items-center rounded-lg bg-emerald-50 px-2 py-0.5 text-xs font-black text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                {pagasFalta}
+                                              </span>
+                                            </td>
+
+                                            {/* Aulas Abonadas */}
+                                            <td className="px-4 py-3.5 text-center font-bold text-amber-700 dark:text-amber-400">
+                                              <span className="inline-flex items-center rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-black text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                                {abonadasFalta}
+                                              </span>
+                                            </td>
+
+                                            {/* Saldo Restante */}
+                                            <td className="px-4 py-3.5 text-center">
+                                              <span
+                                                className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-black ${
+                                                  saldoFalta > 0
+                                                    ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                                }`}
+                                              >
+                                                {saldoFalta}
+                                              </span>
+                                            </td>
+
+                                            {/* Status Oficial Atual */}
+                                            <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                                              {statusOficial === 'A pagar' && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-black text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/60">
+                                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse" />
+                                                  A pagar
+                                                </span>
+                                              )}
+                                              {statusOficial === 'Pago Parcialmente' && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-800/60">
+                                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-600" />
+                                                  Pago Parcialmente
+                                                </span>
+                                              )}
+                                              {statusOficial === 'Totalmente Pago' && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-black text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800/60">
+                                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                                  Totalmente Pago
+                                                </span>
+                                              )}
+                                              {statusOficial === 'Abonadas' && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300/80 dark:border-slate-700/60">
+                                                  <ShieldCheck className="h-3 w-3 text-slate-500" />
+                                                  Abonadas
+                                                </span>
+                                              )}
+                                            </td>
+
+                                            {/* Ações Rápidas por Registro */}
+                                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                              <div className="flex items-center justify-end gap-1.5">
+                                                {/* A. 🟢 Pagar Todas */}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handlePagarTodas(falta, saldoFalta)}
+                                                  disabled={saldoFalta === 0}
+                                                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold shadow-xs transition-all ${
+                                                    saldoFalta > 0
+                                                      ? 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'
+                                                      : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-60'
+                                                  }`}
+                                                  title={
+                                                    saldoFalta > 0
+                                                      ? `Quitar integralmente as ${saldoFalta} aula(s) restantes`
+                                                      : 'Ausência sem saldo devedor'
+                                                  }
+                                                >
+                                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                                  <span>Pagar Todas</span>
+                                                </button>
+
+                                                {/* B. 🟠 Pagamento Parcial */}
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setFaltaParaPagamentoParcial({
+                                                      falta,
+                                                      saldoRestante: saldoFalta,
+                                                    })
+                                                  }
+                                                  disabled={saldoFalta === 0}
+                                                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold shadow-xs transition-all border ${
+                                                    saldoFalta > 0
+                                                      ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300 active:scale-95'
+                                                      : 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-60'
+                                                  }`}
+                                                  title={
+                                                    saldoFalta > 0
+                                                      ? 'Registrar reposição de quantidade específica de aulas'
+                                                      : 'Ausência sem saldo devedor'
+                                                  }
+                                                >
+                                                  <Clock className="h-3.5 w-3.5" />
+                                                  <span>Pagamento Parcial</span>
+                                                </button>
+
+                                                {/* C. 🟡 Abonar Faltas */}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleAbonar(falta, saldoFalta)}
+                                                  disabled={saldoFalta === 0}
+                                                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold shadow-xs transition-all border ${
+                                                    saldoFalta > 0
+                                                      ? 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 active:scale-95'
+                                                      : 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-60'
+                                                  }`}
+                                                  title={
+                                                    saldoFalta > 0
+                                                      ? `Dispensar reposição e abonar ${saldoFalta} aula(s)`
+                                                      : 'Ausência sem saldo devedor'
+                                                  }
+                                                >
+                                                  <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                                                  <span>Abonar</span>
+                                                </button>
+
+                                                {/* Log de Histórico de Baixas */}
+                                                {historicos.length > 0 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleHistoricoAusencia(falta.id)}
+                                                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                    title={`Ver histórico de baixas (${historicos.length})`}
+                                                  >
+                                                    <History className="h-3.5 w-3.5" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </td>
+                                          </tr>
+
+                                          {/* Sub-linha com Histórico de Baixas */}
+                                          {historicoAberto && historicos.length > 0 && (
+                                            <tr className="bg-slate-50/80 dark:bg-slate-900/60">
+                                              <td colSpan={8} className="px-6 py-3">
+                                                <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-800/80 space-y-2">
+                                                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                                    <span className="flex items-center gap-1.5">
+                                                      <History className="h-3.5 w-3.5 text-school-blue-600" />
+                                                      Histórico de Baixas e Abonos Registrados
+                                                    </span>
+                                                    <span className="text-slate-400 font-normal">
+                                                      {historicos.length} lançamento(s)
+                                                    </span>
+                                                  </div>
+                                                  <div className="divide-y divide-slate-100 dark:divide-slate-700 text-[11px]">
+                                                    {historicos.map((h) => (
+                                                      <div
+                                                        key={h.id}
+                                                        className="py-1.5 flex flex-wrap items-center justify-between gap-2"
+                                                      >
+                                                        <div className="flex items-center gap-2">
+                                                          <span
+                                                            className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                                                              h.tipo_baixa === 'PAGAMENTO'
+                                                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                                            }`}
+                                                          >
+                                                            {h.tipo_baixa}
+                                                          </span>
+                                                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                            {h.aulas_abatidas} aula(s) abatida(s)
+                                                          </span>
+                                                          {h.data_reposicao && (
+                                                            <span className="text-slate-500 dark:text-slate-400">
+                                                              • Data Reposição: {formatarDataBr(h.data_reposicao)}
+                                                            </span>
+                                                          )}
+                                                          {h.observacao && (
+                                                            <span className="text-slate-500 dark:text-slate-400 italic">
+                                                              • {h.observacao}
+                                                            </span>
+                                                          )}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 dark:text-slate-500">
+                                                          Registro em{' '}
+                                                          {new Date(h.data_registro).toLocaleString('pt-BR')}
+                                                          {h.usuario_nome && ` por ${h.usuario_nome}`}
+                                                        </div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          )}
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -3098,6 +3764,17 @@ export default function ProfessoresPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: Pagamento Parcial de Reposição */}
+      {faltaParaPagamentoParcial && (
+        <ModalPagamentoParcialReposicao
+          isOpen={Boolean(faltaParaPagamentoParcial)}
+          onClose={() => setFaltaParaPagamentoParcial(null)}
+          falta={faltaParaPagamentoParcial.falta}
+          saldoRestante={faltaParaPagamentoParcial.saldoRestante}
+          onConfirm={handleConfirmarPagamentoParcial}
+        />
       )}
 
       {/* MODAL 5: Cadastrar Novo Funcionário */}

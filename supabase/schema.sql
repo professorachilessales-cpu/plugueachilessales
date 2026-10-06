@@ -122,6 +122,9 @@ CREATE TABLE IF NOT EXISTS public.faltas_professores (
     aulas_calculadas_sistema INT DEFAULT 0,
     aulas_totais_devidas INT NOT NULL DEFAULT 1,
     aulas_faltadas INT NOT NULL DEFAULT 1,
+    aulas_pagas INT DEFAULT 0,
+    aulas_abonadas INT DEFAULT 0,
+    status_reposicao VARCHAR(50) DEFAULT 'A pagar' CHECK (status_reposicao IN ('A pagar', 'Pago Parcialmente', 'Totalmente Pago', 'Abonadas')),
     motivo TEXT,
     justificativa TEXT,
     atestado_drive_url TEXT,
@@ -143,6 +146,9 @@ CREATE TABLE IF NOT EXISTS public.ausencias_docentes (
     data_fim DATE NOT NULL,
     aulas_calculadas_sistema INT DEFAULT 0,
     aulas_totais_devidas INT NOT NULL,
+    aulas_pagas INT DEFAULT 0,
+    aulas_abonadas INT DEFAULT 0,
+    status_reposicao VARCHAR(50) DEFAULT 'A pagar' CHECK (status_reposicao IN ('A pagar', 'Pago Parcialmente', 'Totalmente Pago', 'Abonadas')),
     motivo TEXT,
     atestado_drive_url TEXT,
     drive_file_id VARCHAR(255),
@@ -150,6 +156,21 @@ CREATE TABLE IF NOT EXISTS public.ausencias_docentes (
     usuario_registro_id VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Tabela de histórico de quitações e abonos de reposições
+CREATE TABLE IF NOT EXISTS public.historico_reposicoes_pagamentos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ausencia_id UUID NOT NULL REFERENCES public.ausencias_docentes(id) ON DELETE CASCADE,
+    aulas_abatidas INT NOT NULL DEFAULT 1,
+    tipo_baixa VARCHAR(20) NOT NULL CHECK (tipo_baixa IN ('PAGAMENTO', 'ABONO')),
+    data_reposicao DATE,
+    observacao TEXT,
+    data_registro TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    usuario_id VARCHAR(255),
+    usuario_nome VARCHAR(255)
+);
+
+CREATE INDEX IF NOT EXISTS idx_hist_rep_ausencia ON public.historico_reposicoes_pagamentos(ausencia_id);
 
 
 -- 8. TABELA DE CALENDÁRIO E EVENTOS ESCOLARES

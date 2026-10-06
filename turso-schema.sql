@@ -215,6 +215,9 @@ CREATE TABLE IF NOT EXISTS faltas_professores (
     aulas_calculadas_sistema INTEGER DEFAULT 0,
     aulas_totais_devidas INTEGER NOT NULL DEFAULT 1,
     aulas_faltadas INTEGER NOT NULL DEFAULT 1,
+    aulas_pagas INTEGER DEFAULT 0,
+    aulas_abonadas INTEGER DEFAULT 0,
+    status_reposicao TEXT DEFAULT 'A pagar' CHECK (status_reposicao IN ('A pagar', 'Pago Parcialmente', 'Totalmente Pago', 'Abonadas')),
     motivo TEXT,
     justificativa TEXT,
     atestado_drive_url TEXT,
@@ -236,6 +239,9 @@ CREATE TABLE IF NOT EXISTS ausencias_docentes (
     data_fim TEXT NOT NULL,
     aulas_calculadas_sistema INTEGER DEFAULT 0,
     aulas_totais_devidas INTEGER NOT NULL,
+    aulas_pagas INTEGER DEFAULT 0,
+    aulas_abonadas INTEGER DEFAULT 0,
+    status_reposicao TEXT DEFAULT 'A pagar' CHECK (status_reposicao IN ('A pagar', 'Pago Parcialmente', 'Totalmente Pago', 'Abonadas')),
     motivo TEXT,
     atestado_drive_url TEXT,
     drive_file_id TEXT,
@@ -243,6 +249,21 @@ CREATE TABLE IF NOT EXISTS ausencias_docentes (
     usuario_registro_id TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 7.1 TABELA DE HISTÓRICO DE QUITAÇÕES E ABONOS DE REPOSIÇÕES
+CREATE TABLE IF NOT EXISTS historico_reposicoes_pagamentos (
+    id TEXT PRIMARY KEY,
+    ausencia_id TEXT NOT NULL REFERENCES ausencias_docentes(id) ON DELETE CASCADE,
+    aulas_abatidas INTEGER NOT NULL DEFAULT 1,
+    tipo_baixa TEXT NOT NULL CHECK (tipo_baixa IN ('PAGAMENTO', 'ABONO')),
+    data_reposicao TEXT,
+    observacao TEXT,
+    data_registro TEXT DEFAULT CURRENT_TIMESTAMP,
+    usuario_id TEXT,
+    usuario_nome TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_hist_rep_ausencia ON historico_reposicoes_pagamentos(ausencia_id);
 
 
 -- 8. TABELA DE CATEGORIAS DO CALENDÁRIO

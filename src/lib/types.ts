@@ -291,6 +291,20 @@ export type Colaborador = Professor;
 
 export type TipoRegistroAusencia = 'DATA_UNICA' | 'PERIODO';
 
+export type StatusReposicaoAusencia = 'A pagar' | 'Pago Parcialmente' | 'Totalmente Pago' | 'Abonadas';
+
+export interface HistoricoReposicaoPagamento {
+  id: string;
+  ausencia_id: string;
+  aulas_abatidas: number;
+  tipo_baixa: 'PAGAMENTO' | 'ABONO';
+  data_reposicao?: string;
+  observacao?: string;
+  data_registro: string;
+  usuario_id?: string;
+  usuario_nome?: string;
+}
+
 export interface FaltaProfessor {
   id: string;
   professor_id: string;
@@ -302,6 +316,10 @@ export interface FaltaProfessor {
   aulas_calculadas_sistema?: number; // Total apurado via grade horária
   aulas_totais_devidas?: number;     // Total final ajustado/confirmado
   aulas_faltadas: number;            // Legado / compatibilidade (igual a aulas_totais_devidas)
+  aulas_pagas?: number;              // Total de aulas já quitadas/repostas
+  aulas_abonadas?: number;           // Total de aulas abonadas pela gestão
+  status_reposicao?: StatusReposicaoAusencia; // 'A pagar' | 'Pago Parcialmente' | 'Totalmente Pago' | 'Abonadas'
+  historico_pagamentos?: HistoricoReposicaoPagamento[];
   motivo?: string;                   // Atestado médico, licença, gala, luto, etc.
   justificativa: string;             // Legado / compatibilidade
   atestado_drive_url?: string;       // Link de visualização no Google Drive

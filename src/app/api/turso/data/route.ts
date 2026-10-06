@@ -192,25 +192,67 @@ export async function GET() {
     let faltasProfessores: any[] = [];
     try {
       const faltasRes = await executeTursoQuery('SELECT * FROM faltas_professores ORDER BY COALESCE(data_inicio, data_falta) DESC');
-      faltasProfessores = faltasRes.rows.map((row: any) => ({
-        ...row,
-        tipo_registro: row.tipo_registro || 'DATA_UNICA',
-        data_inicio: row.data_inicio || row.data_falta,
-        data_fim: row.data_fim || row.data_inicio || row.data_falta,
-        data_falta: row.data_falta || row.data_inicio,
-        aulas_calculadas_sistema: Number(row.aulas_calculadas_sistema || 0),
-        aulas_totais_devidas: Number(row.aulas_totais_devidas || row.aulas_faltadas || 1),
-        aulas_faltadas: Number(row.aulas_totais_devidas || row.aulas_faltadas || 1),
-        motivo: row.motivo || row.justificativa || '',
-        justificativa: row.justificativa || row.motivo || '',
-        atestado_drive_url: row.atestado_drive_url || row.atestado_drive_link || undefined,
-        atestado_drive_link: row.atestado_drive_link || row.atestado_drive_url || undefined,
-        drive_file_id: row.drive_file_id || row.atestado_drive_id || undefined,
-        atestado_drive_id: row.atestado_drive_id || row.drive_file_id || undefined,
-        observacao: row.observacao || undefined,
-        usuario_registro_id: row.usuario_registro_id || undefined,
-        homologado: toBoolean(row.homologado),
-      }));
+      
+      const historicoMap: Record<string, any[]> = {};
+      try {
+        const histRes = await executeTursoQuery('SELECT * FROM historico_reposicoes_pagamentos ORDER BY data_registro DESC');
+        for (const h of histRes.rows || []) {
+          if (!historicoMap[h.ausencia_id]) historicoMap[h.ausencia_id] = [];
+          historicoMap[h.ausencia_id].push({
+            id: h.id,
+            ausencia_id: h.ausencia_id,
+            aulas_abatidas: Number(h.aulas_abatidas || 1),
+            tipo_baixa: h.tipo_baixa,
+            data_reposicao: h.data_reposicao || undefined,
+            observacao: h.observacao || undefined,
+            data_registro: h.data_registro,
+            usuario_id: h.usuario_id || undefined,
+            usuario_nome: h.usuario_nome || undefined,
+          });
+        }
+      } catch {}
+
+      faltasProfessores = faltasRes.rows.map((row: any) => {
+        const aulasTotais = Number(row.aulas_totais_devidas ?? row.aulas_faltadas ?? 1);
+        const aulasPagas = Number(row.aulas_pagas ?? 0);
+        const aulasAbonadas = Number(row.aulas_abonadas ?? 0);
+        const saldoRestante = Math.max(0, aulasTotais - (aulasPagas + aulasAbonadas));
+
+        let statusReposicao = row.status_reposicao;
+        if (!statusReposicao) {
+          if (aulasPagas === 0 && aulasAbonadas === 0) {
+            statusReposicao = 'A pagar';
+          } else if (saldoRestante === 0) {
+            statusReposicao = (aulasAbonadas >= aulasTotais) ? 'Abonadas' : 'Totalmente Pago';
+          } else {
+            statusReposicao = 'Pago Parcialmente';
+          }
+        }
+
+        return {
+          ...row,
+          tipo_registro: row.tipo_registro || 'DATA_UNICA',
+          data_inicio: row.data_inicio || row.data_falta,
+          data_fim: row.data_fim || row.data_inicio || row.data_falta,
+          data_falta: row.data_falta || row.data_inicio,
+          aulas_calculadas_sistema: Number(row.aulas_calculadas_sistema || 0),
+          aulas_totais_devidas: aulasTotais,
+          aulas_faltadas: aulasTotais,
+          aulas_pagas: aulasPagas,
+          aulas_abonadas: aulasAbonadas,
+          status_reposicao: statusReposicao,
+          historico_pagamentos: historicoMap[row.id] || [],
+          motivo: row.motivo || row.justificativa || '',
+          justificativa: row.justificativa || row.motivo || '',
+          atestado_drive_url: row.atestado_drive_url || row.atestado_drive_link || undefined,
+          atestado_drive_link: row.atestado_drive_link || row.atestado_drive_url || undefined,
+          drive_file_id: row.drive_file_id || row.atestado_drive_id || undefined,
+          atestado_drive_id: row.atestado_drive_id || row.drive_file_id || undefined,
+          observacao: row.observacao || undefined,
+          usuario_registro_id: row.usuario_registro_id || undefined,
+          homologado: toBoolean(row.homologado),
+        };
+      });
     } catch (e) {
       console.error('Erro ao ler faltas_professores do Turso:', e);
     }

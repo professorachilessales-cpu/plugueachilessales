@@ -176,6 +176,8 @@ export default function ProfessoresPage() {
   // Estados para Gestão de Reposições & Débitos
   const [docentesExpandidosDebito, setDocentesExpandidosDebito] = useState<Record<string, boolean>>({});
   const [buscaDebito, setBuscaDebito] = useState<string>('');
+  const [filtroDataInicioDebito, setFiltroDataInicioDebito] = useState<string>('');
+  const [filtroDataFimDebito, setFiltroDataFimDebito] = useState<string>('');
   const [filtroDebitoStatus, setFiltroDebitoStatus] = useState<'todos' | 'com_debito' | 'regularizados'>('todos');
   const [faltaParaPagamentoParcial, setFaltaParaPagamentoParcial] = useState<{ falta: FaltaProfessor; saldoRestante: number } | null>(null);
   const [faltaHistoricoExpandido, setFaltaHistoricoExpandido] = useState<Record<string, boolean>>({});
@@ -1198,7 +1200,17 @@ export default function ProfessoresPage() {
         const turmasAtivas = (turmas || []).filter(t => t.ativa !== false && t.ativa !== 0);
 
         const docentesElegiveis = professores.filter((prof) => {
-          // Exclusão estrita de administrativos
+          // 1. Regra Estrita: Exclusão de Professores Inativos, Desligados ou Afastados
+          if (prof.ativo === false) return false;
+          const statusNorm = normalizarTexto((prof as any).status || '');
+          if (statusNorm === 'inativo' || statusNorm === 'desligado' || statusNorm === 'afastado') {
+            return false;
+          }
+          if ((prof as any).deleted_at) {
+            return false;
+          }
+
+          // 2. Exclusão estrita de administrativos
           const func = normalizarTexto(prof.funcao_escola);
           if (
             prof.eh_administrativo ||
@@ -1208,7 +1220,7 @@ export default function ProfessoresPage() {
             return false;
           }
 
-          // Docentes com aulas ativas na grade horária ou turmas atribuídas
+          // 3. Docentes com aulas ativas na grade horária ou turmas atribuídas
           const temAulasNaGrade = turmasAtivas.some((t) => {
             const naGrade = (t.grade_horaria || []).some((h) => {
               if (h.professor_id && h.professor_id === prof.id) return true;
@@ -1228,7 +1240,7 @@ export default function ProfessoresPage() {
           return temAulasNaGrade || temFaltasCadastradas;
         });
 
-        // 2. Apuração das 5 Métricas Consolidadas por Docente
+        // 2. Apuração das 5 Métricas Consolidadas por Docente Ativo
         const agora = new Date();
         const limite30Dias = new Date();
         limite30Dias.setDate(limite30Dias.getDate() - 30);
@@ -1249,13 +1261,27 @@ export default function ProfessoresPage() {
         };
 
         const dadosDocentes: MetricasDocente[] = docentesElegiveis.map((prof) => {
-          const faltasDoDocente = faltasProfessores
-            .filter((f) => f.professor_id === prof.id)
-            .sort((a, b) => {
-              const dataA = a.data_inicio || a.data_falta || '';
-              const dataB = b.data_inicio || b.data_falta || '';
-              return dataB.localeCompare(dataA); // Cronológica: mais recentes primeiro
+          let faltasDoDocente = faltasProfessores
+            .filter((f) => f.professor_id === prof.id);
+
+          if (filtroDataInicioDebito) {
+            faltasDoDocente = faltasDoDocente.filter((f) => {
+              const dtFim = f.data_fim || f.data_inicio || f.data_falta || '';
+              return dtFim >= filtroDataInicioDebito;
             });
+          }
+          if (filtroDataFimDebito) {
+            faltasDoDocente = faltasDoDocente.filter((f) => {
+              const dtIni = f.data_inicio || f.data_falta || '';
+              return dtIni <= filtroDataFimDebito;
+            });
+          }
+
+          faltasDoDocente.sort((a, b) => {
+            const dataA = a.data_inicio || a.data_falta || '';
+            const dataB = b.data_inicio || b.data_falta || '';
+            return dataB.localeCompare(dataA); // Cronológica: mais recentes primeiro
+          });
 
           let totalDevido = 0;
           let faltas30Dias = 0;
@@ -1299,8 +1325,10 @@ export default function ProfessoresPage() {
           };
         });
 
-        // Totais gerais consolidados
+        // Totais gerais consolidados (exclusivamente de docentes ativos)
         const totalGeralDevido = dadosDocentes.reduce((acc, d) => acc + d.totalDevido, 0);
+        const totalGeral30Dias = dadosDocentes.reduce((acc, d) => acc + d.faltas30Dias, 0);
+        const totalGeralMesAtual = dadosDocentes.reduce((acc, d) => acc + d.faltasMesAtual, 0);
         const totalGeralPagas = dadosDocentes.reduce((acc, d) => acc + d.aulasPagas, 0);
         const totalGeralAbonadas = dadosDocentes.reduce((acc, d) => acc + d.aulasAbonadas, 0);
         const totalGeralSaldo = dadosDocentes.reduce((acc, d) => acc + d.saldoDevedor, 0);

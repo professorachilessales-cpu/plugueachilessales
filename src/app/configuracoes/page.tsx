@@ -335,7 +335,6 @@ CREATE TABLE IF NOT EXISTS faltas_professores (
   data_falta TEXT NOT NULL,
   aulas_faltadas INTEGER DEFAULT 1,
   justificativa TEXT,
-  homologado INTEGER DEFAULT 0,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

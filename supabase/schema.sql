@@ -133,7 +133,6 @@ CREATE TABLE IF NOT EXISTS public.faltas_professores (
     atestado_drive_id VARCHAR(255),
     observacao TEXT,
     usuario_registro_id VARCHAR(255),
-    homologado BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -226,9 +225,9 @@ INSERT INTO public.turmas (id, nome, turno, capacidade, ano_letivo, professor_re
 ON CONFLICT (id) DO NOTHING;
 
 -- 5. Faltas de Professores (para Tabela de Alertas Rápidos)
-INSERT INTO public.faltas_professores (professor_id, data_falta, aulas_faltadas, justificativa, atestado_drive_link, homologado) VALUES
-('33333333-3333-3333-3333-333333333332', CURRENT_DATE, 3, 'Consulta Médica Oftalmológica de Emergência', 'https://drive.google.com/file/d/demo_atestado_clara/view', TRUE),
-('33333333-3333-3333-3333-333333333333', CURRENT_DATE, 2, 'Licença Gala / Acompanhamento Familiar', 'https://drive.google.com/file/d/demo_atestado_rodrigo/view', FALSE)
+INSERT INTO public.faltas_professores (professor_id, data_falta, aulas_faltadas, justificativa, atestado_drive_link) VALUES
+('33333333-3333-3333-3333-333333333332', CURRENT_DATE, 3, 'Consulta Médica Oftalmológica de Emergência', 'https://drive.google.com/file/d/demo_atestado_clara/view'),
+('33333333-3333-3333-3333-333333333333', CURRENT_DATE, 2, 'Licença Gala / Acompanhamento Familiar', 'https://drive.google.com/file/d/demo_atestado_rodrigo/view')
 ON CONFLICT DO NOTHING;
 
 -- 6. Eventos Escolares

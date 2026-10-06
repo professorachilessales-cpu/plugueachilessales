@@ -13251,14 +13251,13 @@ export const initialEstudantes: Estudante[] = [
 export const initialFaltasProfessores: FaltaProfessor[] = [
   {
     id: 'falta-1',
-    professor_id: '4DCABC66',
+    professor_id: '4DCABC64',
     professor_nome: 'ANA CRISTINA DE OLIVEIRA BARROS',
     data_falta: new Date().toISOString().split('T')[0], // Hoje
     aulas_faltadas: 3,
     justificativa: 'Consulta Médica de Emergência / Exame Oftalmológico',
     atestado_drive_id: 'drive_atestado_anacristina_2026',
     atestado_drive_link: 'https://drive.google.com/file/d/demo_atestado_anacristina/view',
-    homologado: true,
     created_at: new Date().toISOString(),
   },
   {
@@ -13270,7 +13269,6 @@ export const initialFaltasProfessores: FaltaProfessor[] = [
     justificativa: 'Acompanhamento de dependente em consulta médica (filho)',
     atestado_drive_id: 'drive_atestado_antoniele_2026',
     atestado_drive_link: 'https://drive.google.com/file/d/demo_atestado_antoniele/view',
-    homologado: false,
     created_at: new Date().toISOString(),
   },
   {
@@ -13282,7 +13280,6 @@ export const initialFaltasProfessores: FaltaProfessor[] = [
     justificativa: 'Participação em Congresso de Educação Matemática da UFPE',
     atestado_drive_id: 'drive_certificado_congresso',
     atestado_drive_link: 'https://drive.google.com/file/d/demo_congresso_alexandre/view',
-    homologado: true,
     created_at: '2026-09-10T14:00:00Z',
   },
 ];

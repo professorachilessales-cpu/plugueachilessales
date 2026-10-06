@@ -570,8 +570,8 @@ export async function POST(req: NextRequest) {
             aulas_pagas, aulas_abonadas, status_reposicao,
             motivo, justificativa, atestado_drive_url, atestado_drive_link,
             drive_file_id, atestado_drive_id, observacao, usuario_registro_id,
-            homologado, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             professor_id = excluded.professor_id,
             professor_nome = excluded.professor_nome,
@@ -592,8 +592,7 @@ export async function POST(req: NextRequest) {
             drive_file_id = excluded.drive_file_id,
             atestado_drive_id = excluded.atestado_drive_id,
             observacao = excluded.observacao,
-            usuario_registro_id = excluded.usuario_registro_id,
-            homologado = excluded.homologado`,
+            usuario_registro_id = excluded.usuario_registro_id`,
           [
             f.id,
             f.professor_id,
@@ -616,7 +615,6 @@ export async function POST(req: NextRequest) {
             driveId,
             obs,
             usuarioId,
-            f.homologado ? 1 : 0,
             f.created_at || new Date().toISOString()
           ]
         );

@@ -226,7 +226,6 @@ CREATE TABLE IF NOT EXISTS faltas_professores (
     atestado_drive_id TEXT,
     observacao TEXT,
     usuario_registro_id TEXT,
-    homologado INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

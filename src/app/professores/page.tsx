@@ -2052,6 +2052,100 @@ export default function ProfessoresPage() {
                   })}
                 </div>
               )}
+
+              {/* Rodapé: Resumo Consolidado com os 5 Blocos de Estatísticas */}
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Resumo Consolidado (Docentes Ativos)
+                  </h5>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {dadosDocentes.length} docente(s) ativo(s) elegível(is)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mt-2">
+                  {/* 1. 📅 Últimos 30d */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Últimos 30d
+                      </span>
+                      <CalendarRange className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                    </div>
+                    <div className="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                      {totalGeral30Dias}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Total de faltas (últimos 30 dias)
+                    </span>
+                  </div>
+
+                  {/* 2. 🗓️ Mês Atual */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Mês Atual
+                      </span>
+                      <Calendar className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                    </div>
+                    <div className="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                      {totalGeralMesAtual}
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Total de faltas no mês corrente
+                    </span>
+                  </div>
+
+                  {/* 3. 🟢 Aulas Pagas */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                        Aulas Pagas
+                      </span>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div className="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                      {totalGeralPagas}
+                    </div>
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      Total de reposições já quitadas
+                    </span>
+                  </div>
+
+                  {/* 4. 🟡 Abonadas */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                        Abonadas
+                      </span>
+                      <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                      {totalGeralAbonadas}
+                    </div>
+                    <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                      Dispensadas pela gestão
+                    </span>
+                  </div>
+
+                  {/* 5. 🔴 Saldo Devedor */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-school-dark-surface">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">
+                        Saldo Devedor
+                      </span>
+                      <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                    </div>
+                    <div className="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                      {totalGeralSaldo}
+                    </div>
+                    <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                      Total pendente acumulado
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );

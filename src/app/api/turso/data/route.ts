@@ -188,12 +188,27 @@ export async function GET() {
       console.error('Erro ao ler estudantes do Turso:', e);
     }
 
-    // 7. Faltas Professores
+    // 7. Faltas Professores / Ausências Docentes
     let faltasProfessores: any[] = [];
     try {
-      const faltasRes = await executeTursoQuery('SELECT * FROM faltas_professores ORDER BY data_falta DESC');
+      const faltasRes = await executeTursoQuery('SELECT * FROM faltas_professores ORDER BY COALESCE(data_inicio, data_falta) DESC');
       faltasProfessores = faltasRes.rows.map((row: any) => ({
         ...row,
+        tipo_registro: row.tipo_registro || 'DATA_UNICA',
+        data_inicio: row.data_inicio || row.data_falta,
+        data_fim: row.data_fim || row.data_inicio || row.data_falta,
+        data_falta: row.data_falta || row.data_inicio,
+        aulas_calculadas_sistema: Number(row.aulas_calculadas_sistema || 0),
+        aulas_totais_devidas: Number(row.aulas_totais_devidas || row.aulas_faltadas || 1),
+        aulas_faltadas: Number(row.aulas_totais_devidas || row.aulas_faltadas || 1),
+        motivo: row.motivo || row.justificativa || '',
+        justificativa: row.justificativa || row.motivo || '',
+        atestado_drive_url: row.atestado_drive_url || row.atestado_drive_link || undefined,
+        atestado_drive_link: row.atestado_drive_link || row.atestado_drive_url || undefined,
+        drive_file_id: row.drive_file_id || row.atestado_drive_id || undefined,
+        atestado_drive_id: row.atestado_drive_id || row.drive_file_id || undefined,
+        observacao: row.observacao || undefined,
+        usuario_registro_id: row.usuario_registro_id || undefined,
         homologado: toBoolean(row.homologado),
       }));
     } catch (e) {

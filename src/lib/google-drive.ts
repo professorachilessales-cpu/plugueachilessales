@@ -887,6 +887,82 @@ export async function resolverOuCriarEstruturaPastasEstudante(
   }
 }
 
+/**
+ * Resolução recursiva da árvore padronizada por inicial para Professores:
+ *
+ * FICHA DOS PROFESSORES /
+ * └── [Letra Inicial Maiúscula]/        (Ex: A, B, C...)
+ *     └── [Nome Completo do Professor]/  (Ex: ANA CLAUDIA DA SILVA)
+ *         └── atestado_medico_[DATA].pdf
+ */
+export async function resolverOuCriarEstruturaPastasProfessor(
+  drive: GoogleDriveApiClient | any | null,
+  nomeProfessor: string,
+  rootFolderIdConfigurado?: string | null
+): Promise<{
+  rootFolderId: string;
+  letraFolderId: string;
+  professorFolderId: string;
+  caminhoFormatado: string;
+  letraInicial: string;
+  nomeProfessorFormatado: string;
+}> {
+  const letraInicial = extrairLetraInicial(nomeProfessor);
+  const nomeProfessorFormatado = (nomeProfessor || 'PROFESSOR_SEM_NOME').trim().toUpperCase();
+
+  // Modo simulado ou fallback
+  if (!drive) {
+    const rootFolderId = rootFolderIdConfigurado || 'mock_root_ficha_professores';
+    const letraFolderId = `mock_folder_letra_${letraInicial}`;
+    const professorFolderId = `mock_folder_${nomeProfessorFormatado.replace(/\s+/g, '_')}`;
+    return {
+      rootFolderId,
+      letraFolderId,
+      professorFolderId,
+      caminhoFormatado: `FICHA DOS PROFESSORES / ${letraInicial} / ${nomeProfessorFormatado}`,
+      letraInicial,
+      nomeProfessorFormatado,
+    };
+  }
+
+  try {
+    // 1. Localizar ou criar a pasta raiz "FICHA DOS PROFESSORES"
+    const pastaProfessoresId = await obterOuCriarPastaDrive(drive, 'FICHA DOS PROFESSORES', null);
+
+    // 2. Obter a primeira letra do nome em maiúscula e localizar/criar a subpasta da letra
+    const letraFolderId = await obterOuCriarPastaDrive(drive, letraInicial, pastaProfessoresId);
+
+    // 3. Localizar ou criar a pasta com o Nome Completo do Professor dentro da pasta da letra
+    const professorFolderId = await obterOuCriarPastaDrive(
+      drive,
+      nomeProfessorFormatado,
+      letraFolderId
+    );
+
+    return {
+      rootFolderId: pastaProfessoresId,
+      letraFolderId,
+      professorFolderId,
+      caminhoFormatado: `FICHA DOS PROFESSORES / ${letraInicial} / ${nomeProfessorFormatado}`,
+      letraInicial,
+      nomeProfessorFormatado,
+    };
+  } catch (driveErr) {
+    console.warn('Aviso: Falha ao resolver árvore do professor no Google Drive:', driveErr);
+    const rootFolderId = rootFolderIdConfigurado || 'mock_root_ficha_professores';
+    const letraFolderId = `folder_letra_${letraInicial}`;
+    const professorFolderId = `folder_${nomeProfessorFormatado.replace(/\s+/g, '_')}`;
+    return {
+      rootFolderId,
+      letraFolderId,
+      professorFolderId,
+      caminhoFormatado: `FICHA DOS PROFESSORES / ${letraInicial} / ${nomeProfessorFormatado}`,
+      letraInicial,
+      nomeProfessorFormatado,
+    };
+  }
+}
+
 export function isRealDriveId(id?: string | null): boolean {
   if (!id || typeof id !== 'string') return false;
   const limpo = id.trim();
@@ -909,6 +985,8 @@ export interface ExcluirArquivoDriveParams {
   docId?: string;
   nomeArquivo?: string;
   estudanteId?: string;
+  professorId?: string;
+  faltaId?: string;
   usuario: {
     userId: string;
     userName: string;
@@ -920,6 +998,8 @@ export interface ExcluirArquivoDriveResult {
   success: boolean;
   fileId: string;
   estudanteId?: string;
+  professorId?: string;
+  faltaId?: string;
   nomeArquivo: string;
   message: string;
 }
@@ -930,7 +1010,7 @@ export interface ExcluirArquivoDriveResult {
 export async function excluirArquivoDriveComAuditoria(
   params: ExcluirArquivoDriveParams
 ): Promise<ExcluirArquivoDriveResult> {
-  const { docId, estudanteId, usuario } = params;
+  const { docId, estudanteId, professorId, faltaId, usuario } = params;
   let fileId = params.fileId || '';
   let nomeArquivo = params.nomeArquivo || '';
 
@@ -1069,6 +1149,26 @@ export async function excluirArquivoDriveComAuditoria(
         );
       }
 
+      // Desvincula atestado de faltas_professores e ausencias_docentes
+      if (fileId || docId || faltaId) {
+        try {
+          await executeTursoQuery(
+            `UPDATE faltas_professores 
+             SET atestado_drive_url = NULL, atestado_drive_link = NULL, drive_file_id = NULL, atestado_drive_id = NULL 
+             WHERE drive_file_id = ? OR atestado_drive_id = ? OR id = ?`,
+            [fileId || '', fileId || '', faltaId || docId || '']
+          );
+        } catch {}
+        try {
+          await executeTursoQuery(
+            `UPDATE ausencias_docentes 
+             SET atestado_drive_url = NULL, drive_file_id = NULL 
+             WHERE drive_file_id = ? OR id = ?`,
+            [fileId || '', faltaId || docId || '']
+          );
+        } catch {}
+      }
+
       // Se o arquivo excluído for foto de perfil do aluno (foto_perfil_3x4.jpg ou similar), defina foto_url = NULL
       const isFotoPerfil =
         nomeArquivo.toLowerCase().includes('foto_perfil_3x4') ||
@@ -1090,7 +1190,10 @@ export async function excluirArquivoDriveComAuditoria(
 
       // 5. Registro Obrigatório na Auditoria do Sistema (auditoria_sistema e repositorio_auditoria)
       const auditId = `aud-drive-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      const descricao = `Exclusão do arquivo: ${nomeArquivo}`;
+      const isAtestadoDocente = Boolean(faltaId || professorId || nomeArquivo.toLowerCase().includes('atestado'));
+      const descricao = isAtestadoDocente
+        ? `Exclusão de atestado médico da ausência docente: ${nomeArquivo}`
+        : `Exclusão do arquivo: ${nomeArquivo}`;
 
       await executeTursoQuery(
         `INSERT INTO auditoria_sistema (
@@ -1110,7 +1213,7 @@ export async function excluirArquivoDriveComAuditoria(
           auditId,
           estudanteId || null,
           descricao,
-          fileId || docId || 'sem_id',
+          faltaId || fileId || docId || 'sem_id',
           fileId || docId || 'sem_id',
           nomeArquivo,
           usuarioId,
@@ -1139,7 +1242,7 @@ export async function excluirArquivoDriveComAuditoria(
             auditId,
             estudanteId || null,
             descricao,
-            fileId || docId || 'sem_id',
+            faltaId || fileId || docId || 'sem_id',
             fileId || docId || 'sem_id',
             nomeArquivo,
             usuarioId,
@@ -1158,6 +1261,8 @@ export async function excluirArquivoDriveComAuditoria(
     success: true,
     fileId,
     estudanteId,
+    professorId,
+    faltaId,
     nomeArquivo,
     message: `Arquivo "${nomeArquivo}" excluído com sucesso do Google Drive e registrado na auditoria.`,
   };

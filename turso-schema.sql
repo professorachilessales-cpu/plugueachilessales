@@ -203,19 +203,47 @@ CREATE TABLE IF NOT EXISTS documentos_estudantes (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- 7. TABELA DE FALTAS DE PROFESSORES
+-- 7. TABELA DE FALTAS DE PROFESSORES / AUSÊNCIAS DOCENTES
 CREATE TABLE IF NOT EXISTS faltas_professores (
     id TEXT PRIMARY KEY,
     professor_id TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
     professor_nome TEXT,
+    tipo_registro TEXT NOT NULL DEFAULT 'DATA_UNICA' CHECK (tipo_registro IN ('DATA_UNICA', 'PERIODO')),
+    data_inicio TEXT NOT NULL,
+    data_fim TEXT NOT NULL,
     data_falta TEXT NOT NULL,
+    aulas_calculadas_sistema INTEGER DEFAULT 0,
+    aulas_totais_devidas INTEGER NOT NULL DEFAULT 1,
     aulas_faltadas INTEGER NOT NULL DEFAULT 1,
+    motivo TEXT,
     justificativa TEXT,
-    atestado_drive_id TEXT,
+    atestado_drive_url TEXT,
     atestado_drive_link TEXT,
+    drive_file_id TEXT,
+    atestado_drive_id TEXT,
+    observacao TEXT,
+    usuario_registro_id TEXT,
     homologado INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Tabela correspondente ausencias_docentes
+CREATE TABLE IF NOT EXISTS ausencias_docentes (
+    id TEXT PRIMARY KEY,
+    professor_id TEXT NOT NULL REFERENCES professores(id) ON DELETE CASCADE,
+    tipo_registro TEXT NOT NULL CHECK (tipo_registro IN ('DATA_UNICA', 'PERIODO')),
+    data_inicio TEXT NOT NULL,
+    data_fim TEXT NOT NULL,
+    aulas_calculadas_sistema INTEGER DEFAULT 0,
+    aulas_totais_devidas INTEGER NOT NULL,
+    motivo TEXT,
+    atestado_drive_url TEXT,
+    drive_file_id TEXT,
+    observacao TEXT,
+    usuario_registro_id TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 
 -- 8. TABELA DE CATEGORIAS DO CALENDÁRIO
 CREATE TABLE IF NOT EXISTS calendario_categorias (

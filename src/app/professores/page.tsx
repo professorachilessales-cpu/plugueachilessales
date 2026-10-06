@@ -29,12 +29,16 @@ import {
   Briefcase,
   Search,
   Loader2,
-  Trash2
+  Trash2,
+  CalendarRange,
+  RefreshCw
 } from 'lucide-react';
 import { Professor, FaltaProfessor, TitulacaoDocente, FuncaoEscola, TipoProfissional } from '@/lib/types';
 import { formatarTelefone, formatarCPF, formatarCEP, validarCPF } from '@/lib/validations';
 import FuncaoEscolaSelector from '@/components/professores/FuncaoEscolaSelector';
 import ModalNovoFuncionario from '@/components/professores/ModalNovoFuncionario';
+import { ModalRegistrarAusencia } from '@/components/professores/ModalRegistrarAusencia';
+import { ModalSubstituirAtestadoFalta } from '@/components/professores/ModalSubstituirAtestadoFalta';
 
 const TITULACOES_DOCENTE: TitulacaoDocente[] = [
   'GRADUAÇÃO',
@@ -140,6 +144,9 @@ export default function ProfessoresPage() {
     updateProfessor, 
     toggleProfessorApoio,
     addFaltaProfessor, 
+    updateFaltaProfessor,
+    deleteFaltaProfessor,
+    deleteAtestadoFalta,
     toggleHomologarFalta, 
     turmas,
     reposicoesAulas,
@@ -164,6 +171,13 @@ export default function ProfessoresPage() {
   const [modalFichaProfAberto, setModalFichaProfAberto] = useState(false);
   const [modalNovaFaltaAberto, setModalNovaFaltaAberto] = useState(false);
 
+  // Estados para gerenciamento de atestados de faltas
+  const [faltaParaSubstituir, setFaltaParaSubstituir] = useState<FaltaProfessor | null>(null);
+  const [faltaParaExcluirAtestado, setFaltaParaExcluirAtestado] = useState<FaltaProfessor | null>(null);
+  const [faltaParaExcluirRegistro, setFaltaParaExcluirRegistro] = useState<FaltaProfessor | null>(null);
+  const [excluindoAtestado, setExcluindoAtestado] = useState<boolean>(false);
+  const [feedbackAtestado, setFeedbackAtestado] = useState<string | null>(null);
+
   const [professorSelecionado, setProfessorSelecionado] = useState<Professor | null>(null);
   const [professorEditandoId, setProfessorEditandoId] = useState<string | null>(null);
 
@@ -174,15 +188,6 @@ export default function ProfessoresPage() {
   const [formEditProf, setFormEditProf] = useState(formEditProfInicial);
   const [buscandoCepEdit, setBuscandoCepEdit] = useState(false);
   const [cepEditFeedback, setCepEditFeedback] = useState<string | null>(null);
-
-  // Form Nova Falta
-  const [formFalta, setFormFalta] = useState({
-    professor_id: professores[0]?.id || '',
-    data_falta: new Date().toISOString().split('T')[0],
-    aulas_faltadas: 2,
-    justificativa: '',
-    atestado_drive_link: '',
-  });
 
   // Helpers para forçar Caixa Alta (uppercase) em todos os dados
   const handleNovoUpperChange = (campo: string, valor: string) => {
@@ -418,30 +423,39 @@ export default function ProfessoresPage() {
     setProfessorEditandoId(null);
   };
 
-  const handleRegistrarFalta = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formFalta.professor_id || !formFalta.justificativa) return;
+  const confirmarExclusaoAtestado = async () => {
+    if (!faltaParaExcluirAtestado) return;
+    setExcluindoAtestado(true);
+    try {
+      await deleteAtestadoFalta(
+        faltaParaExcluirAtestado.id,
+        faltaParaExcluirAtestado.drive_file_id || faltaParaExcluirAtestado.atestado_drive_id,
+        `atestado_${faltaParaExcluirAtestado.id}`
+      );
+      setFeedbackAtestado('Atestado médico excluído com sucesso do Google Drive e registrado na auditoria.');
+      setTimeout(() => setFeedbackAtestado(null), 4000);
+      setFaltaParaExcluirAtestado(null);
+    } catch (e: any) {
+      alert(e.message || 'Erro ao excluir atestado.');
+    } finally {
+      setExcluindoAtestado(false);
+    }
+  };
 
-    const prof = professores.find((p) => p.id === formFalta.professor_id);
-
-    addFaltaProfessor({
-      professor_id: formFalta.professor_id,
-      professor_nome: prof?.nome_completo || 'Docente',
-      data_falta: formFalta.data_falta,
-      aulas_faltadas: Number(formFalta.aulas_faltadas) || 1,
-      justificativa: formFalta.justificativa.toUpperCase(),
-      atestado_drive_link: formFalta.atestado_drive_link || undefined,
-      atestado_drive_id: formFalta.atestado_drive_link ? `atestado_${Date.now()}` : undefined,
-    });
-
-    setModalNovaFaltaAberto(false);
-    setFormFalta({
-      professor_id: professores[0]?.id || '',
-      data_falta: new Date().toISOString().split('T')[0],
-      aulas_faltadas: 2,
-      justificativa: '',
-      atestado_drive_link: '',
-    });
+  const confirmarExclusaoRegistro = async () => {
+    if (!faltaParaExcluirRegistro) return;
+    try {
+      await deleteFaltaProfessor(
+        faltaParaExcluirRegistro.id,
+        faltaParaExcluirRegistro.drive_file_id || faltaParaExcluirRegistro.atestado_drive_id,
+        `atestado_${faltaParaExcluirRegistro.id}`
+      );
+      setFeedbackAtestado('Registro de ausência excluído com sucesso.');
+      setTimeout(() => setFeedbackAtestado(null), 4000);
+      setFaltaParaExcluirRegistro(null);
+    } catch (e: any) {
+      alert(e.message || 'Erro ao excluir ausência.');
+    }
   };
 
   return (
@@ -896,89 +910,253 @@ export default function ProfessoresPage() {
         );
       })()}
 
-      {/* ABA 2: Registro de Faltas */}
-      {abaAtiva === 'faltas' && (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-700 dark:bg-school-dark-surface">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
-                <tr>
-                  <th className="px-4 py-3.5">Data Ausência</th>
-                  <th className="px-4 py-3.5">Docente</th>
-                  <th className="px-4 py-3.5">Aulas Faltadas</th>
-                  <th className="px-4 py-3.5">Motivo / Justificativa</th>
-                  <th className="px-4 py-3.5">Atestado Google Drive</th>
-                  <th className="px-4 py-3.5">Status Homologação</th>
-                  <th className="px-4 py-3.5 text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80">
-                {faltasProfessores.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-slate-400 dark:text-slate-300">
-                      Nenhuma ausência registrada até o momento.
-                    </td>
-                  </tr>
-                ) : (
-                  faltasProfessores.map((falta) => (
-                    <tr key={falta.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
-                      <td className="px-4 py-3.5 font-mono font-bold text-slate-900 dark:text-white">
-                        {new Date(falta.data_falta + 'T00:00:00').toLocaleDateString('pt-BR')}
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-slate-200 uppercase">
-                        {falta.professor_nome}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60">
-                          {falta.aulas_faltadas} aula(s)
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 max-w-sm uppercase text-slate-700 dark:text-slate-200">
-                        {falta.justificativa}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        {falta.atestado_drive_link ? (
-                          <a
-                            href={falta.atestado_drive_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 font-bold text-school-blue-600 hover:underline dark:text-school-gold-400"
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            <span>Ver Atestado</span>
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span className="text-slate-400 italic">Sem anexo</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            falta.homologado
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60'
-                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
-                          }`}
-                        >
-                          {falta.homologado ? 'Homologado pela Direção' : 'Aguardando Homologação'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <button
-                          onClick={() => toggleHomologarFalta(falta.id)}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                        >
-                          {falta.homologado ? 'Reabrir' : 'Homologar'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+      {/* Feedback de Atestado / Auditoria */}
+      {feedbackAtestado && (
+        <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 text-xs font-semibold shadow-sm animate-in fade-in duration-200">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span>{feedbackAtestado}</span>
         </div>
       )}
+
+      {/* ABA 2: Registro de Faltas */}
+      {abaAtiva === 'faltas' && (() => {
+        const totalAulasDevidasGeral = faltasProfessores.reduce(
+          (acc, f) => acc + (f.aulas_totais_devidas ?? f.aulas_faltadas ?? 0),
+          0
+        );
+        const formatarData = (d?: string) => {
+          if (!d) return '-';
+          const limpa = d.split('T')[0];
+          const [ano, mes, dia] = limpa.split('-');
+          if (!ano || !mes || !dia) return d;
+          return `${dia}/${mes}/${ano}`;
+        };
+
+        return (
+          <div className="space-y-4">
+            {/* Top Bar com Resumo e Ação Rápida */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-school-dark-surface p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-school-blue-50 dark:bg-school-blue-950/40 text-school-blue-600 dark:text-school-gold-400">
+                  <CalendarRange className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Histórico de Ausências & Faltas Docentes
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-300">
+                    Total de <strong>{faltasProfessores.length}</strong> registro(s) contabilizando{' '}
+                    <strong className="text-amber-600 dark:text-amber-400">{totalAulasDevidasGeral}</strong> aulas devidas
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setModalNovaFaltaAberto(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 dark:bg-school-blue-600 transition-all shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Registrar Nova Ausência</span>
+              </button>
+            </div>
+
+            {/* Tabela de Faltas */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-700 dark:bg-school-dark-surface">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-700">
+                    <tr>
+                      <th className="px-4 py-3.5">Período / Data</th>
+                      <th className="px-4 py-3.5">Docente</th>
+                      <th className="px-4 py-3.5">Aulas Devidas</th>
+                      <th className="px-4 py-3.5">Motivo / Justificativa</th>
+                      <th className="px-4 py-3.5">Atestado Google Drive</th>
+                      <th className="px-4 py-3.5">Status Homologação</th>
+                      <th className="px-4 py-3.5 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/80">
+                    {faltasProfessores.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-12 text-center text-slate-400 dark:text-slate-300">
+                          Nenhuma ausência registrada até o momento.
+                        </td>
+                      </tr>
+                    ) : (
+                      faltasProfessores.map((falta) => {
+                        const dataInicio = falta.data_inicio || falta.data_falta;
+                        const dataFim = falta.data_fim || dataInicio;
+                        const ehPeriodo = falta.tipo_registro === 'PERIODO' || (Boolean(dataFim) && Boolean(dataInicio) && dataFim !== dataInicio);
+                        const aulasDevidas = falta.aulas_totais_devidas ?? falta.aulas_faltadas;
+                        const aulasGrade = falta.aulas_calculadas_sistema;
+                        const driveUrl = falta.atestado_drive_url || falta.atestado_drive_link;
+
+                        return (
+                          <tr key={falta.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                            {/* Data / Período */}
+                            <td className="px-4 py-3.5">
+                              <div className="space-y-1">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold border ${
+                                    ehPeriodo
+                                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800'
+                                      : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+                                  }`}
+                                >
+                                  {ehPeriodo ? 'Período' : '1 Dia'}
+                                </span>
+                                <div className="font-mono font-bold text-slate-900 dark:text-white text-xs">
+                                  {ehPeriodo ? (
+                                    <span>
+                                      {formatarData(dataInicio)} <span className="text-slate-400">a</span> {formatarData(dataFim)}
+                                    </span>
+                                  ) : (
+                                    <span>{formatarData(dataInicio)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Docente */}
+                            <td className="px-4 py-3.5">
+                              <div className="font-semibold text-slate-800 dark:text-slate-200 uppercase">
+                                {falta.professor_nome}
+                              </div>
+                              {falta.observacao && (
+                                <div className="text-[10px] text-slate-400 dark:text-slate-300 line-clamp-1 italic">
+                                  {falta.observacao}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Aulas Devidas */}
+                            <td className="px-4 py-3.5">
+                              <div>
+                                <span className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60">
+                                  {aulasDevidas} aula(s)
+                                </span>
+                                {aulasGrade !== undefined && aulasGrade !== null && (
+                                  <div className="mt-0.5 text-[10px]">
+                                    {aulasGrade !== aulasDevidas ? (
+                                      <span className="font-medium text-amber-700 dark:text-amber-400">
+                                        Grade: {aulasGrade} (Ajustado)
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400 dark:text-slate-300">
+                                        Grade: {aulasGrade}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Motivo / Justificativa */}
+                            <td className="px-4 py-3.5 max-w-xs">
+                              <div className="font-medium uppercase text-slate-700 dark:text-slate-200 line-clamp-2">
+                                {falta.motivo || falta.justificativa}
+                              </div>
+                            </td>
+
+                            {/* Atestado Google Drive */}
+                            <td className="px-4 py-3.5">
+                              {driveUrl ? (
+                                <div className="space-y-1.5">
+                                  <a
+                                    href={driveUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 font-bold text-xs text-school-blue-600 hover:text-school-blue-700 hover:underline dark:text-school-gold-400 dark:hover:text-school-gold-300 bg-school-blue-50 dark:bg-school-blue-950/40 px-2.5 py-1 rounded-lg border border-school-blue-200 dark:border-school-blue-800/60"
+                                    title="Abrir arquivo no Google Drive"
+                                  >
+                                    <FileText className="h-3.5 w-3.5" />
+                                    <span>Abrir Atestado no Drive</span>
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setFaltaParaSubstituir(falta)}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white px-2 py-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors"
+                                      title="Substituir atestado no Google Drive"
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                      <span>Substituir</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setFaltaParaExcluirAtestado(falta)}
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 px-2 py-0.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 transition-colors"
+                                      title="Excluir atestado com registro de auditoria"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                      <span>Excluir</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <span className="text-slate-400 dark:text-slate-300 italic text-[11px] block">
+                                    Sem anexo
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setFaltaParaSubstituir(falta)}
+                                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-school-blue-600 hover:text-school-blue-700 dark:text-school-gold-400 px-2 py-0.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 transition-colors"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    <span>Anexar Atestado</span>
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Status Homologação */}
+                            <td className="px-4 py-3.5">
+                              <div className="space-y-1">
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                    falta.homologado
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/60'
+                                  }`}
+                                >
+                                  {falta.homologado ? 'Homologado pela Direção' : 'Aguardando Homologação'}
+                                </span>
+                                <div>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleHomologarFalta(falta.id)}
+                                    className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                  >
+                                    {falta.homologado ? 'Reabrir' : 'Homologar'}
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Ações */}
+                            <td className="px-4 py-3.5 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setFaltaParaExcluirRegistro(falta)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:text-slate-300 dark:hover:text-rose-400 transition-colors"
+                                title="Excluir registro de ausência"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ABA 3: Gestão de Reposições de Aulas (Regra dos 30 Dias) */}
       {abaAtiva === 'reposicoes' && (() => {
@@ -2810,114 +2988,114 @@ export default function ProfessoresPage() {
         </div>
       )}
 
-      {/* MODAL 4: Registrar Falta / Atestado */}
-      {modalNovaFaltaAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+      {/* MODAL 4: Registrar Ausência / Falta Docente (Modal completo com cálculo de grade e upload para o Google Drive) */}
+      <ModalRegistrarAusencia
+        isOpen={modalNovaFaltaAberto}
+        onClose={() => setModalNovaFaltaAberto(false)}
+      />
+
+      {/* Modal para Substituir ou Anexar Atestado Médico */}
+      <ModalSubstituirAtestadoFalta
+        isOpen={Boolean(faltaParaSubstituir)}
+        onClose={() => setFaltaParaSubstituir(null)}
+        falta={faltaParaSubstituir}
+      />
+
+      {/* Modal de Confirmação: Excluir Atestado do Google Drive com Auditoria */}
+      {faltaParaExcluirAtestado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-700">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
-                Registrar Ausência / Falta Docente
+            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400 mb-3">
+              <AlertTriangle className="h-6 w-6 shrink-0" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Excluir Atestado do Google Drive?
               </h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+              Você está prestes a desvincular e excluir o atestado médico do professor{' '}
+              <strong className="text-slate-900 dark:text-white uppercase">
+                {faltaParaExcluirAtestado.professor_nome}
+              </strong>.
+            </p>
+            <div className="rounded-xl bg-amber-50 p-3 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300 mb-5 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4" />
+                Governança & Auditoria
+              </p>
+              <p>
+                O arquivo será permanentemente removido da pasta individual do docente no Google Drive e uma entrada imutável será gravada na tabela de auditoria do sistema.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
               <button
-                onClick={() => setModalNovaFaltaAberto(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
+                type="button"
+                disabled={excluindoAtestado}
+                onClick={() => setFaltaParaExcluirAtestado(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
-                <X className="h-5 w-5" />
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={excluindoAtestado}
+                onClick={confirmarExclusaoAtestado}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow-sm disabled:opacity-50"
+              >
+                {excluindoAtestado ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Excluindo com auditoria...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Confirmar Exclusão</span>
+                  </>
+                )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
 
-            <form onSubmit={handleRegistrarFalta} className="mt-4 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                  Selecione o Docente *
-                </label>
-                <select
-                  required
-                  value={formFalta.professor_id}
-                  onChange={(e) => setFormFalta({ ...formFalta, professor_id: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs uppercase text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                >
-                  {professores.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome_completo} ({p.matricula})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                    Data da Ausência *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formFalta.data_falta}
-                    onChange={(e) => setFormFalta({ ...formFalta, data_falta: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                    Quantidade de Aulas *
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={8}
-                    required
-                    value={formFalta.aulas_faltadas}
-                    onChange={(e) => setFormFalta({ ...formFalta, aulas_faltadas: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                  Justificativa / Motivo Declarado *
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  value={formFalta.justificativa}
-                  onChange={(e) => setFormFalta({ ...formFalta, justificativa: e.target.value.toUpperCase() })}
-                  placeholder="EX: CONSULTA MÉDICA COMPROVADA COM DECLARAÇÃO..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs uppercase text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
-                  Link do Atestado Médico no Google Drive
-                </label>
-                <input
-                  type="url"
-                  value={formFalta.atestado_drive_link}
-                  onChange={(e) => setFormFalta({ ...formFalta, atestado_drive_link: e.target.value })}
-                  placeholder="https://drive.google.com/file/d/.../view"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
-                <button
-                  type="button"
-                  onClick={() => setModalNovaFaltaAberto(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-school-blue-800 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 dark:bg-school-blue-600"
-                >
-                  Salvar Registro
-                </button>
-              </div>
-            </form>
+      {/* Modal de Confirmação: Excluir Registro de Ausência */}
+      {faltaParaExcluirRegistro && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400 mb-3">
+              <AlertTriangle className="h-6 w-6 shrink-0" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Excluir Registro de Ausência?
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+              Deseja realmente remover o registro de ausência do docente{' '}
+              <strong className="text-slate-900 dark:text-white uppercase">
+                {faltaParaExcluirRegistro.professor_nome}
+              </strong>?
+              {(faltaParaExcluirRegistro.drive_file_id || faltaParaExcluirRegistro.atestado_drive_id) && (
+                <span className="block mt-1 text-rose-600 dark:text-rose-400 font-medium">
+                  O atestado médico vinculado no Google Drive também será removido com auditoria.
+                </span>
+              )}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setFaltaParaExcluirRegistro(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarExclusaoRegistro}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow-sm"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Confirmar Exclusão</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

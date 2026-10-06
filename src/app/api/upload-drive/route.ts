@@ -5,6 +5,7 @@ import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { 
   getGoogleDriveClient, 
   resolverOuCriarEstruturaPastasEstudante, 
+  resolverOuCriarEstruturaPastasProfessor,
   obterOuCriarPastaDrive,
   excluirArquivoDriveComAuditoria
 } from '@/lib/google-drive';
@@ -33,10 +34,11 @@ export async function POST(req: NextRequest) {
     const uploaderId = formData.get('uploader_id') as string | null;
 
     // Campos específicos para atestado de professor
-    const dataInicio = formData.get('data_inicio') as string | null;
+    const dataInicio = (formData.get('data_inicio') as string | null) || (formData.get('data_ausencia') as string | null);
     const dataFim = formData.get('data_fim') as string | null;
     const diasAfastamento = parseInt((formData.get('dias_afastamento') as string) || '1', 10);
     const motivoCid = formData.get('motivo_cid') as string | null;
+    const faltaId = (formData.get('falta_id') as string | null) || (formData.get('ausencia_id') as string | null);
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
@@ -84,14 +86,13 @@ export async function POST(req: NextRequest) {
     let targetFolderId: string | null = rootFolderId;
     let diretorioDrive = 'FICHA DOS ESTUDANTES/';
 
-    if (tipoUpload === 'professor_atestado' && professorNome) {
-      diretorioDrive = obterCaminhoProfessorDrive(professorNome);
-      if (drive) {
-        const pastaProfessoresId = await obterOuCriarPastaDrive(drive, 'FICHA DOS PROFESSORES', rootFolderId);
-        targetFolderId = await obterOuCriarPastaDrive(drive, professorNome.trim().toUpperCase(), pastaProfessoresId);
-      }
+    if (tipoUpload === 'professor_atestado') {
+      const nomeProfessorResolver = professorNome || 'DOCENTE_GERAL';
+      const estrutura = await resolverOuCriarEstruturaPastasProfessor(drive, nomeProfessorResolver, rootFolderId);
+      targetFolderId = estrutura.professorFolderId;
+      diretorioDrive = estrutura.caminhoFormatado;
     } else {
-      // 2. Resolução da Árvore de Diretórios Padronizada por Inicial
+      // 2. Resolução da Árvore de Diretórios Padronizada por Inicial para Estudantes
       const nomeParaResolver = alunoNome || 'ESTUDANTE_DOCUMENTOS';
       const estrutura = await resolverOuCriarEstruturaPastasEstudante(drive, nomeParaResolver, rootFolderId);
       targetFolderId = estrutura.estudanteFolderId;
@@ -109,9 +110,17 @@ export async function POST(req: NextRequest) {
         stream.push(null);
 
         const safeOriginalName = normalizarNomeParaDrive(file.name.substring(0, file.name.lastIndexOf('.')) || file.name);
-        const ext = file.name.substring(file.name.lastIndexOf('.'));
+        const ext = file.name.substring(file.name.lastIndexOf('.')) || '.pdf';
+
+        let nomeArquivoFinal = `[${tipoDocumento.toUpperCase()}]_${safeOriginalName}${ext}`;
+        if (tipoUpload === 'professor_atestado') {
+          // Estrutura padronizada: atestado_medico_[DATA].pdf
+          const dataReferencia = (dataInicio || new Date().toISOString().split('T')[0]).replace(/-/g, '_');
+          nomeArquivoFinal = `atestado_medico_${dataReferencia}${ext.toLowerCase()}`;
+        }
+
         const fileMetadata: { name: string; parents?: string[] } = {
-          name: `[${tipoDocumento.toUpperCase()}]_${safeOriginalName}${ext}`,
+          name: nomeArquivoFinal,
         };
 
         if (targetFolderId) {
@@ -155,6 +164,23 @@ export async function POST(req: NextRequest) {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
             [atestId, professorId, driveFileId, file.name, dataInicio || new Date().toISOString().split('T')[0], dataFim || new Date().toISOString().split('T')[0], diasAfastamento, motivoCid || null]
           );
+
+          if (faltaId) {
+            await executeTursoQuery(
+              `UPDATE faltas_professores 
+               SET atestado_drive_url = ?, drive_file_id = ?, atestado_drive_link = ?, atestado_drive_id = ? 
+               WHERE id = ?`,
+              [driveViewLink, driveFileId, driveViewLink, driveFileId, faltaId]
+            );
+            try {
+              await executeTursoQuery(
+                `UPDATE ausencias_docentes 
+                 SET atestado_drive_url = ?, drive_file_id = ? 
+                 WHERE id = ?`,
+                [driveViewLink, driveFileId, faltaId]
+              );
+            } catch {}
+          }
         } else if (alunoId) {
           const docId = `doc-${Date.now()}`;
           await executeTursoQuery(
@@ -203,6 +229,8 @@ export async function DELETE(req: NextRequest) {
     let fileId = searchParams.get('fileId') || searchParams.get('file_id');
     let docId = searchParams.get('docId') || searchParams.get('doc_id') || searchParams.get('id');
     let estudanteId = searchParams.get('estudanteId') || searchParams.get('estudante_id') || searchParams.get('aluno_id');
+    let professorId = searchParams.get('professorId') || searchParams.get('professor_id');
+    let faltaId = searchParams.get('faltaId') || searchParams.get('falta_id') || searchParams.get('ausencia_id');
     let nomeArquivo = searchParams.get('nomeArquivo') || searchParams.get('nome_arquivo');
 
     let body: any = {};
@@ -214,11 +242,17 @@ export async function DELETE(req: NextRequest) {
       if (!docId) {
         docId = body.docId || body.doc_id || body.id;
       }
-      if (!fileId && docId && !docId.startsWith('doc-')) {
+      if (!fileId && docId && !docId.startsWith('doc-') && !docId.startsWith('falta-') && !docId.startsWith('atest-')) {
         fileId = docId;
       }
       if (!estudanteId) {
         estudanteId = body.estudanteId || body.estudante_id || body.aluno_id;
+      }
+      if (!professorId) {
+        professorId = body.professorId || body.professor_id;
+      }
+      if (!faltaId) {
+        faltaId = body.faltaId || body.falta_id || body.ausencia_id;
       }
       if (!nomeArquivo) {
         nomeArquivo = body.nomeArquivo || body.nome_arquivo;
@@ -227,9 +261,9 @@ export async function DELETE(req: NextRequest) {
       // Body JSON opcional caso venha por query param
     }
 
-    if (!fileId && !docId && !nomeArquivo) {
+    if (!fileId && !docId && !nomeArquivo && !faltaId) {
       return NextResponse.json(
-        { error: 'Identificador do arquivo (fileId, docId ou nomeArquivo) é obrigatório para exclusão.' },
+        { error: 'Identificador do arquivo (fileId, docId, faltaId ou nomeArquivo) é obrigatório para exclusão.' },
         { status: 400 }
       );
     }
@@ -240,6 +274,8 @@ export async function DELETE(req: NextRequest) {
       fileId: fileId || '',
       docId: docId || undefined,
       estudanteId: estudanteId || undefined,
+      professorId: professorId || undefined,
+      faltaId: faltaId || undefined,
       nomeArquivo: nomeArquivo || undefined,
       usuario,
     });

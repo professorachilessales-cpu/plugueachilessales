@@ -163,6 +163,9 @@ interface AppContextType {
   toggleProfessorApoio: (id: string) => void;
   toggleProfessorAdministrativo: (id: string) => void;
   addFaltaProfessor: (falta: Omit<FaltaProfessor, 'id' | 'created_at' | 'homologado'>) => void;
+  updateFaltaProfessor: (id: string, updates: Partial<FaltaProfessor>) => void;
+  deleteFaltaProfessor: (id: string, fileId?: string, nomeArquivo?: string) => Promise<void>;
+  deleteAtestadoFalta: (faltaId: string, fileId?: string, nomeArquivo?: string) => Promise<void>;
   toggleHomologarFalta: (id: string) => void;
 
   // Ações Eventos & Categorias
@@ -1479,15 +1482,127 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addFaltaProfessor = (novaFalta: Omit<FaltaProfessor, 'id' | 'created_at' | 'homologado'>) => {
     const prof = professores.find(p => p.id === novaFalta.professor_id);
+    const dataIni = novaFalta.data_inicio || novaFalta.data_falta || new Date().toISOString().split('T')[0];
+    const dataFim = novaFalta.data_fim || dataIni;
+    const aulasTotais = Number(novaFalta.aulas_totais_devidas ?? novaFalta.aulas_faltadas ?? 1);
+    const aulasCalc = Number(novaFalta.aulas_calculadas_sistema ?? aulasTotais);
+    const motivoTexto = (novaFalta.motivo || novaFalta.justificativa || '').toUpperCase();
+
     const faltaCriada: FaltaProfessor = {
       ...novaFalta,
       id: `falta-${Date.now()}`,
-      professor_nome: prof?.nome_completo || 'Professor',
+      professor_nome: prof?.nome_completo || novaFalta.professor_nome || 'Professor',
+      tipo_registro: novaFalta.tipo_registro || (dataIni !== dataFim ? 'PERIODO' : 'DATA_UNICA'),
+      data_inicio: dataIni,
+      data_fim: dataFim,
+      data_falta: dataIni,
+      aulas_calculadas_sistema: aulasCalc,
+      aulas_totais_devidas: aulasTotais,
+      aulas_faltadas: aulasTotais,
+      motivo: motivoTexto,
+      justificativa: motivoTexto,
+      atestado_drive_url: novaFalta.atestado_drive_url || novaFalta.atestado_drive_link,
+      atestado_drive_link: novaFalta.atestado_drive_link || novaFalta.atestado_drive_url,
+      drive_file_id: novaFalta.drive_file_id || novaFalta.atestado_drive_id,
+      atestado_drive_id: novaFalta.atestado_drive_id || novaFalta.drive_file_id,
+      observacao: novaFalta.observacao,
+      usuario_registro_id: novaFalta.usuario_registro_id || currentUser.id,
       homologado: false,
       created_at: new Date().toISOString(),
     };
     setFaltasProfessores((prev) => [faltaCriada, ...prev]);
     syncWithTurso('save_falta', faltaCriada);
+  };
+
+  const updateFaltaProfessor = (id: string, updates: Partial<FaltaProfessor>) => {
+    let updatedFalta: FaltaProfessor | undefined;
+    setFaltasProfessores((prev) =>
+      prev.map((f) => {
+        if (f.id === id) {
+          const mod = {
+            ...f,
+            ...updates,
+            data_falta: updates.data_inicio || f.data_falta,
+            aulas_faltadas: updates.aulas_totais_devidas ?? f.aulas_faltadas,
+            justificativa: updates.motivo || f.justificativa,
+            atestado_drive_link: updates.atestado_drive_url !== undefined ? updates.atestado_drive_url : f.atestado_drive_link,
+            atestado_drive_id: updates.drive_file_id !== undefined ? updates.drive_file_id : f.atestado_drive_id,
+          };
+          updatedFalta = mod;
+          return mod;
+        }
+        return f;
+      })
+    );
+    if (updatedFalta) {
+      syncWithTurso('save_falta', updatedFalta);
+    }
+  };
+
+  const deleteFaltaProfessor = async (id: string, fileId?: string, nomeArquivo?: string) => {
+    const falta = faltasProfessores.find(f => f.id === id);
+    const targetFileId = fileId || falta?.drive_file_id || falta?.atestado_drive_id;
+    const targetNomeArquivo = nomeArquivo || `atestado_falta_${id}`;
+
+    setFaltasProfessores(prev => prev.filter(f => f.id !== id));
+    syncWithTurso('delete_falta', { id });
+
+    if (targetFileId) {
+      try {
+        await fetch('/api/upload-drive', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-user-name': currentUser.name,
+            'x-user-role': currentUser.role,
+          },
+          body: JSON.stringify({
+            fileId: targetFileId,
+            faltaId: id,
+            professorId: falta?.professor_id,
+            nomeArquivo: targetNomeArquivo,
+          }),
+        });
+      } catch (e) {
+        console.warn('Aviso ao excluir atestado do Drive ao excluir falta:', e);
+      }
+    }
+  };
+
+  const deleteAtestadoFalta = async (faltaId: string, fileId?: string, nomeArquivo?: string) => {
+    const falta = faltasProfessores.find(f => f.id === faltaId);
+    const targetFileId = fileId || falta?.drive_file_id || falta?.atestado_drive_id;
+    const targetNomeArquivo = nomeArquivo || `atestado_${faltaId}`;
+
+    updateFaltaProfessor(faltaId, {
+      atestado_drive_url: undefined,
+      atestado_drive_link: undefined,
+      drive_file_id: undefined,
+      atestado_drive_id: undefined,
+    });
+
+    if (targetFileId) {
+      try {
+        await fetch('/api/upload-drive', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-user-name': currentUser.name,
+            'x-user-role': currentUser.role,
+          },
+          body: JSON.stringify({
+            fileId: targetFileId,
+            faltaId,
+            professorId: falta?.professor_id,
+            nomeArquivo: targetNomeArquivo,
+          }),
+        });
+      } catch (e) {
+        console.warn('Aviso ao excluir atestado médico do Google Drive:', e);
+      }
+    }
   };
 
   const toggleHomologarFalta = (id: string) => {
@@ -2968,6 +3083,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toggleProfessorApoio,
         toggleProfessorAdministrativo,
         addFaltaProfessor,
+        updateFaltaProfessor,
+        deleteFaltaProfessor,
+        deleteAtestadoFalta,
         toggleHomologarFalta,
         addEvento,
         updateEvento,

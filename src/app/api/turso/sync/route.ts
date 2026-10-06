@@ -504,38 +504,140 @@ export async function POST(req: NextRequest) {
       }
 
       // ----------------------------------------------------
-      // FALTAS DE PROFESSORES
+      // FALTAS DE PROFESSORES / AUSÊNCIAS DOCENTES
       // ----------------------------------------------------
       case 'save_falta': {
         const f = payload;
+        // Garante colunas no Turso
+        const colunasAusencia = [
+          'ALTER TABLE faltas_professores ADD COLUMN tipo_registro TEXT DEFAULT "DATA_UNICA"',
+          'ALTER TABLE faltas_professores ADD COLUMN data_inicio TEXT',
+          'ALTER TABLE faltas_professores ADD COLUMN data_fim TEXT',
+          'ALTER TABLE faltas_professores ADD COLUMN aulas_calculadas_sistema INTEGER DEFAULT 0',
+          'ALTER TABLE faltas_professores ADD COLUMN aulas_totais_devidas INTEGER DEFAULT 1',
+          'ALTER TABLE faltas_professores ADD COLUMN motivo TEXT',
+          'ALTER TABLE faltas_professores ADD COLUMN atestado_drive_url TEXT',
+          'ALTER TABLE faltas_professores ADD COLUMN drive_file_id TEXT',
+          'ALTER TABLE faltas_professores ADD COLUMN observacao TEXT',
+          'ALTER TABLE faltas_professores ADD COLUMN usuario_registro_id TEXT',
+        ];
+        for (const sql of colunasAusencia) {
+          try {
+            await executeTursoQuery(sql);
+          } catch {}
+        }
+
+        const tipoReg = f.tipo_registro || 'DATA_UNICA';
+        const dataIni = f.data_inicio || f.data_falta || new Date().toISOString().split('T')[0];
+        const dataFim = f.data_fim || dataIni;
+        const aulasTotais = Number(f.aulas_totais_devidas ?? f.aulas_faltadas ?? 1);
+        const aulasCalc = Number(f.aulas_calculadas_sistema ?? 0);
+        const motivoTexto = (f.motivo || f.justificativa || '').toUpperCase();
+        const driveUrl = f.atestado_drive_url || f.atestado_drive_link || null;
+        const driveId = f.drive_file_id || f.atestado_drive_id || null;
+        const obs = f.observacao || null;
+        const usuarioId = f.usuario_registro_id || null;
+
         await executeTursoQuery(
           `INSERT INTO faltas_professores (
-            id, professor_id, professor_nome, data_falta, aulas_faltadas,
-            justificativa, atestado_drive_id, atestado_drive_link,
+            id, professor_id, professor_nome, tipo_registro, data_inicio, data_fim, data_falta,
+            aulas_calculadas_sistema, aulas_totais_devidas, aulas_faltadas,
+            motivo, justificativa, atestado_drive_url, atestado_drive_link,
+            drive_file_id, atestado_drive_id, observacao, usuario_registro_id,
             homologado, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             professor_id = excluded.professor_id,
             professor_nome = excluded.professor_nome,
+            tipo_registro = excluded.tipo_registro,
+            data_inicio = excluded.data_inicio,
+            data_fim = excluded.data_fim,
             data_falta = excluded.data_falta,
+            aulas_calculadas_sistema = excluded.aulas_calculadas_sistema,
+            aulas_totais_devidas = excluded.aulas_totais_devidas,
             aulas_faltadas = excluded.aulas_faltadas,
+            motivo = excluded.motivo,
             justificativa = excluded.justificativa,
-            atestado_drive_id = excluded.atestado_drive_id,
+            atestado_drive_url = excluded.atestado_drive_url,
             atestado_drive_link = excluded.atestado_drive_link,
+            drive_file_id = excluded.drive_file_id,
+            atestado_drive_id = excluded.atestado_drive_id,
+            observacao = excluded.observacao,
+            usuario_registro_id = excluded.usuario_registro_id,
             homologado = excluded.homologado`,
           [
             f.id,
             f.professor_id,
             f.professor_nome || null,
-            f.data_falta,
-            f.aulas_faltadas || 1,
-            f.justificativa || '',
-            f.atestado_drive_id || null,
-            f.atestado_drive_link || null,
+            tipoReg,
+            dataIni,
+            dataFim,
+            dataIni,
+            aulasCalc,
+            aulasTotais,
+            aulasTotais,
+            motivoTexto,
+            motivoTexto,
+            driveUrl,
+            driveUrl,
+            driveId,
+            driveId,
+            obs,
+            usuarioId,
             f.homologado ? 1 : 0,
             f.created_at || new Date().toISOString()
           ]
         );
+
+        try {
+          await executeTursoQuery(
+            `INSERT INTO ausencias_docentes (
+              id, professor_id, tipo_registro, data_inicio, data_fim,
+              aulas_calculadas_sistema, aulas_totais_devidas,
+              motivo, atestado_drive_url, drive_file_id,
+              observacao, usuario_registro_id, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              professor_id = excluded.professor_id,
+              tipo_registro = excluded.tipo_registro,
+              data_inicio = excluded.data_inicio,
+              data_fim = excluded.data_fim,
+              aulas_calculadas_sistema = excluded.aulas_calculadas_sistema,
+              aulas_totais_devidas = excluded.aulas_totais_devidas,
+              motivo = excluded.motivo,
+              atestado_drive_url = excluded.atestado_drive_url,
+              drive_file_id = excluded.drive_file_id,
+              observacao = excluded.observacao,
+              usuario_registro_id = excluded.usuario_registro_id`,
+            [
+              f.id,
+              f.professor_id,
+              tipoReg,
+              dataIni,
+              dataFim,
+              aulasCalc,
+              aulasTotais,
+              motivoTexto,
+              driveUrl,
+              driveId,
+              obs,
+              usuarioId,
+              f.created_at || new Date().toISOString()
+            ]
+          );
+        } catch {}
+
+        return NextResponse.json({ success: true });
+      }
+
+      case 'delete_falta': {
+        const { id } = payload;
+        if (id) {
+          await executeTursoQuery('DELETE FROM faltas_professores WHERE id = ?', [id]);
+          try {
+            await executeTursoQuery('DELETE FROM ausencias_docentes WHERE id = ?', [id]);
+          } catch {}
+        }
         return NextResponse.json({ success: true });
       }
 

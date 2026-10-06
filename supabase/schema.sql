@@ -111,18 +111,46 @@ CREATE TABLE IF NOT EXISTS public.documentos_estudantes (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 7. TABELA DE FALTAS DE PROFESSORES (COM ATESTADOS NO DRIVE)
+-- 7. TABELA DE FALTAS DE PROFESSORES / AUSÊNCIAS DOCENTES (COM ATESTADOS NO DRIVE)
 CREATE TABLE IF NOT EXISTS public.faltas_professores (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     professor_id UUID NOT NULL REFERENCES public.professores(id) ON DELETE CASCADE,
-    data_falta DATE NOT NULL,
+    tipo_registro VARCHAR(20) NOT NULL DEFAULT 'DATA_UNICA' CHECK (tipo_registro IN ('DATA_UNICA', 'PERIODO')),
+    data_inicio DATE NOT NULL DEFAULT CURRENT_DATE,
+    data_fim DATE NOT NULL DEFAULT CURRENT_DATE,
+    data_falta DATE NOT NULL DEFAULT CURRENT_DATE,
+    aulas_calculadas_sistema INT DEFAULT 0,
+    aulas_totais_devidas INT NOT NULL DEFAULT 1,
     aulas_faltadas INT NOT NULL DEFAULT 1,
+    motivo TEXT,
     justificativa TEXT,
-    atestado_drive_id VARCHAR(255),
+    atestado_drive_url TEXT,
     atestado_drive_link TEXT,
+    drive_file_id VARCHAR(255),
+    atestado_drive_id VARCHAR(255),
+    observacao TEXT,
+    usuario_registro_id VARCHAR(255),
     homologado BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Tabela correspondente ausencias_docentes
+CREATE TABLE IF NOT EXISTS public.ausencias_docentes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    professor_id UUID NOT NULL REFERENCES public.professores(id) ON DELETE CASCADE,
+    tipo_registro VARCHAR(20) NOT NULL CHECK (tipo_registro IN ('DATA_UNICA', 'PERIODO')),
+    data_inicio DATE NOT NULL,
+    data_fim DATE NOT NULL,
+    aulas_calculadas_sistema INT DEFAULT 0,
+    aulas_totais_devidas INT NOT NULL,
+    motivo TEXT,
+    atestado_drive_url TEXT,
+    drive_file_id VARCHAR(255),
+    observacao TEXT,
+    usuario_registro_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 
 -- 8. TABELA DE CALENDÁRIO E EVENTOS ESCOLARES
 CREATE TABLE IF NOT EXISTS public.eventos (

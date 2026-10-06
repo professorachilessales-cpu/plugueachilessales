@@ -289,18 +289,33 @@ export type Funcionario = Professor;
 export type Colaborador = Professor;
 
 
+export type TipoRegistroAusencia = 'DATA_UNICA' | 'PERIODO';
+
 export interface FaltaProfessor {
   id: string;
   professor_id: string;
   professor_nome: string;
-  data_falta: string;
-  aulas_faltadas: number;
-  justificativa: string;
-  atestado_drive_id?: string;
-  atestado_drive_link?: string;
+  tipo_registro?: TipoRegistroAusencia;
+  data_inicio?: string; // DATE (YYYY-MM-DD)
+  data_fim?: string;    // DATE (YYYY-MM-DD)
+  data_falta: string;   // Legado / compatibilidade (igual a data_inicio)
+  aulas_calculadas_sistema?: number; // Total apurado via grade horária
+  aulas_totais_devidas?: number;     // Total final ajustado/confirmado
+  aulas_faltadas: number;            // Legado / compatibilidade (igual a aulas_totais_devidas)
+  motivo?: string;                   // Atestado médico, licença, gala, luto, etc.
+  justificativa: string;             // Legado / compatibilidade
+  atestado_drive_url?: string;       // Link de visualização no Google Drive
+  atestado_drive_link?: string;      // Legado / compatibilidade
+  drive_file_id?: string;            // ID do arquivo no Google Drive
+  atestado_drive_id?: string;        // Legado / compatibilidade
+  observacao?: string;               // Observação livre adicional
+  usuario_registro_id?: string;      // Usuário que lançou a ausência
   homologado: boolean;
   created_at: string;
 }
+
+export type AusenciaDocente = FaltaProfessor;
+
 
 export interface CalendarioCategoria {
   id: string;

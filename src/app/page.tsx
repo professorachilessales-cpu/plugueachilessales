@@ -1583,8 +1583,7 @@ export default function DashboardPage() {
                   <th className="rounded-l-xl px-4 py-3">Docente</th>
                   <th className="px-4 py-3">Aulas Ausentes</th>
                   <th className="px-4 py-3">Motivo / Justificativa</th>
-                  <th className="px-4 py-3">Atestado no Drive</th>
-                  <th className="rounded-r-xl px-4 py-3">Homologação</th>
+                  <th className="rounded-r-xl px-4 py-3">Atestado no Drive</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1616,16 +1615,6 @@ export default function DashboardPage() {
                       ) : (
                         <span className="text-slate-400 italic">Pendente</span>
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${falta.homologado
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                          }`}
-                      >
-                        {falta.homologado ? 'Homologado' : 'Em Análise'}
-                      </span>
                     </td>
                   </tr>
                 ))}

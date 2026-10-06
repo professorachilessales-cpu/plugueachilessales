@@ -328,7 +328,7 @@ export interface FaltaProfessor {
   atestado_drive_id?: string;        // Legado / compatibilidade
   observacao?: string;               // Observação livre adicional
   usuario_registro_id?: string;      // Usuário que lançou a ausência
-  homologado: boolean;
+  homologado?: boolean;              // Legado / Descontinuado
   created_at: string;
 }
 

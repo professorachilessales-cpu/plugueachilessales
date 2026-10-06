@@ -162,11 +162,11 @@ interface AppContextType {
   updateProfessor: (id: string, updates: Partial<Professor>) => void;
   toggleProfessorApoio: (id: string) => void;
   toggleProfessorAdministrativo: (id: string) => void;
-  addFaltaProfessor: (falta: Omit<FaltaProfessor, 'id' | 'created_at' | 'homologado'>) => void;
+  addFaltaProfessor: (falta: Omit<FaltaProfessor, 'id' | 'created_at'>) => void;
   updateFaltaProfessor: (id: string, updates: Partial<FaltaProfessor>) => void;
   deleteFaltaProfessor: (id: string, fileId?: string, nomeArquivo?: string) => Promise<void>;
   deleteAtestadoFalta: (faltaId: string, fileId?: string, nomeArquivo?: string) => Promise<void>;
-  toggleHomologarFalta: (id: string) => void;
+  toggleHomologarFalta?: (id: string) => void;
   pagarTodasAulasAusencia: (faltaId: string, usuarioId?: string, usuarioNome?: string) => Promise<void>;
   pagarParcialAusencia: (faltaId: string, dados: { aulasPagasQtd: number; dataReposicao?: string; observacao?: string; usuarioId?: string; usuarioNome?: string }) => Promise<void>;
   abonarAulasAusencia: (faltaId: string, usuarioId?: string, usuarioNome?: string) => Promise<void>;
@@ -1483,7 +1483,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addFaltaProfessor = (novaFalta: Omit<FaltaProfessor, 'id' | 'created_at' | 'homologado'>) => {
+  const addFaltaProfessor = (novaFalta: Omit<FaltaProfessor, 'id' | 'created_at'>) => {
     const prof = professores.find(p => p.id === novaFalta.professor_id);
     const dataIni = novaFalta.data_inicio || novaFalta.data_falta || new Date().toISOString().split('T')[0];
     const dataFim = novaFalta.data_fim || dataIni;
@@ -1514,7 +1514,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       atestado_drive_id: novaFalta.atestado_drive_id || novaFalta.drive_file_id,
       observacao: novaFalta.observacao,
       usuario_registro_id: novaFalta.usuario_registro_id || currentUser.id,
-      homologado: false,
       created_at: new Date().toISOString(),
     };
     setFaltasProfessores((prev) => [faltaCriada, ...prev]);
@@ -1612,21 +1611,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const toggleHomologarFalta = (id: string) => {
-    let updatedFalta: FaltaProfessor | undefined;
-    setFaltasProfessores((prev) =>
-      prev.map((f) => {
-        if (f.id === id) {
-          const mod = { ...f, homologado: !f.homologado };
-          updatedFalta = mod;
-          return mod;
-        }
-        return f;
-      })
-    );
-    if (updatedFalta) {
-      syncWithTurso('save_falta', updatedFalta);
-    }
+  // Descontinuado: Ausências agora são definitivas e ativas de imediato sem necessidade de homologação
+  const toggleHomologarFalta = (_id: string) => {
+    // No-op mantido apenas para compatibilidade
   };
 
   const pagarTodasAulasAusencia = async (faltaId: string, usuarioId?: string, usuarioNome?: string) => {
@@ -3145,7 +3132,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       data_falta: dados.dataFalta,
       aulas_faltadas: dados.aulasFaltadas,
       justificativa: dados.justificativa,
-      homologado: false,
       created_at: new Date().toISOString(),
     };
 

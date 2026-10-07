@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
   Calendar as CalendarIcon,
@@ -149,7 +149,9 @@ export default function CalendarioPage() {
   const {
     eventos,
     addEvento,
+    updateEvento,
     deleteEvento,
+    refreshEventos,
     role,
     categoriasEvento,
     addCategoriaEvento,
@@ -157,6 +159,11 @@ export default function CalendarioPage() {
     deleteCategoriaEvento,
     escolaConfig
   } = useApp();
+
+  // Consulta direta ao banco de dados na inicialização do componente
+  useEffect(() => {
+    refreshEventos();
+  }, []);
 
   const [visualizacao, setVisualizacao] = useState<'grade' | 'lista'>('grade');
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('todas');
@@ -169,6 +176,7 @@ export default function CalendarioPage() {
 
   const [eventoSelecionado, setEventoSelecionado] = useState<EventoEscolar | null>(null);
   const [modalNovoEventoAberto, setModalNovoEventoAberto] = useState(false);
+  const [editandoEventoId, setEditandoEventoId] = useState<string | null>(null);
   const [modalCategoriasAberto, setModalCategoriasAberto] = useState(false);
 
   // Estados do formulário de criação/edição de categoria
@@ -337,8 +345,23 @@ export default function CalendarioPage() {
     setDataAtual(new Date(ano, mes + delta, 1));
   };
 
-  // Cadastro de novo evento (Apenas datas, sem horas)
-  const handleCadastrarEvento = (e: React.FormEvent) => {
+  // Iniciar modo de edição de um evento existente
+  const iniciarEdicaoEvento = (ev: EventoEscolar) => {
+    setEditandoEventoId(ev.id);
+    setFormEvento({
+      titulo: ev.titulo,
+      descricao: ev.descricao || '',
+      data_inicio: ev.data_inicio,
+      data_fim: ev.data_fim,
+      categoria: ev.categoria,
+      cor: ev.cor || getCategoriaInfo(ev.categoria).cor_hex,
+    });
+    setEventoSelecionado(null);
+    setModalNovoEventoAberto(true);
+  };
+
+  // Cadastro ou edição de evento (persistência direta sem retenção em cache)
+  const handleCadastrarEvento = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formEvento.titulo.trim() || !formEvento.data_inicio || !formEvento.data_fim) return;
 
@@ -349,17 +372,30 @@ export default function CalendarioPage() {
       dtFim = dtInicio;
     }
 
-    addEvento({
-      titulo: formEvento.titulo.trim(),
-      descricao: formEvento.descricao.trim(),
-      data_inicio: dtInicio,
-      data_fim: dtFim,
-      categoria: formEvento.categoria,
-      cor: formEvento.cor || getCategoriaInfo(formEvento.categoria).cor_hex,
-      all_day: true,
-    });
+    if (editandoEventoId) {
+      await updateEvento(editandoEventoId, {
+        titulo: formEvento.titulo.trim(),
+        descricao: formEvento.descricao.trim(),
+        data_inicio: dtInicio,
+        data_fim: dtFim,
+        categoria: formEvento.categoria,
+        cor: formEvento.cor || getCategoriaInfo(formEvento.categoria).cor_hex,
+        all_day: true,
+      });
+    } else {
+      await addEvento({
+        titulo: formEvento.titulo.trim(),
+        descricao: formEvento.descricao.trim(),
+        data_inicio: dtInicio,
+        data_fim: dtFim,
+        categoria: formEvento.categoria,
+        cor: formEvento.cor || getCategoriaInfo(formEvento.categoria).cor_hex,
+        all_day: true,
+      });
+    }
 
     setModalNovoEventoAberto(false);
+    setEditandoEventoId(null);
     setFormEvento(getInitialFormEvento());
   };
 
@@ -517,6 +553,7 @@ export default function CalendarioPage() {
           {role === 'admin' && (
             <button
               onClick={() => {
+                setEditandoEventoId(null);
                 setFormEvento(getInitialFormEvento());
                 setModalNovoEventoAberto(true);
               }}
@@ -986,13 +1023,22 @@ export default function CalendarioPage() {
                   </div>
 
                   {role === 'admin' && (
-                    <button
-                      onClick={() => deleteEvento(ev.id)}
-                      className="inline-flex items-center gap-1 self-end rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 sm:self-auto print:hidden"
-                      title="Excluir Evento"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1 self-end sm:self-auto print:hidden">
+                      <button
+                        onClick={() => iniciarEdicaoEvento(ev)}
+                        className="inline-flex items-center rounded-lg p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-400"
+                        title="Editar Evento"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteEvento(ev.id)}
+                        className="inline-flex items-center rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                        title="Excluir Evento"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -1063,16 +1109,25 @@ export default function CalendarioPage() {
 
             <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
               {role === 'admin' ? (
-                <button
-                  onClick={() => {
-                    deleteEvento(eventoSelecionado.id);
-                    setEventoSelecionado(null);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Excluir Evento
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      deleteEvento(eventoSelecionado.id);
+                      setEventoSelecionado(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Excluir
+                  </button>
+                  <button
+                    onClick={() => iniciarEdicaoEvento(eventoSelecionado)}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Editar
+                  </button>
+                </div>
               ) : (
                 <div />
               )}
@@ -1088,21 +1143,24 @@ export default function CalendarioPage() {
         </div>
       )}
 
-      {/* Modal de Criação de Novo Evento (Apenas Datas, Sem Horários - Exclusivo Administrador) */}
+      {/* Modal de Criação/Edição de Evento (Apenas Datas, Sem Horários - Exclusivo Administrador) */}
       {modalNovoEventoAberto && role === 'admin' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                  <Plus className="h-5 w-5" />
+                  {editandoEventoId ? <Pencil className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Cadastrar Evento Escolar
+                  {editandoEventoId ? 'Editar Evento Escolar' : 'Cadastrar Evento Escolar'}
                 </h3>
               </div>
               <button
-                onClick={() => setModalNovoEventoAberto(false)}
+                onClick={() => {
+                  setModalNovoEventoAberto(false);
+                  setEditandoEventoId(null);
+                }}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="h-5 w-5" />
@@ -1256,7 +1314,10 @@ export default function CalendarioPage() {
               <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setModalNovoEventoAberto(false)}
+                  onClick={() => {
+                    setModalNovoEventoAberto(false);
+                    setEditandoEventoId(null);
+                  }}
                   className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-school-dark-border dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Cancelar
@@ -1265,7 +1326,7 @@ export default function CalendarioPage() {
                   type="submit"
                   className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
                 >
-                  Salvar no Cronograma
+                  {editandoEventoId ? 'Salvar Alterações' : 'Salvar no Cronograma'}
                 </button>
               </div>
             </form>

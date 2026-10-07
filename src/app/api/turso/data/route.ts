@@ -268,21 +268,53 @@ export async function GET() {
       console.error('Erro ao ler faltas_professores do Turso:', e);
     }
 
-    // 8. Eventos
+    // 8. Eventos Escolares (Consulta direta e exclusiva à tabela definitiva calendario_eventos)
     let eventos: any[] = [];
     try {
-      const eventosRes = await executeTursoQuery('SELECT * FROM eventos ORDER BY data_inicio ASC');
+      const eventosRes = await executeTursoQuery(`
+        SELECT 
+          id, 
+          titulo, 
+          descricao, 
+          data_inicio, 
+          data_fim, 
+          COALESCE(categoria_id, categoria) as categoria_id,
+          COALESCE(categoria, categoria_id) as categoria,
+          COALESCE(cor_hex, cor, '#2563EB') as cor_hex,
+          COALESCE(cor, cor_hex, '#2563EB') as cor,
+          publico_alvo,
+          created_at, 
+          recorrencia_tipo, 
+          recorrencia_dia, 
+          recorrencia_mes,
+          recorrencia_ativa, 
+          recorrencia_data_limite,
+          criado_por_usuario_id
+        FROM calendario_eventos 
+        ORDER BY data_inicio ASC
+      `);
       eventos = (eventosRes.rows || []).map((row: any) => ({
-        ...row,
+        id: String(row.id),
+        titulo: row.titulo,
+        descricao: row.descricao || '',
+        data_inicio: row.data_inicio,
+        data_fim: row.data_fim,
+        categoria: row.categoria || row.categoria_id,
+        categoria_id: row.categoria_id || row.categoria,
+        cor: row.cor || row.cor_hex || '#2563EB',
+        cor_hex: row.cor_hex || row.cor || '#2563EB',
+        publico_alvo: row.publico_alvo || 'Todos',
         all_day: true,
+        created_at: row.created_at || new Date().toISOString(),
         recorrencia_tipo: row.recorrencia_tipo || 'NENHUMA',
         recorrencia_dia: row.recorrencia_dia != null ? Number(row.recorrencia_dia) : null,
         recorrencia_mes: row.recorrencia_mes != null ? Number(row.recorrencia_mes) : null,
         recorrencia_ativa: toBoolean(row.recorrencia_ativa),
         recorrencia_data_limite: row.recorrencia_data_limite || null,
+        criado_por_usuario_id: row.criado_por_usuario_id || null,
       }));
     } catch (e) {
-      console.error('Erro ao ler eventos do Turso:', e);
+      console.error('Erro ao ler calendario_eventos do Turso:', e);
     }
 
     // 8.1 Categorias do Calendário

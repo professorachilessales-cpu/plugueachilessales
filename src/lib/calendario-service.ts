@@ -44,6 +44,15 @@ export async function garantirSchemaRecorrenciaEventos(): Promise<void> {
     const infoEventos = await executeTursoQuery('PRAGMA table_info(eventos)');
     const colunasEventos = (infoEventos.rows || []).map((r: any) => r.name);
 
+    if (!colunasEventos.includes('categoria_id')) {
+      await executeTursoQuery('ALTER TABLE eventos ADD COLUMN categoria_id TEXT');
+    }
+    if (!colunasEventos.includes('cor_hex')) {
+      await executeTursoQuery('ALTER TABLE eventos ADD COLUMN cor_hex TEXT');
+    }
+    if (!colunasEventos.includes('criado_por_usuario_id')) {
+      await executeTursoQuery('ALTER TABLE eventos ADD COLUMN criado_por_usuario_id TEXT');
+    }
     if (!colunasEventos.includes('recorrencia_tipo')) {
       await executeTursoQuery(
         "ALTER TABLE eventos ADD COLUMN recorrencia_tipo TEXT DEFAULT 'NENHUMA' CHECK(recorrencia_tipo IN ('NENHUMA', 'ANUAL', 'MENSAL'))"
@@ -66,6 +75,15 @@ export async function garantirSchemaRecorrenciaEventos(): Promise<void> {
     const infoCal = await executeTursoQuery('PRAGMA table_info(calendario_eventos)');
     const colunasCal = (infoCal.rows || []).map((r: any) => r.name);
 
+    if (!colunasCal.includes('categoria_id')) {
+      await executeTursoQuery('ALTER TABLE calendario_eventos ADD COLUMN categoria_id TEXT');
+    }
+    if (!colunasCal.includes('cor_hex')) {
+      await executeTursoQuery('ALTER TABLE calendario_eventos ADD COLUMN cor_hex TEXT');
+    }
+    if (!colunasCal.includes('criado_por_usuario_id')) {
+      await executeTursoQuery('ALTER TABLE calendario_eventos ADD COLUMN criado_por_usuario_id TEXT');
+    }
     if (!colunasCal.includes('recorrencia_tipo')) {
       await executeTursoQuery(
         "ALTER TABLE calendario_eventos ADD COLUMN recorrencia_tipo TEXT DEFAULT 'NENHUMA' CHECK(recorrencia_tipo IN ('NENHUMA', 'ANUAL', 'MENSAL'))"
@@ -83,6 +101,22 @@ export async function garantirSchemaRecorrenciaEventos(): Promise<void> {
     if (!colunasCal.includes('recorrencia_data_limite')) {
       await executeTursoQuery('ALTER TABLE calendario_eventos ADD COLUMN recorrencia_data_limite TEXT');
     }
+
+    // 5. Garante sincronia bidirecional de dados entre eventos e calendario_eventos
+    try {
+      await executeTursoQuery(`
+        INSERT OR IGNORE INTO calendario_eventos (
+          id, titulo, descricao, data_inicio, data_fim, categoria, categoria_id,
+          cor, cor_hex, publico_alvo, recorrencia_tipo, recorrencia_dia, recorrencia_mes,
+          recorrencia_ativa, recorrencia_data_limite, criado_por_usuario_id, created_at
+        )
+        SELECT 
+          id, titulo, descricao, data_inicio, data_fim, categoria, COALESCE(categoria_id, categoria),
+          cor, COALESCE(cor_hex, cor), publico_alvo, recorrencia_tipo, recorrencia_dia, recorrencia_mes,
+          recorrencia_ativa, recorrencia_data_limite, criado_por_usuario_id, created_at
+        FROM eventos
+      `);
+    } catch {}
   } catch (err) {
     console.error('Erro ao verificar/migrar schema de recorrência de eventos:', err);
   }

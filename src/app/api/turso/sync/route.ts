@@ -781,56 +781,70 @@ export async function POST(req: NextRequest) {
         const recAtiva = recTipo !== 'NENHUMA' && toBooleanStrict(ev.recorrencia_ativa) ? 1 : 0;
         const recLimite = recTipo !== 'NENHUMA' && ev.recorrencia_data_limite ? ev.recorrencia_data_limite : null;
 
-        const sqlEventos = `
-          INSERT INTO eventos (
-            id, titulo, descricao, data_inicio, data_fim, categoria, cor,
-            publico_alvo, recorrencia_tipo, recorrencia_dia, recorrencia_mes,
-            recorrencia_ativa, recorrencia_data_limite, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        const catFinal = ev.categoria || ev.categoria_id || 'cultural';
+        const corFinal = ev.cor_hex || ev.cor || '#2563EB';
+        const autorId = ev.criado_por_usuario_id || ev.usuario_id || null;
+
+        const sqlCal = `
+          INSERT INTO calendario_eventos (
+            id, titulo, descricao, data_inicio, data_fim, categoria, categoria_id,
+            cor, cor_hex, publico_alvo, recorrencia_tipo, recorrencia_dia, recorrencia_mes,
+            recorrencia_ativa, recorrencia_data_limite, criado_por_usuario_id, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             titulo = excluded.titulo,
             descricao = excluded.descricao,
             data_inicio = excluded.data_inicio,
             data_fim = excluded.data_fim,
             categoria = excluded.categoria,
+            categoria_id = excluded.categoria_id,
             cor = excluded.cor,
+            cor_hex = excluded.cor_hex,
             publico_alvo = excluded.publico_alvo,
             recorrencia_tipo = excluded.recorrencia_tipo,
             recorrencia_dia = excluded.recorrencia_dia,
             recorrencia_mes = excluded.recorrencia_mes,
             recorrencia_ativa = excluded.recorrencia_ativa,
-            recorrencia_data_limite = excluded.recorrencia_data_limite
+            recorrencia_data_limite = excluded.recorrencia_data_limite,
+            criado_por_usuario_id = COALESCE(excluded.criado_por_usuario_id, calendario_eventos.criado_por_usuario_id)
         `;
 
-        const args = [
+        const argsCal = [
           ev.id,
           ev.titulo,
           ev.descricao || '',
           ev.data_inicio,
           ev.data_fim,
-          ev.categoria || 'cultural',
-          ev.cor || '#2563EB',
+          catFinal,
+          catFinal,
+          corFinal,
+          corFinal,
           ev.publico_alvo || 'Todos',
           recTipo,
           recDia,
           recMes,
           recAtiva,
           recLimite,
+          autorId,
           ev.created_at || new Date().toISOString()
         ];
 
-        await executeTursoQuery(sqlEventos, args);
+        await executeTursoQuery(sqlCal, argsCal);
 
-        // Espelha em paralelo na tabela calendario_eventos para compatibilidade plena
-        const sqlCal = sqlEventos.replace('INTO eventos', 'INTO calendario_eventos');
-        await executeTursoQuery(sqlCal, args);
+        // Espelha em paralelo na tabela legada eventos para compatibilidade plena
+        try {
+          const sqlEventos = sqlCal.replace(/calendario_eventos/g, 'eventos');
+          await executeTursoQuery(sqlEventos, argsCal);
+        } catch {}
 
         return NextResponse.json({ success: true });
       }
 
       case 'delete_evento': {
-        await executeTursoQuery('DELETE FROM eventos WHERE id = ?', [payload.id]);
         await executeTursoQuery('DELETE FROM calendario_eventos WHERE id = ?', [payload.id]);
+        try {
+          await executeTursoQuery('DELETE FROM eventos WHERE id = ?', [payload.id]);
+        } catch {}
         return NextResponse.json({ success: true });
       }
 

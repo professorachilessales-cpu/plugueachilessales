@@ -36,7 +36,6 @@ import {
   initialEstudantes, 
   initialProfessores, 
   initialFaltasProfessores, 
-  initialEventos,
   initialCategoriasEvento,
   initialActivityLogs,
   initialUsers,
@@ -178,9 +177,10 @@ interface AppContextType {
   abonarAulasAusencia: (faltaId: string, usuarioId?: string, usuarioNome?: string) => Promise<void>;
 
   // Ações Eventos & Categorias
-  addEvento: (evento: Omit<EventoEscolar, 'id' | 'created_at'>) => void;
-  updateEvento: (id: string, evento: Partial<EventoEscolar>) => void;
-  deleteEvento: (id: string) => void;
+  addEvento: (evento: Omit<EventoEscolar, 'id' | 'created_at'>) => void | Promise<any>;
+  updateEvento: (id: string, evento: Partial<EventoEscolar>) => void | Promise<any>;
+  deleteEvento: (id: string) => void | Promise<any>;
+  refreshEventos: () => Promise<void>;
   addCategoriaEvento: (cat: Omit<CalendarioCategoria, 'id'>) => Promise<{ success: boolean; error?: string }>;
   updateCategoriaEvento: (id: string, cat: Partial<CalendarioCategoria>) => Promise<{ success: boolean; error?: string }>;
   deleteCategoriaEvento: (id: string) => Promise<{ success: boolean; error?: string }>;
@@ -197,7 +197,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [estudantes, setEstudantes] = useState<Estudante[]>(initialEstudantes);
   const [professores, setProfessores] = useState<Professor[]>(initialProfessores);
   const [faltasProfessores, setFaltasProfessores] = useState<FaltaProfessor[]>(initialFaltasProfessores);
-  const [eventos, setEventos] = useState<EventoEscolar[]>(initialEventos);
+  const [eventos, setEventos] = useState<EventoEscolar[]>([]);
   const [categoriasEvento, setCategoriasEvento] = useState<CalendarioCategoria[]>(initialCategoriasEvento);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(initialActivityLogs);
 
@@ -431,11 +431,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setFaltasProfessores(JSON.parse(savedFaltas));
       }
 
-      // Eventos persistidos
-      const savedEventos = localStorage.getItem('school_os_eventos');
-      if (savedEventos) {
-        setEventos(JSON.parse(savedEventos));
-      }
+      // Limpeza de cache volátil de eventos (banco Turso é a única fonte da verdade)
+      try {
+        localStorage.removeItem('school_os_eventos');
+      } catch {}
 
       // Categorias de Eventos persistidas
       const savedCategorias = localStorage.getItem('school_os_calendario_categorias');
@@ -627,9 +626,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setFaltasProfessores(tFaltas);
             localStorage.setItem('school_os_faltas', JSON.stringify(tFaltas));
           }
-          if (tEventos && tEventos.length > 0) {
+          if (Array.isArray(tEventos)) {
             setEventos(tEventos);
-            localStorage.setItem('school_os_eventos', JSON.stringify(tEventos));
           }
           if (json.data.calendarioCategorias && json.data.calendarioCategorias.length > 0) {
             let parsedCats: CalendarioCategoria[] = json.data.calendarioCategorias;
@@ -801,14 +799,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [faltasProfessores, isInitialized]);
 
-  useEffect(() => {
-    if (!isInitialized) return;
-    try {
-      localStorage.setItem('school_os_eventos', JSON.stringify(eventos));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [eventos, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -1902,31 +1892,101 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addEvento = (novoEvento: Omit<EventoEscolar, 'id' | 'created_at'>) => {
+  const refreshEventos = async () => {
+    try {
+      const res = await fetch(`/api/calendario/eventos?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          Pragma: 'no-cache',
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setEventos(json.data);
+        } else if (Array.isArray(json)) {
+          setEventos(json);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao recarregar eventos do banco de dados:', err);
+    }
+  };
+
+  const addEvento = async (novoEvento: Omit<EventoEscolar, 'id' | 'created_at'>) => {
     const eventoCriado: EventoEscolar = {
       ...novoEvento,
       id: `ev-${Date.now()}`,
       created_at: new Date().toISOString(),
     };
-    setEventos((prev) => [...prev, eventoCriado]);
-    syncWithTurso('save_evento', eventoCriado);
+    setEventos((prev) => [...prev.filter((e) => e.id !== eventoCriado.id), eventoCriado]);
+
+    try {
+      const res = await fetch('/api/calendario/eventos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventoCriado),
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          setEventos((prev) => prev.map((e) => (e.id === eventoCriado.id ? json.data : e)));
+        }
+      } else {
+        syncWithTurso('save_evento', eventoCriado);
+      }
+    } catch (err) {
+      console.error('Erro ao salvar evento:', err);
+      syncWithTurso('save_evento', eventoCriado);
+    }
   };
 
-  const updateEvento = (id: string, dadosAtualizados: Partial<EventoEscolar>) => {
+  const updateEvento = async (id: string, dadosAtualizados: Partial<EventoEscolar>) => {
+    let updatedObj: EventoEscolar | undefined;
     setEventos((prev) => {
       const idx = prev.findIndex((ev) => ev.id === id);
       if (idx === -1) return prev;
       const updated: EventoEscolar = { ...prev[idx], ...dadosAtualizados };
+      updatedObj = updated;
       const nextList = [...prev];
       nextList[idx] = updated;
-      syncWithTurso('save_evento', updated);
       return nextList;
     });
+
+    if (updatedObj) {
+      try {
+        const res = await fetch('/api/calendario/eventos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedObj),
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          syncWithTurso('save_evento', updatedObj);
+        }
+      } catch (err) {
+        console.error('Erro ao atualizar evento:', err);
+        syncWithTurso('save_evento', updatedObj);
+      }
+    }
   };
 
-  const deleteEvento = (id: string) => {
+  const deleteEvento = async (id: string) => {
     setEventos((prev) => prev.filter((ev) => ev.id !== id));
-    syncWithTurso('delete_evento', { id });
+    try {
+      const res = await fetch(`/api/calendario/eventos?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        syncWithTurso('delete_evento', { id });
+      }
+    } catch (err) {
+      console.error('Erro ao excluir evento:', err);
+      syncWithTurso('delete_evento', { id });
+    }
   };
 
   const addCategoriaEvento = async (novaCat: Omit<CalendarioCategoria, 'id'>): Promise<{ success: boolean; error?: string }> => {
@@ -3389,6 +3449,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addEvento,
         updateEvento,
         deleteEvento,
+        refreshEventos,
         categoriasEvento,
         addCategoriaEvento,
         updateCategoriaEvento,

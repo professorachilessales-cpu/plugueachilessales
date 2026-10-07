@@ -535,7 +535,7 @@ export function ProfessorDashboard() {
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Controle de Aulas a Repor (Tolerância de 30 Dias)
+                Controle pessoal de Faltas
               </h2>
             </div>
           </div>

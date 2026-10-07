@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AppProvider } from '@/context/AppContext';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PwaRegister } from '@/components/pwa/PwaRegister';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -51,6 +52,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <AppProvider>
           <AppLayout>{children}</AppLayout>
+          <PwaRegister />
         </AppProvider>
       </body>
     </html>

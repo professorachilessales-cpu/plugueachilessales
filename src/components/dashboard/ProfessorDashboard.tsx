@@ -538,107 +538,149 @@ export function ProfessorDashboard() {
                 Controle de Aulas a Repor (Tolerância de 30 Dias)
               </h2>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Conforme as diretrizes pedagógicas, faltas justificadas ou de licença devem ser repostas no prazo máximo de 30 dias.
-            </p>
           </div>
+          {carregandoFaltas && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-school-blue-600 dark:text-school-gold-400" />
+              <span>Carregando dados...</span>
+            </div>
+          )}
         </div>
 
-        {reposicoesDoProfessor.length === 0 ? (
-          <p className="py-6 text-center text-xs text-slate-400">
-            Você não possui débitos de aulas pendentes de reposição.
-          </p>
+        {faltasDoProfessor.length === 0 ? (
+          <div className="py-12 text-center text-sm font-medium text-slate-500 dark:text-slate-400">
+            Nenhuma aula pendente de reposição registrada.
+          </div>
         ) : (
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {reposicoesDoProfessor.map((rep) => {
-              const ehVencido = rep.statusCalculado === 'Vencida';
-              const ehProximo = !ehVencido && rep.diasRestantes <= 5 && rep.statusCalculado === 'Pendente';
-              const ehNormal = !ehVencido && rep.diasRestantes > 5 && rep.statusCalculado === 'Pendente';
-              const ehReposta = rep.statusCalculado === 'Reposta';
+          <div className="mt-4">
+            <div className="overflow-x-auto rounded-xl border border-[#E2E8F0] dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#F8FAFC] dark:bg-slate-800/90 border-b border-[#E2E8F0] dark:border-slate-700 text-[#475569] dark:text-slate-300">
+                    <th scope="col" className="px-5 py-3.5 font-semibold text-xs tracking-wide">
+                      Data / Período
+                    </th>
+                    <th scope="col" className="px-5 py-3.5 font-semibold text-xs tracking-wide text-center">
+                      Total Devido
+                    </th>
+                    <th scope="col" className="px-5 py-3.5 font-semibold text-xs tracking-wide text-center sm:text-left">
+                      Apresentou Atestado Médico
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {faltasPaginadas.map((falta) => {
+                    const dataInicio = falta.data_inicio || falta.data_falta || '';
+                    const dataFim = falta.data_fim || dataInicio;
+                    const ehIntervalo = Boolean(dataFim && dataFim !== dataInicio);
+                    const totalDevido = Number(falta.aulas_totais_devidas || 1);
+                    const temAtestado = Boolean(falta.apresentou_atestado || falta.atestado_drive_url);
+                    const linkDrive = falta.atestado_drive_url;
 
-              return (
-                <div
-                  key={rep.id}
-                  className={`rounded-2xl border p-4.5 flex flex-col justify-between transition-all ${
-                    ehVencido
-                      ? 'border-rose-300 bg-rose-50/60 dark:border-rose-900 dark:bg-rose-950/30'
-                      : ehProximo
-                      ? 'border-amber-300 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/30'
-                      : ehReposta
-                      ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20'
-                      : 'border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-800/40'
+                    return (
+                      <tr 
+                        key={falta.id}
+                        className="bg-[#FFFFFF] dark:bg-slate-900/60 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 transition-colors"
+                      >
+                        {/* 1. Coluna Data / Período */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                            <span className="font-bold text-[#0F172A] dark:text-white text-xs">
+                              {ehIntervalo ? (
+                                <>
+                                  {formatarDataBr(dataInicio)} a {formatarDataBr(dataFim)}
+                                </>
+                              ) : (
+                                formatarDataBr(dataInicio)
+                              )}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 2. Coluna Total Devido */}
+                        <td className="px-5 py-4 whitespace-nowrap text-center">
+                          <span className="inline-flex items-center rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-bold text-[#0F172A] dark:text-slate-100 border border-slate-200/90 dark:border-slate-700 shadow-xs">
+                            {totalDevido} {totalDevido === 1 ? 'aula' : 'aulas'}
+                          </span>
+                        </td>
+
+                        {/* 3. Coluna Apresentou Atestado Médico */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          {temAtestado ? (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-800">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                Sim
+                              </span>
+                              {linkDrive && (
+                                <a
+                                  href={linkDrive}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-colors"
+                                  title="Visualizar documento de atestado no Google Drive"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  <span>Ver no Drive</span>
+                                  <ExternalLink className="h-2.5 w-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                              Não
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Rodapé com Navegação Paginada */}
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Mostrando <strong className="text-[#0F172A] dark:text-slate-200">{totalFaltas === 0 ? 0 : indiceInicioFaltas + 1}–{indiceFimFaltas}</strong> de{' '}
+                <strong className="text-[#0F172A] dark:text-slate-200">{totalFaltas}</strong> registros
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaginaFaltas((p) => Math.max(1, p - 1))}
+                  disabled={paginaValidaFaltas <= 1}
+                  className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition-all border ${
+                    paginaValidaFaltas <= 1
+                      ? 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-600 cursor-not-allowed'
+                      : 'border-slate-200 bg-white text-[#0F172A] hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 active:scale-95 shadow-xs cursor-pointer'
                   }`}
                 >
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-slate-900 dark:text-white">
-                        {rep.qtd_aulas_faltantes} aula(s) a repor
-                      </span>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <span>Anterior</span>
+                </button>
 
-                      {/* Badge / Cronômetro */}
-                      {ehVencido && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                          <AlertTriangle className="h-3 w-3" />
-                          Vencido ({Math.abs(rep.diasRestantes)}d atraso)
-                        </span>
-                      )}
-                      {ehProximo && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                          <Clock className="h-3 w-3" />
-                          Prazo Curto ({rep.diasRestantes}d restantes)
-                        </span>
-                      )}
-                      {ehNormal && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                          <CheckCircle2 className="h-3 w-3" />
-                          No Prazo ({rep.diasRestantes}d restantes)
-                        </span>
-                      )}
-                      {ehReposta && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-school-blue-700 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Reposta / Homologada
-                        </span>
-                      )}
-                    </div>
+                <span className="px-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  Página {paginaValidaFaltas} de {totalPaginasFaltas}
+                </span>
 
-                    <div className="mt-2 text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                      <p>
-                        Falta ocorrida em: <strong>{new Date(rep.data_falta + 'T00:00:00').toLocaleDateString('pt-BR')}</strong>
-                      </p>
-                      <p>
-                        Data limite (30 dias): <strong>{new Date(rep.data_limite_reposicao + 'T00:00:00').toLocaleDateString('pt-BR')}</strong>
-                      </p>
-                      {rep.data_execucao_reposicao && (
-                        <p className="text-[11px] text-blue-600 dark:text-blue-400">
-                          Ministrada em: {new Date(rep.data_execucao_reposicao + 'T00:00:00').toLocaleDateString('pt-BR')} ({rep.horario_reposicao})
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800">
-                    {rep.statusCalculado !== 'Reposta' ? (
-                      <button
-                        onClick={() => {
-                          setReposicaoSelecionada(rep);
-                          setModalReposicaoAberto(true);
-                        }}
-                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-school-blue-800 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 transition-colors"
-                      >
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>Registrar Reposição</span>
-                      </button>
-                    ) : (
-                      <div className="text-center text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center justify-center gap-1">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>Aguardando/Validado pela Direção</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                <button
+                  type="button"
+                  onClick={() => setPaginaFaltas((p) => Math.min(totalPaginasFaltas, p + 1))}
+                  disabled={paginaValidaFaltas >= totalPaginasFaltas}
+                  className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition-all border ${
+                    paginaValidaFaltas >= totalPaginasFaltas
+                      ? 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-600 cursor-not-allowed'
+                      : 'border-slate-200 bg-white text-[#0F172A] hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 active:scale-95 shadow-xs cursor-pointer'
+                  }`}
+                >
+                  <span>Próxima</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </section>

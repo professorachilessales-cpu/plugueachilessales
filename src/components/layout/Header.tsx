@@ -283,28 +283,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
               </div>
             )}
           </div>
-        ) : (
-          /* Sessão Ativa de Professor: Sem alternância de perfil e sem menu de simulação */
-          <div className="flex items-center gap-2">
-            <div 
-              className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-1.5 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-900/60 shadow-sm"
-              title={`Professor conectado: ${nomeExibicaoUsuario}`}
-            >
-              <GraduationCap className="h-4 w-4 text-amber-700 dark:text-school-gold-400 shrink-0" />
-              <span className="text-xs font-bold text-amber-900 dark:text-amber-200 truncate max-w-[190px]">
-                {nomeExibicaoUsuario}
-              </span>
-            </div>
-
-            <button
-              onClick={logout}
-              title="Encerrar Sessão"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:text-slate-400 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 transition-colors"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+        ) : null}
 
         {/* Botão de Atalho para Configurações (Apenas Administrador) */}
         {role === 'admin' && (

@@ -410,6 +410,18 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
     return (a.nome_completo || '').localeCompare(b.nome_completo || '', 'pt-BR', { sensitivity: 'base' });
   });
 
+  const totalAee = estudantesOrdenados.filter((e) => {
+    return e.aee === true || e.aee === 1 || String(e.aee).toLowerCase() === 'true' || String(e.aee).toLowerCase() === 'sim';
+  }).length;
+
+  const extraStatXml = totalAee > 0 ? `
+    <w:p>
+      <w:pPr><w:spacing w:before="40" w:after="0"/></w:pPr>
+      <w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="DC2626"/></w:rPr><w:t xml:space="preserve">Inclusão &amp; AEE: </w:t></w:r>
+      <w:r><w:rPr><w:sz w:val="18"/><w:color w:val="334155"/></w:rPr><w:t>${totalAee} estudante(s) com AEE destacado(s) com asterisco vermelho (*)</w:t></w:r>
+    </w:p>
+  ` : undefined;
+
   // Linhas da tabela de estudantes
   let linhasTabelaXml = '';
 
@@ -419,7 +431,7 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
         <w:tc>
           <w:tcPr>
             <w:tcW w:w="9900" w:type="dxa"/>
-            <w:gridSpan w:val="4"/>
+            <w:gridSpan w:val="3"/>
             <w:vAlign w:val="center"/>
           </w:tcPr>
           <w:p>
@@ -445,13 +457,13 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
       const bgCor = isEven ? 'FFFFFF' : 'F8FAFC';
       const numOrdem = String(index + 1).padStart(2, '0');
       const nomeUpper = (est.nome_completo || '').trim().toUpperCase();
-      const dataNasc = formatarDataNascimento(est.data_nascimento);
+      const isAee = est.aee === true || est.aee === 1 || String(est.aee).toLowerCase() === 'true' || String(est.aee).toLowerCase() === 'sim';
 
       return `
         <w:tr>
           <w:trPr>
             <w:cantSplit/>
-            <w:trHeight w:val="500" w:hRule="atLeast"/>
+            <w:trHeight w:val="560" w:hRule="atLeast"/>
           </w:trPr>
           <!-- Nº -->
           <w:tc>
@@ -475,10 +487,10 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
               </w:r>
             </w:p>
           </w:tc>
-          <!-- NOME DO ESTUDANTE -->
+          <!-- NOME DO ESTUDANTE (com * vermelho para AEE) -->
           <w:tc>
             <w:tcPr>
-              <w:tcW w:w="4800" w:type="dxa"/>
+              <w:tcW w:w="4100" w:type="dxa"/>
               <w:shd w:val="clear" w:color="auto" w:fill="${bgCor}"/>
               <w:vAlign w:val="center"/>
             </w:tcPr>
@@ -496,41 +508,29 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
                 </w:rPr>
                 <w:t xml:space="preserve">${escapeXml(nomeUpper)}</w:t>
               </w:r>
-            </w:p>
-          </w:tc>
-          <!-- DATA DE NASCIMENTO -->
-          <w:tc>
-            <w:tcPr>
-              <w:tcW w:w="1700" w:type="dxa"/>
-              <w:shd w:val="clear" w:color="auto" w:fill="${bgCor}"/>
-              <w:vAlign w:val="center"/>
-            </w:tcPr>
-            <w:p>
-              <w:pPr>
-                <w:jc w:val="center"/>
-                <w:spacing w:before="60" w:after="60"/>
-              </w:pPr>
+              ${isAee ? `
               <w:r>
                 <w:rPr>
                   <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
-                  <w:sz w:val="18"/>
-                  <w:color w:val="334155"/>
+                  <w:b/>
+                  <w:sz w:val="22"/>
+                  <w:color w:val="DC2626"/>
                 </w:rPr>
-                <w:t>${escapeXml(dataNasc)}</w:t>
-              </w:r>
+                <w:t xml:space="preserve"> *</w:t>
+              </w:r>` : ''}
             </w:p>
           </w:tc>
-          <!-- ESPAÇO PARA ASSINATURA -->
+          <!-- ESPAÇO PARA ASSINATURA (AMPLIADO) -->
           <w:tc>
             <w:tcPr>
-              <w:tcW w:w="2800" w:type="dxa"/>
+              <w:tcW w:w="5200" w:type="dxa"/>
               <w:shd w:val="clear" w:color="auto" w:fill="${bgCor}"/>
               <w:vAlign w:val="bottom"/>
             </w:tcPr>
             <w:p>
               <w:pPr>
                 <w:jc w:val="center"/>
-                <w:spacing w:before="140" w:after="30"/>
+                <w:spacing w:before="160" w:after="30"/>
               </w:pPr>
               <w:r>
                 <w:rPr>
@@ -538,7 +538,7 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
                   <w:sz w:val="18"/>
                   <w:color w:val="94A3B8"/>
                 </w:rPr>
-                <w:t>____________________________</w:t>
+                <w:t>__________________________________________________</w:t>
               </w:r>
             </w:p>
           </w:tc>
@@ -584,7 +584,7 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
     </w:p>
 
     <!-- Caixa de Identificação da Turma -->
-    ${renderBoxDadosTurmaXml(turma, estudantesOrdenados.length, dataHoraEmissao)}
+    ${renderBoxDadosTurmaXml(turma, estudantesOrdenados.length, dataHoraEmissao, extraStatXml)}
 
     <!-- Espaço antes da tabela -->
     <w:p>
@@ -612,7 +612,7 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
           <w:right w:w="100" w:type="dxa"/>
         </w:tblCellMar>
       </w:tblPr>
-      <!-- Cabeçalho da Tabela -->
+      <!-- Cabeçalho da Tabela (3 Colunas: Nº, NOME DO ESTUDANTE, ASSINATURA) -->
       <w:tr>
         <w:trPr>
           <w:tblHeader/>
@@ -642,7 +642,7 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
         </w:tc>
         <w:tc>
           <w:tcPr>
-            <w:tcW w:w="4800" w:type="dxa"/>
+            <w:tcW w:w="4100" w:type="dxa"/>
             <w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/>
             <w:vAlign w:val="center"/>
           </w:tcPr>
@@ -664,29 +664,7 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
         </w:tc>
         <w:tc>
           <w:tcPr>
-            <w:tcW w:w="1700" w:type="dxa"/>
-            <w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/>
-            <w:vAlign w:val="center"/>
-          </w:tcPr>
-          <w:p>
-            <w:pPr>
-              <w:jc w:val="center"/>
-              <w:spacing w:before="60" w:after="60"/>
-            </w:pPr>
-            <w:r>
-              <w:rPr>
-                <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
-                <w:b/>
-                <w:sz w:val="18"/>
-                <w:color w:val="FFFFFF"/>
-              </w:rPr>
-              <w:t>DATA DE NASC.</w:t>
-            </w:r>
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr>
-            <w:tcW w:w="2800" w:type="dxa"/>
+            <w:tcW w:w="5200" w:type="dxa"/>
             <w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/>
             <w:vAlign w:val="center"/>
           </w:tcPr>
@@ -709,6 +687,32 @@ export function generateTurmaListaAssinaturaDocx(options: TurmaDocxOptions): Buf
       </w:tr>
       ${linhasTabelaXml}
     </w:tbl>
+
+    <!-- Legenda para Estudantes AEE -->
+    ${totalAee > 0 ? `
+    <w:p>
+      <w:pPr>
+        <w:spacing w:before="80" w:after="80"/>
+      </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:b/>
+          <w:sz w:val="18"/>
+          <w:color w:val="DC2626"/>
+        </w:rPr>
+        <w:t xml:space="preserve">(*) </w:t>
+      </w:r>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+          <w:i/>
+          <w:sz w:val="16"/>
+          <w:color w:val="475569"/>
+        </w:rPr>
+        <w:t>Identifica estudante com Atendimento Educacional Especializado (AEE).</w:t>
+      </w:r>
+    </w:p>` : ''}
 
     <!-- Bloco de Fechamento e Assinaturas -->
     <w:p>

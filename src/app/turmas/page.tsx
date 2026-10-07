@@ -547,7 +547,7 @@ export default function TurmasPage() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      const descTipo = tipo === 'assinatura' ? 'com espaço para assinatura' : 'cadastral com AEE e CPF';
+      const descTipo = tipo === 'assinatura' ? 'com espaço para assinatura ampliado e destaque AEE (*)' : 'cadastral com AEE e CPF';
       setFeedbackMsg({
         tipo: 'sucesso',
         texto: `Listagem DOCX (${descTipo}) da turma "${turma.nome}" gerada com sucesso! (${alunosTurma.length} estudantes).`,
@@ -1002,7 +1002,7 @@ export default function TurmasPage() {
                       handleExportarDocx(turma, 'assinatura');
                     }}
                     className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 px-2 py-1.5 text-[11px] font-bold text-school-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs group disabled:opacity-60"
-                    title="Imprimir listagem com estudantes em ordem alfabética, data de nascimento e espaço para assinatura (DOCX)"
+                    title="Imprimir listagem com estudantes em ordem alfabética, destaque AEE (*) e espaço ampliado para assinatura (DOCX)"
                   >
                     {gerandoDocx === `${turma.id}-assinatura` ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-school-blue-600 dark:text-school-gold-400 shrink-0" />
@@ -1089,7 +1089,7 @@ export default function TurmasPage() {
                 disabled={gerandoDocx === `${turmaSelecionada.id}-assinatura`}
                 onClick={() => handleExportarDocx(turmaSelecionada, 'assinatura')}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-1.5 text-xs font-bold text-school-blue-900 hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs disabled:opacity-60"
-                title="Imprimir listagem com estudantes em ordem alfabética, data de nascimento e espaço para assinatura (DOCX)"
+                title="Imprimir listagem com estudantes em ordem alfabética, destaque AEE (*) e espaço ampliado para assinatura (DOCX)"
               >
                 {gerandoDocx === `${turmaSelecionada.id}-assinatura` ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-school-blue-600 dark:text-school-gold-400 shrink-0" />

@@ -37,7 +37,7 @@ import Link from 'next/link';
 import { AniversariantesSection } from '@/components/dashboard/AniversariantesSection';
 import { ProfessorDashboard } from '@/components/dashboard/ProfessorDashboard';
 import { formatarTelefone, isCpfEstudanteSemDocumento } from '@/lib/validations';
-import { calcularAusenciasVigentesHoje } from '@/lib/ausencias-service';
+import { calcularAusenciasVigentesHoje, normalizarTexto } from '@/lib/ausencias-service';
 
 const MODELOS_WHATSAPP_INCLUSAO_PADRAO = {
   inclusao_aee: 'Olá {Responsável}, tudo bem? Aqui é da coordenação de Inclusão Escolar (PLUGUE). Estamos entrando em contato para compartilhar o andamento do plano pedagógico e atendimento AEE de {Aluno} ({Turma}). Gostaríamos de alinhar os próximos passos com a família. Contamos com sua parceria!',
@@ -596,6 +596,171 @@ export default function DashboardPage() {
     return calcularAusenciasVigentesHoje(faltasProfessores, turmas, professores);
   }, [faltasProfessores, turmas, professores]);
 
+  // 5. Frequência do Docente: Débito de Reposições, Prazos (Regra 30d) e Professores Devedores
+  const { 
+    totalSomaSaldoDevedor, 
+    totalVencendo, 
+    totalVencidas, 
+    professoresComSaldoDevedor 
+  } = useMemo(() => {
+    const agoraMs = Date.now();
+
+    type ItemDocenteDebito = {
+      id: string;
+      nome: string;
+      matricula?: string;
+      disciplinas?: string[];
+      totalDevido: number;
+      aulasPagas: number;
+      aulasAbonadas: number;
+      saldoDevedor: number;
+      diasLimiteRestantes?: number;
+      dataLimiteFmt?: string;
+      prazoExpirado: boolean;
+      prazoVencendo: boolean;
+      repPendenteId?: string;
+    };
+
+    const mapaDocentes = new Map<string, ItemDocenteDebito>();
+
+    // Helper: identifica se o colaborador é um docente ativo com funcao_tipo = 'PROFESSOR'
+    const isDocenteAtivo = (prof: any): boolean => {
+      // 1. Status ativo: status = 'ativo' ou ativo === true ou ativo !== false (e status !== 'inativo')
+      const isStatusAtivo = prof?.status === 'ativo' || prof?.ativo === true || (prof?.ativo !== false && prof?.status !== 'inativo');
+      // 2. Função tipo: funcao_tipo = 'PROFESSOR' (ou padrão 'PROFESSOR' se não for funcionário ou administrativo)
+      const isFuncaoProfessor = prof?.funcao_tipo === 'PROFESSOR' || (!prof?.funcao_tipo && prof?.tipo_profissional !== 'funcionario' && !prof?.eh_administrativo);
+      return Boolean(isStatusAtivo && isFuncaoProfessor);
+    };
+
+    // 1. Inicializa APENAS professores ativos com funcao_tipo = 'PROFESSOR'
+    (professores || []).forEach((prof) => {
+      if (!isDocenteAtivo(prof)) return;
+      mapaDocentes.set(prof.id, {
+        id: prof.id,
+        nome: prof.nome_completo,
+        matricula: prof.matricula,
+        disciplinas: prof.disciplinas,
+        totalDevido: 0,
+        aulasPagas: 0,
+        aulasAbonadas: 0,
+        saldoDevedor: 0,
+        prazoExpirado: false,
+        prazoVencendo: false,
+      });
+    });
+
+    // 2. Acumula débitos a partir de faltasProfessores apenas para os docentes ativos mapeados
+    (faltasProfessores || []).forEach((falta) => {
+      let doc = falta.professor_id ? mapaDocentes.get(falta.professor_id) : undefined;
+      if (!doc && falta.professor_nome) {
+        const nomeNorm = normalizarTexto(falta.professor_nome);
+        for (const entry of mapaDocentes.values()) {
+          if (normalizarTexto(entry.nome) === nomeNorm) {
+            doc = entry;
+            break;
+          }
+        }
+      }
+
+      // Se não for um docente ativo cadastrado com funcao_tipo = 'PROFESSOR', ignora
+      if (!doc) return;
+
+      const devidas = Number(falta.aulas_totais_devidas ?? falta.aulas_faltadas ?? 0);
+      const pagas = Number(falta.aulas_pagas ?? 0);
+      const abonadas = Number(falta.aulas_abonadas ?? 0);
+      const saldoFalta = Math.max(0, devidas - (pagas + abonadas));
+
+      doc.totalDevido += devidas;
+      doc.aulasPagas += pagas;
+      doc.aulasAbonadas += abonadas;
+
+      // Regra dos 30 dias para ausências com saldo em aberto
+      if (saldoFalta > 0) {
+        const dataRef = falta.data_inicio || falta.data_falta;
+        if (dataRef) {
+          const dtFalta = new Date(dataRef + 'T00:00:00');
+          const dtLimite = new Date(dtFalta);
+          dtLimite.setDate(dtLimite.getDate() + 30);
+          const diffDias = Math.ceil((dtLimite.getTime() - agoraMs) / (1000 * 60 * 60 * 24));
+
+          if (diffDias < 0) {
+            doc.prazoExpirado = true;
+          } else if (diffDias <= 5) {
+            doc.prazoVencendo = true;
+          }
+
+          if (doc.diasLimiteRestantes === undefined || diffDias < doc.diasLimiteRestantes) {
+            doc.diasLimiteRestantes = diffDias;
+            doc.dataLimiteFmt = dtLimite.toLocaleDateString('pt-BR');
+          }
+        }
+      }
+    });
+
+    // 3. Vincula reposições pendentes legadas (reposicoesAulas) para docentes ativos
+    (reposicoesAulas || []).forEach((rep) => {
+      if (rep.status !== 'Pendente') return;
+      let doc = rep.professor_id ? mapaDocentes.get(rep.professor_id) : undefined;
+      if (!doc) {
+        const p = (professores || []).find((pr) => pr.id === rep.professor_id);
+        if (p) doc = mapaDocentes.get(p.id);
+      }
+
+      if (doc) {
+        if (!doc.repPendenteId) {
+          doc.repPendenteId = rep.id;
+        }
+        if (rep.data_limite_reposicao) {
+          const dtLimite = new Date(rep.data_limite_reposicao + 'T00:00:00');
+          const diffDias = Math.ceil((dtLimite.getTime() - agoraMs) / (1000 * 60 * 60 * 24));
+          if (diffDias < 0) doc.prazoExpirado = true;
+          else if (diffDias <= 5) doc.prazoVencendo = true;
+
+          if (doc.diasLimiteRestantes === undefined || diffDias < doc.diasLimiteRestantes) {
+            doc.diasLimiteRestantes = diffDias;
+            doc.dataLimiteFmt = dtLimite.toLocaleDateString('pt-BR');
+          }
+        }
+      }
+    });
+
+    // 4. Calcula saldo devedor individual e consolida totais:
+    // Total A Repor = sum(Total de Aulas Devidas - (Aulas Pagas + Aulas Abonadas))
+    const listaComDebito: ItemDocenteDebito[] = [];
+    let somaSaldo = 0;
+    let countVencendo = 0;
+    let countVencidas = 0;
+
+    mapaDocentes.forEach((doc) => {
+      doc.saldoDevedor = Math.max(0, doc.totalDevido - (doc.aulasPagas + doc.aulasAbonadas));
+      if (doc.saldoDevedor > 0) {
+        somaSaldo += doc.saldoDevedor;
+        listaComDebito.push(doc);
+
+        if (doc.prazoExpirado) {
+          countVencidas += 1;
+        } else if (doc.prazoVencendo) {
+          countVencendo += 1;
+        }
+      }
+    });
+
+    // 5. Ordenação: estritamente decrescente pelo volume de aulas devidas (do professor com maior débito para o menor)
+    listaComDebito.sort((a, b) => {
+      if (b.saldoDevedor !== a.saldoDevedor) {
+        return b.saldoDevedor - a.saldoDevedor;
+      }
+      return a.nome.localeCompare(b.nome);
+    });
+
+    return {
+      totalSomaSaldoDevedor: somaSaldo,
+      totalVencendo: countVencendo,
+      totalVencidas: countVencidas,
+      professoresComSaldoDevedor: listaComDebito,
+    };
+  }, [professores, faltasProfessores, reposicoesAulas]);
+
   // Se o usuário ativo for Professor, exibe o painel docente exclusivo com Banner de Alertas Críticos
   if (role === 'professor') {
     return <ProfessorDashboard />;
@@ -778,98 +943,139 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Card 2: Frequência Docente & Reposições (Regra 30 Dias) */}
-        <div className="isometric-card rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50/40 via-white to-amber-50/30 p-6 border-t-2 border-t-white/90 dark:border-t-rose-900/50 dark:border-rose-900/50 dark:bg-school-dark-surface dark:from-slate-900/50">
-          <div className="flex items-center justify-between border-b border-rose-100 pb-4 dark:border-rose-950">
-            <div className="flex items-center gap-3">
-              <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-700 text-white shadow-md shadow-rose-600/30">
-                <Clock className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Frequência Docente & Reposições (Regra 30d)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Tolerância de 30 dias para aulas de reposição e atestados
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/professores"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 dark:bg-rose-950/80 dark:text-rose-300 dark:hover:bg-rose-900 transition-colors"
-            >
-              <span>Ver Docentes</span>
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-rose-100 bg-white/80 p-3.5 dark:border-rose-900/40 dark:bg-slate-800/60">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">
-                A Repor
-              </span>
-              <div className="mt-1 text-2xl font-black text-rose-600 dark:text-rose-400">
-                {reposicoesAulas?.filter(r => r.status === 'Pendente').reduce((acc, curr) => acc + curr.qtd_aulas_faltantes, 0) || 0}
-              </div>
-              <span className="text-[10px] text-slate-500">Aulas pendentes</span>
-            </div>
-
-            <div className="rounded-xl border border-amber-100 bg-white/80 p-3.5 dark:border-amber-900/40 dark:bg-slate-800/60">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                Vencendo
-              </span>
-              <div className="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
-                {reposicoesAulas?.filter(r => {
-                  if (r.status !== 'Pendente') return false;
-                  const diff = Math.ceil((new Date(r.data_limite_reposicao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                  return diff >= 0 && diff <= 5;
-                }).length || 0}
-              </div>
-              <span className="text-[10px] text-slate-500">≤ 5 dias restantes</span>
-            </div>
-
-            <div className="rounded-xl border border-red-200 bg-red-50/60 p-3.5 dark:border-red-900/50 dark:bg-red-950/40">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
-                Vencidas
-              </span>
-              <div className="mt-1 text-2xl font-black text-red-600 dark:text-red-400">
-                {reposicoesAulas?.filter(r => {
-                  if (r.status !== 'Pendente') return false;
-                  const diff = Math.ceil((new Date(r.data_limite_reposicao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                  return diff < 0;
-                }).length || 0}
-              </div>
-              <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">Prazo expirado</span>
-            </div>
-          </div>
-
-          {/* Reposições aguardando homologação */}
-          <div className="mt-4 space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Reposições Pendentes de Homologação:
-            </span>
-            {reposicoesAulas?.filter(r => r.status === 'Pendente').slice(0, 2).map((rep) => {
-              const prof = professores.find(p => p.id === rep.professor_id);
-              const diffDias = Math.ceil((new Date(rep.data_limite_reposicao).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-              const vencida = diffDias < 0;
-              return (
-                <div key={rep.id} className="flex items-center justify-between rounded-xl bg-white/90 p-2.5 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-xs">
-                  <div>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{prof?.nome_completo || 'Professor'}</span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                      {rep.qtd_aulas_faltantes} aula(s) • Limite: {new Date(rep.data_limite_reposicao + 'T00:00:00').toLocaleDateString('pt-BR')} 
-                      {' '}({vencida ? <strong className="text-red-600">Vencido</strong> : `${diffDias}d restantes`})
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => homologarReposicaoAula(rep.id)}
-                    className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition-colors"
-                  >
-                    Homologar
-                  </button>
+        {/* Card 2: Frequência do Docente */}
+        <div className="isometric-card rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50/40 via-white to-amber-50/30 p-6 border-t-2 border-t-white/90 dark:border-t-rose-900/50 dark:border-rose-900/50 dark:bg-school-dark-surface dark:from-slate-900/50 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between border-b border-rose-100 pb-4 dark:border-rose-950">
+              <div className="flex items-center gap-3">
+                <div className="isometric-icon-3d flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-700 text-white shadow-md shadow-rose-600/30">
+                  <Clock className="h-5 w-5" />
                 </div>
-              );
-            })}
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Frequência do Docente
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Tolerância de 30 dias para aulas de reposição e atestados
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/professores?tab=reposicoes"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 dark:bg-rose-950/80 dark:text-rose-300 dark:hover:bg-rose-900 transition-colors"
+              >
+                <span>Ver Docentes</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="rounded-xl border border-rose-100 bg-white/80 p-3.5 dark:border-rose-900/40 dark:bg-slate-800/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">
+                  A Repor
+                </span>
+                <div className="mt-1 text-2xl font-black text-rose-600 dark:text-rose-400">
+                  {totalSomaSaldoDevedor}
+                </div>
+                <span className="text-[10px] text-slate-500">Saldo devedor total</span>
+              </div>
+
+              <div className="rounded-xl border border-amber-100 bg-white/80 p-3.5 dark:border-amber-900/40 dark:bg-slate-800/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                  Vencendo
+                </span>
+                <div className="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
+                  {totalVencendo}
+                </div>
+                <span className="text-[10px] text-slate-500">≤ 5 dias restantes</span>
+              </div>
+
+              <div className="rounded-xl border border-red-200 bg-red-50/60 p-3.5 dark:border-red-900/50 dark:bg-red-950/40">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+                  Vencidas
+                </span>
+                <div className="mt-1 text-2xl font-black text-red-600 dark:text-red-400">
+                  {totalVencidas}
+                </div>
+                <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">Prazo expirado</span>
+              </div>
+            </div>
+
+            {/* Reposições Pendentes: Lista de Professores com saldo devedor e total de aulas devidas */}
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Reposições Pendentes:
+                </span>
+                {professoresComSaldoDevedor.length > 0 && (
+                  <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                    {professoresComSaldoDevedor.length} docente{professoresComSaldoDevedor.length > 1 ? 's' : ''} • {totalSomaSaldoDevedor} aula{totalSomaSaldoDevedor > 1 ? 's' : ''} a repor
+                  </span>
+                )}
+              </div>
+
+              {professoresComSaldoDevedor.length === 0 ? (
+                <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50/80 p-3.5 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-900/40">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span className="font-medium">Nenhum débito de reposição pendente. Todas as aulas devidas foram regularizadas.</span>
+                </div>
+              ) : (
+                <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
+                  {professoresComSaldoDevedor.map((docente) => (
+                    <div
+                      key={docente.id}
+                      className="flex items-center justify-between rounded-xl bg-white/90 p-2.5 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-xs gap-3 shadow-xs hover:border-rose-300 dark:hover:border-rose-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-black text-xs">
+                          {docente.nome.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-medium text-slate-900 dark:text-white block truncate">
+                            {docente.nome}
+                          </span>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-1.5 mt-0.5">
+                            {docente.dataLimiteFmt && (
+                              <span>Limite: {docente.dataLimiteFmt}</span>
+                            )}
+                            {docente.prazoExpirado ? (
+                              <strong className="text-red-600 dark:text-red-400 font-bold">
+                                (Vencido)
+                              </strong>
+                            ) : docente.diasLimiteRestantes !== undefined ? (
+                              <span>({docente.diasLimiteRestantes}d restantes)</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 shadow-xs">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                          {docente.saldoDevedor} {docente.saldoDevedor === 1 ? 'aula a repor' : 'aulas a repor'}
+                        </span>
+                        {docente.repPendenteId && (
+                          <button
+                            onClick={() => homologarReposicaoAula(docente.repPendenteId!)}
+                            className="rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition-colors"
+                            title="Homologar reposição pendente deste docente"
+                          >
+                            Homologar
+                          </button>
+                        )}
+                        <Link
+                          href={`/professores?tab=reposicoes&busca=${encodeURIComponent(docente.nome)}&professor=${encodeURIComponent(docente.id)}`}
+                          title={`Ver débitos e ficha de ${docente.nome}`}
+                          className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-rose-900/60 dark:hover:text-rose-300 transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

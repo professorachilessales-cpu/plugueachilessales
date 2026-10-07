@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { 
   UserCheck, 
@@ -169,6 +169,26 @@ export default function ProfessoresPage() {
   } = useApp();
 
   const [abaAtiva, setAbaAtiva] = useState<'docentes' | 'faltas' | 'reposicoes' | 'atestados'>('docentes');
+
+  // Sincroniza aba inicial a partir da URL (?tab=reposicoes, etc.)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab === 'reposicoes' || tab === 'faltas' || tab === 'atestados' || tab === 'docentes') {
+        setAbaAtiva(tab);
+      }
+      const busca = params.get('busca');
+      if (busca) {
+        setBuscaDebito(busca);
+        setBuscaTermo(busca);
+      }
+      const profId = params.get('professor');
+      if (profId) {
+        setDocentesExpandidosDebito((prev) => ({ ...prev, [profId]: true }));
+      }
+    }
+  }, []);
   // Controle de Categoria do Quadro Funcional: 'docentes' | 'funcionarios' | 'todos'
   const [categoriaFiltro, setCategoriaFiltro] = useState<'docentes' | 'funcionarios' | 'todos'>('docentes');
   // Controle de filtro de status: 'ativos' (padrão inicial), 'inativos', 'todos'

@@ -9,7 +9,6 @@ import {
   GraduationCap, 
   School, 
   Menu,
-  Sliders,
   ChevronDown,
   UserCheck,
   Bell,
@@ -178,17 +177,6 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
           <span className="hidden sm:inline">Alterar Senha</span>
         </button>
 
-        {/* Botão de Atalho para Configurações (Apenas Administrador) */}
-        {role === 'admin' && (
-          <Link
-            href="/configuracoes"
-            title="Configurações do Sistema"
-            className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-          >
-            <Sliders className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-            <span>Configurações</span>
-          </Link>
-        )}
 
         {/* Notificações de Pareceres Entregues para Admin / Direção */}
         {(role === 'admin' || role === 'direcao') && (

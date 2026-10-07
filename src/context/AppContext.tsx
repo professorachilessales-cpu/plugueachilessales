@@ -228,8 +228,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [simulatedProfessor, setSimulatedProfessor] = useState<Professor | null>(null);
   const isSimulating = Boolean(simulatedProfessor);
 
-  // O administrador possui permissão total de alternância. O professor logado não pode alternar para outro perfil.
-  const isAdminSession = authenticatedUser ? authenticatedUser.role === 'admin' : (role === 'admin');
+  // O administrador e a direção possuem permissão total de alternância. O professor logado não pode alternar para outro perfil.
+  const isAdminSession = authenticatedUser 
+    ? (authenticatedUser.role === 'admin' || (authenticatedUser.role as string) === 'direcao') 
+    : (role === 'admin' || role === 'direcao');
+
+  // Sincronização de cookies seguros de sessão para Next.js Middleware e Server Components
+  const syncAuthCookies = (userRole?: string, funcaoTipo?: string) => {
+    if (typeof document === 'undefined') return;
+    const maxAge = 7 * 24 * 60 * 60; // 7 dias
+    if (userRole) {
+      document.cookie = `plugue_user_role=${userRole}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    }
+    if (funcaoTipo) {
+      document.cookie = `plugue_funcao_tipo=${funcaoTipo}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    }
+  };
+
+  const clearAuthCookies = () => {
+    if (typeof document === 'undefined') return;
+    document.cookie = 'plugue_user_role=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'plugue_funcao_tipo=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'plugue_access_token=; path=/; max-age=0; SameSite=Lax';
+  };
 
   const setAuthenticatedUser = (user: SystemUser | null) => {
     setAuthenticatedUserState(user);
@@ -237,6 +258,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         sessionStorage.setItem('plugue_auth_user', JSON.stringify(user));
       } catch {}
+      syncAuthCookies(user.role, user.funcao_tipo);
     } else {
       try {
         sessionStorage.removeItem('plugue_auth_user');
@@ -321,6 +343,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
           setCurrentUserState(parsedUser);
           setRoleState(parsedUser.role);
+          syncAuthCookies(parsedUser.role, parsedUser.funcao_tipo);
           if (!authUserJson) {
             setAuthenticatedUserState(parsedUser);
           }
@@ -354,8 +377,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Perfil
       const savedRole = localStorage.getItem('school_os_role') as UserRole | null;
-      if (savedRole && (savedRole === 'admin' || savedRole === 'professor')) {
+      if (savedRole && (savedRole === 'admin' || savedRole === 'direcao' || savedRole === 'professor')) {
         setRoleState(savedRole);
+        syncAuthCookies(savedRole);
       }
 
       // Config Escola
@@ -922,6 +946,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentUserState(user);
     setRoleState(user.role);
     setIsAuthenticated(true);
+    syncAuthCookies(user.role, user.funcao_tipo);
     if (!authenticatedUser) {
       setAuthenticatedUserState(user);
     }
@@ -963,6 +988,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       // ignore
     }
+
+    clearAuthCookies();
 
     setSimulatedProfessor(null);
     setAuthenticatedUserState(null);
@@ -1009,6 +1036,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setCurrentUserState(simUser);
     setRoleState(roleForProf);
+    syncAuthCookies(roleForProf, professor.funcao_tipo || 'PROFESSOR');
     try {
       sessionStorage.setItem('plugue_session_user', JSON.stringify(simUser));
       sessionStorage.setItem('plugue_session_active', 'true');
@@ -1031,6 +1059,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (originalAdmin) {
       setCurrentUserState(originalAdmin);
       setRoleState(originalAdmin.role);
+      syncAuthCookies(originalAdmin.role, originalAdmin.funcao_tipo);
       try {
         sessionStorage.setItem('plugue_session_user', JSON.stringify(originalAdmin));
       } catch {}
@@ -1038,6 +1067,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const fallbackAdmin = users.find(u => u.role === 'admin') || initialUsers[0];
       setCurrentUserState(fallbackAdmin);
       setRoleState('admin');
+      syncAuthCookies('admin', fallbackAdmin.funcao_tipo);
       try {
         sessionStorage.setItem('plugue_session_user', JSON.stringify(fallbackAdmin));
       } catch {}
@@ -1056,11 +1086,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     setRoleState(newRole);
+    syncAuthCookies(newRole);
     localStorage.setItem('school_os_role', newRole);
     // Sincroniza currentUser para um usuário com essa role
     const matchingUser = users.find((u) => u.role === newRole && u.is_active);
     if (matchingUser) {
       setCurrentUserState(matchingUser);
+      syncAuthCookies(newRole, matchingUser.funcao_tipo);
       localStorage.setItem('school_os_current_user_id', matchingUser.id);
     }
 

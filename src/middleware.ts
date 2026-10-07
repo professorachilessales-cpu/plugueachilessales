@@ -33,10 +33,12 @@ export function middleware(req: NextRequest) {
 
   const isAdmin = 
     userRole === 'admin' || 
+    userRole === 'direcao' ||
     funcaoTipo === 'ADMINISTRATIVO' || 
-    headerRole === 'admin';
+    headerRole === 'admin' ||
+    headerRole === 'direcao';
 
-  // 2. Proteção de Rotas de API Sensíveis (Responde 403 Forbidden se não for Admin)
+  // 2. Proteção de Rotas de API Sensíveis (Responde 403 Forbidden se não for Admin/Direção)
   const isRestrictedApi = ROTAS_API_RESTRITAS.some((prefix) =>
     pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
@@ -59,10 +61,23 @@ export function middleware(req: NextRequest) {
     pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 
-  if (isRestrictedPage && !isAdmin) {
-    // Funcionários de apoio geral vão para o Fotograma, professores para o Dashboard
-    const destino = funcaoTipo === 'GERAL' ? '/fotograma' : '/dashboard';
-    return NextResponse.redirect(new URL(destino, req.url));
+  if (isRestrictedPage) {
+    // Administradores e Direção têm permissão total de acesso
+    if (isAdmin) {
+      return NextResponse.next();
+    }
+
+    // Se o usuário estiver explicitamente autenticado como docente ou apoio geral, redireciona
+    const isExplicitlyUnauthorized = userRole === 'professor' || funcaoTipo === 'GERAL';
+    if (isExplicitlyUnauthorized) {
+      // Funcionários de apoio geral vão para o Fotograma, professores para o Dashboard
+      const destino = funcaoTipo === 'GERAL' ? '/fotograma' : '/dashboard';
+      return NextResponse.redirect(new URL(destino, req.url));
+    }
+
+    // Caso não haja cookies na requisição (sessão mantida em localStorage/sessionStorage),
+    // permite a renderização da página para que o RouteGuard valide o acesso reativo no cliente.
+    return NextResponse.next();
   }
 
   // 4. Bloqueio de dashboard para funcionários Não Administrativos / Apoio (funcao_tipo = 'GERAL')

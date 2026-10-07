@@ -107,7 +107,15 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Determinação de Perfis e Escopos de Acesso
-    // Perfil Administrador: Ativado se is_admin = true OU funcao_tipo = 'ADMINISTRATIVO'
+    // Identifica se é Direção Escolar
+    const isDirecao = Boolean(
+      colaborador.role === 'direcao' ||
+      (colaborador.formacao && String(colaborador.formacao).toLowerCase().includes('diretor')) ||
+      (colaborador.funcao_escola && String(colaborador.funcao_escola).toLowerCase().includes('diretor')) ||
+      (Array.isArray(colaborador.disciplinas) && colaborador.disciplinas.some((d: any) => String(d).toLowerCase().includes('diretor')))
+    );
+
+    // Perfil Administrador: Ativado se is_admin = true OU funcao_tipo = 'ADMINISTRATIVO' OU Direção Escolar
     const isAdmin = Boolean(
       colaborador.is_admin === 1 || 
       colaborador.is_admin === true || 
@@ -115,11 +123,13 @@ export async function POST(req: NextRequest) {
       colaborador.funcao_tipo === 'ADMINISTRATIVO' ||
       colaborador.eh_administrativo === 1 ||
       colaborador.funcao_escola === 'Administrativo' ||
+      colaborador.role === 'admin' ||
+      isDirecao ||
       loginCpf === '00000000000'
     );
 
     let funcaoTipo: 'ADMINISTRATIVO' | 'GERAL' | 'PROFESSOR' = 'PROFESSOR';
-    if (isAdmin) {
+    if (isAdmin || isDirecao) {
       funcaoTipo = 'ADMINISTRATIVO';
     } else if (
       colaborador.funcao_tipo === 'GERAL' ||
@@ -131,7 +141,7 @@ export async function POST(req: NextRequest) {
       funcaoTipo = 'PROFESSOR';
     }
 
-    const role: 'admin' | 'professor' = isAdmin ? 'admin' : 'professor';
+    const role: 'admin' | 'direcao' | 'professor' = isDirecao ? 'direcao' : isAdmin ? 'admin' : 'professor';
 
     // 4. Fluxo de validação de senha
     // Se senha_hash IS NULL: valida se a senha digitada é igual ao CPF limpo
@@ -184,7 +194,7 @@ export async function POST(req: NextRequest) {
 
     // 7. Módulos Permitidos conforme a matriz
     let allowedModules = ['PROFILE', 'FOTOGRAMA', 'CALENDARIO', 'RELATORIOS'];
-    if (isAdmin) {
+    if (isAdmin || role === 'direcao') {
       allowedModules = ['PROFILE', 'FOTOGRAMA', 'CALENDARIO', 'RELATORIOS', 'AUDITORIA', 'CONFIGURACOES', 'ESTUDANTES', 'TURMAS', 'PROFESSORES'];
     } else if (funcaoTipo === 'GERAL') {
       // Acesso restrito a Fotograma e Calendário

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { 
   X, 
@@ -9,7 +9,6 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Calendar, 
-  Clock, 
   FolderTree, 
   Loader2 
 } from 'lucide-react';
@@ -19,18 +18,51 @@ interface ModalAnexarAtestadoProps {
   isOpen: boolean;
   onClose: () => void;
   professor: Professor;
+  faltas?: any[];
+  onSuccess?: () => void;
+}
+
+/**
+ * Converte data ISO ('YYYY-MM-DD' ou 'YYYY-MM-DDTHH:mm:ss...') para formato brasileiro 'DD/MM/AAAA'
+ */
+function formatarDataIsoParaBr(dataIso?: string): string {
+  if (!dataIso) return '';
+  const limpo = dataIso.split('T')[0];
+  const partes = limpo.split('-');
+  if (partes.length === 3) {
+    return `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
+  }
+  return dataIso;
+}
+
+/**
+ * Calcula a quantidade de dias entre duas datas ISO no formato YYYY-MM-DD (inclusivo)
+ */
+function calcularDiasEntreDatas(d1Str: string, d2Str: string): number {
+  if (!d1Str || !d2Str) return 1;
+  const p1 = d1Str.split('T')[0].split('-').map(Number);
+  const p2 = d2Str.split('T')[0].split('-').map(Number);
+  if (p1.length < 3 || p2.length < 3) return 1;
+  const t1 = new Date(p1[0], p1[1] - 1, p1[2]).getTime();
+  const t2 = new Date(p2[0], p2[1] - 1, p2[2]).getTime();
+  if (t2 >= t1) {
+    return Math.round((t2 - t1) / (1000 * 60 * 60 * 24)) + 1;
+  }
+  return 1;
 }
 
 export function ModalAnexarAtestado({
   isOpen,
   onClose,
   professor,
+  faltas,
+  onSuccess,
 }: ModalAnexarAtestadoProps) {
-  const { addAtestadoProfessor } = useApp();
+  const { faltasProfessores, updateFaltaProfessor, addAtestadoProfessor } = useApp();
 
-  const [tipoPeriodo, setTipoPeriodo] = useState<'dia_unico' | 'intervalo'>('dia_unico');
-  const [dataInicio, setDataInicio] = useState(new Date().toISOString().split('T')[0]);
-  const [dataFim, setDataFim] = useState(new Date().toISOString().split('T')[0]);
+  const [faltasCarregadas, setFaltasCarregadas] = useState<any[] | null>(null);
+  const [carregandoFaltas, setCarregandoFaltas] = useState(false);
+  const [selectedFaltaId, setSelectedFaltaId] = useState<string>('');
   const [motivoCid, setMotivoCid] = useState('');
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -39,30 +71,95 @@ export function ModalAnexarAtestado({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Computa a quantidade de dias
-  const quantidadeDias = useMemo(() => {
-    if (tipoPeriodo === 'dia_unico') return 1;
-    if (!dataInicio || !dataFim) return 1;
-    const p1 = dataInicio.split('-').map(Number);
-    const p2 = dataFim.split('-').map(Number);
-    if (p1.length < 3 || p2.length < 3) return 1;
-    const d1 = new Date(p1[0], p1[1] - 1, p1[2]).getTime();
-    const d2 = new Date(p2[0], p2[1] - 1, p2[2]).getTime();
-    if (d2 >= d1) {
-      return Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+  // Busca faltas atualizadas da API ao abrir o modal para garantir sincronia com Turso
+  useEffect(() => {
+    if (!isOpen || !professor.id) return;
+    let isMounted = true;
+    setCarregandoFaltas(true);
+    fetch(`/api/professores/${professor.id}/faltas`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data.success && Array.isArray(data.faltas)) {
+          setFaltasCarregadas(data.faltas);
+        }
+      })
+      .catch((err) => {
+        console.warn('Fallback para faltas em memória do AppContext:', err);
+      })
+      .finally(() => {
+        if (isMounted) setCarregandoFaltas(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, professor.id]);
+
+  // Lista de ausências que AINDA NÃO possuem atestado vinculado
+  const ausenciasSemAtestado = useMemo(() => {
+    const base = faltasCarregadas !== null 
+      ? faltasCarregadas 
+      : (faltas || (faltasProfessores || []).filter(f => f && f.professor_id === professor.id));
+
+    return base.filter((f) => {
+      if (!f) return false;
+      const temAtestado = Boolean(
+        f.atestado_drive_url ||
+        f.atestado_drive_link ||
+        f.drive_file_id ||
+        f.atestado_drive_id ||
+        f.apresentou_atestado
+      );
+      return !temAtestado;
+    });
+  }, [faltasCarregadas, faltas, faltasProfessores, professor.id]);
+
+  // Objeto da falta selecionada
+  const faltaSelecionada = useMemo(() => {
+    if (!selectedFaltaId) return null;
+    return ausenciasSemAtestado.find((f) => String(f.id) === String(selectedFaltaId)) || null;
+  }, [ausenciasSemAtestado, selectedFaltaId]);
+
+  // Data inicial e final extraídas da ausência selecionada
+  const dataInicioFalta = useMemo(() => {
+    if (!faltaSelecionada) return '';
+    return (faltaSelecionada.data_inicio || faltaSelecionada.data_falta || '').split('T')[0];
+  }, [faltaSelecionada]);
+
+  const dataFimFalta = useMemo(() => {
+    if (!faltaSelecionada) return '';
+    return (faltaSelecionada.data_fim || dataInicioFalta).split('T')[0];
+  }, [faltaSelecionada, dataInicioFalta]);
+
+  // Identifica se a ausência selecionada corresponde a um período (múltiplos dias)
+  const isPeriodo = useMemo(() => {
+    if (!faltaSelecionada) return false;
+    if (faltaSelecionada.tipo_registro === 'PERIODO') return true;
+    if (dataInicioFalta && dataFimFalta && dataInicioFalta !== dataFimFalta) {
+      return calcularDiasEntreDatas(dataInicioFalta, dataFimFalta) > 1;
     }
-    return 1;
-  }, [tipoPeriodo, dataInicio, dataFim]);
+    return false;
+  }, [faltaSelecionada, dataInicioFalta, dataFimFalta]);
+
+  // Quantidade de dias de afastamento
+  const quantidadeDias = useMemo(() => {
+    if (!faltaSelecionada) return 1;
+    if (!isPeriodo) return 1;
+    return calcularDiasEntreDatas(dataInicioFalta, dataFimFalta);
+  }, [faltaSelecionada, isPeriodo, dataInicioFalta, dataFimFalta]);
 
   if (!isOpen) return null;
 
   const letraInicial = (professor.nome_completo || 'P').trim().charAt(0).toUpperCase();
   const nomeDocenteFormatado = (professor.nome_completo || 'DOCENTE').trim().toUpperCase();
 
-  const handleTipoPeriodoChange = (tipo: 'dia_unico' | 'intervalo') => {
-    setTipoPeriodo(tipo);
-    if (tipo === 'dia_unico') {
-      setDataFim(dataInicio);
+  const handleSelectFaltaChange = (faltaId: string) => {
+    setSelectedFaltaId(faltaId);
+    setErro(null);
+
+    const falta = ausenciasSemAtestado.find((f) => String(f.id) === String(faltaId));
+    if (falta && (falta.motivo || falta.justificativa) && !motivoCid.trim()) {
+      setMotivoCid(falta.motivo || falta.justificativa || '');
     }
   };
 
@@ -70,7 +167,7 @@ export function ModalAnexarAtestado({
     const selected = e.target.files?.[0];
     if (!selected) return;
 
-    // Limite recomendado de 10 MB
+    // Limite máximo de 10 MB
     if (selected.size > 10 * 1024 * 1024) {
       setErro(`O arquivo selecionado (${(selected.size / 1024 / 1024).toFixed(1)} MB) excede o limite máximo permitido de 10 MB.`);
       setArquivo(null);
@@ -83,14 +180,14 @@ export function ModalAnexarAtestado({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!arquivo) {
-      setErro('Por favor, anexe o arquivo digitalizado do atestado (.pdf, .png, .jpg, .jpeg).');
+
+    if (!selectedFaltaId || !faltaSelecionada) {
+      setErro('Por favor, selecione a ausência cadastrada correspondente ao atestado.');
       return;
     }
 
-    const dataFinalEfetiva = tipoPeriodo === 'dia_unico' ? dataInicio : dataFim;
-    if (tipoPeriodo === 'intervalo' && dataFinalEfetiva < dataInicio) {
-      setErro('A Data Final não pode ser anterior à Data Inicial.');
+    if (!arquivo) {
+      setErro('Por favor, anexe o arquivo digitalizado do atestado (.pdf, .png, .jpg, .jpeg).');
       return;
     }
 
@@ -107,17 +204,18 @@ export function ModalAnexarAtestado({
         return;
       }
 
-      // 2. Preparação do FormData para envio com estrutura de diretórios padronizada
+      // 2. Preparação do FormData com metadados estruturados
       const formData = new FormData();
       formData.append('file', arquivo);
       formData.append('tipo_upload', 'professor_atestado');
       formData.append('professor_id', professor.id);
       formData.append('professor_nome', professor.nome_completo);
       formData.append('tipo_documento', 'Atestado');
-      formData.append('data_inicio', dataInicio);
-      formData.append('data_fim', dataFinalEfetiva);
+      formData.append('data_inicio', dataInicioFalta);
+      formData.append('data_fim', dataFimFalta);
       formData.append('dias_afastamento', String(quantidadeDias));
       formData.append('quantidade_dias', String(quantidadeDias));
+      formData.append('falta_id', selectedFaltaId);
       if (motivoCid.trim()) {
         formData.append('motivo_cid', motivoCid.trim());
       }
@@ -132,19 +230,35 @@ export function ModalAnexarAtestado({
         throw new Error(data.error || 'Falha ao sincronizar o atestado no Google Drive.');
       }
 
-      // 3. Atualiza estado global
+      const urlAtestado = data.atestado_drive_url || data.url_visualizacao;
+
+      // 3. Atualiza estado global de atestados
       addAtestadoProfessor({
         professor_id: professor.id,
+        falta_id: selectedFaltaId,
         drive_file_id: data.drive_file_id,
-        atestado_drive_url: data.atestado_drive_url || data.url_visualizacao,
-        drive_view_url: data.atestado_drive_url || data.url_visualizacao,
+        atestado_drive_url: urlAtestado,
+        drive_view_url: urlAtestado,
         nome_arquivo: data.nome_arquivo || arquivo.name,
-        data_inicio: dataInicio,
-        data_fim: dataFinalEfetiva,
+        data_inicio: dataInicioFalta,
+        data_fim: dataFimFalta,
         dias_afastamento: quantidadeDias,
         quantidade_dias: quantidadeDias,
         motivo_cid: motivoCid.trim() || 'Licença Médica',
       });
+
+      // 4. Vincula atestado à falta cadastrada no contexto
+      updateFaltaProfessor(selectedFaltaId, {
+        atestado_drive_url: urlAtestado,
+        atestado_drive_link: urlAtestado,
+        drive_file_id: data.drive_file_id,
+        atestado_drive_id: data.drive_file_id,
+        apresentou_atestado: true,
+      });
+
+      if (onSuccess) {
+        onSuccess();
+      }
 
       setSucesso(true);
       setTimeout(() => {
@@ -181,6 +295,7 @@ export function ModalAnexarAtestado({
           <button
             onClick={onClose}
             disabled={enviando}
+            aria-label="Fechar"
             className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white disabled:opacity-40"
           >
             <X className="h-5 w-5" />
@@ -205,97 +320,119 @@ export function ModalAnexarAtestado({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           
-          {/* 1. Tipo de Período (Dia Único vs Intervalo de Dias) */}
+          {/* 1. SELEÇÃO INTELIGENTE: Data da Ausência */}
           <div>
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-              Tipo de Período *
-            </label>
-            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1 dark:bg-slate-800/80">
-              <button
-                type="button"
-                onClick={() => handleTipoPeriodoChange('dia_unico')}
-                className={`flex items-center justify-center gap-2 rounded-xl py-2 text-xs font-bold transition-all ${
-                  tipoPeriodo === 'dia_unico'
-                    ? 'bg-white text-school-blue-700 shadow-sm dark:bg-slate-700 dark:text-white'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`}
-              >
-                <Calendar className="h-3.5 w-3.5" />
-                <span>Dia Único</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTipoPeriodoChange('intervalo')}
-                className={`flex items-center justify-center gap-2 rounded-xl py-2 text-xs font-bold transition-all ${
-                  tipoPeriodo === 'intervalo'
-                    ? 'bg-white text-school-blue-700 shadow-sm dark:bg-slate-700 dark:text-white'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`}
-              >
-                <Clock className="h-3.5 w-3.5" />
-                <span>Intervalo de Dias</span>
-              </button>
-            </div>
-          </div>
-
-          {/* 2. Datas da Ausência */}
-          {tipoPeriodo === 'dia_unico' ? (
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Data da Ausência *
               </label>
-              <input
-                type="date"
-                required
-                value={dataInicio}
-                onChange={(e) => {
-                  setDataInicio(e.target.value);
-                  setDataFim(e.target.value);
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-              <span className="mt-1 block text-[10px] text-slate-400">
-                Computado: 1 dia de afastamento
-              </span>
-            </div>
-          ) : (
-            <div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Data Inicial *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={dataInicio}
-                    onChange={(e) => setDataInicio(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Data Final *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={dataFim}
-                    min={dataInicio}
-                    onChange={(e) => setDataFim(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
-                <span>Período computado:</span>
-                <span className="font-bold text-school-blue-700 dark:text-school-gold-400">
-                  {quantidadeDias} {quantidadeDias === 1 ? 'dia' : 'dias'} de afastamento
+              {carregandoFaltas && (
+                <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Atualizando ausências...
                 </span>
+              )}
+            </div>
+
+            {ausenciasSemAtestado.length === 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>Nenhuma ausência pendente de atestado registrada para este docente.</span>
               </div>
+            ) : (
+              <select
+                value={selectedFaltaId}
+                onChange={(e) => handleSelectFaltaChange(e.target.value)}
+                required
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:border-school-blue-600 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white shadow-xs"
+              >
+                <option value="">-- Selecione a ausência cadastrada --</option>
+                {ausenciasSemAtestado.map((f) => {
+                  const dIni = (f.data_inicio || f.data_falta || '').split('T')[0];
+                  const dFim = (f.data_fim || dIni).split('T')[0];
+                  const dias = calcularDiasEntreDatas(dIni, dFim);
+                  const isMult = dFim && dFim !== dIni && dias > 1;
+
+                  const rotuloData = isMult
+                    ? `${formatarDataIsoParaBr(dIni)} a ${formatarDataIsoParaBr(dFim)} (${dias} dias)`
+                    : `${formatarDataIsoParaBr(dIni)} (Dia Único)`;
+
+                  const rotuloMotivo = f.motivo || f.justificativa ? ` • ${f.motivo || f.justificativa}` : '';
+
+                  return (
+                    <option key={f.id} value={f.id}>
+                      {rotuloData}{rotuloMotivo}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+          </div>
+
+          {/* 2. COMPORTAMENTO DINÂMICO AO SELECIONAR A AUSÊNCIA */}
+          {faltaSelecionada && (
+            <div className="animate-in fade-in-0 duration-200">
+              {!isPeriodo ? (
+                /* DIA ÚNICO */
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Data da Ausência
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatarDataIsoParaBr(dataInicioFalta)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-100/90 dark:border-slate-700 dark:bg-slate-800/80 px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-default shadow-xs"
+                    />
+                    <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                  </div>
+                  <span className="mt-1 block text-[10px] text-slate-500 dark:text-slate-400">
+                    Ausência de dia único (1 dia de afastamento).
+                  </span>
+                </div>
+              ) : (
+                /* INTERVALO DE DIAS */
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Data Inicial
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          readOnly
+                          value={formatarDataIsoParaBr(dataInicioFalta)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-100/90 dark:border-slate-700 dark:bg-slate-800/80 px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-default shadow-xs"
+                        />
+                        <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Data Final
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          readOnly
+                          value={formatarDataIsoParaBr(dataFimFalta)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-100/90 dark:border-slate-700 dark:bg-slate-800/80 px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-default shadow-xs"
+                        />
+                        <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span>Período de afastamento computado:</span>
+                    <span className="font-bold text-school-blue-700 dark:text-school-gold-400">
+                      {quantidadeDias} dias
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -352,14 +489,14 @@ export function ModalAnexarAtestado({
             </div>
           </div>
 
-          {/* 5. Prévia do Diretório Estruturado no Drive */}
+          {/* 5. Prévia da Hierarquia Estruturada no Google Drive */}
           <div className="rounded-2xl bg-blue-50/50 p-3 dark:bg-slate-800/40 border border-blue-100/60 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300">
             <div className="flex items-center gap-1.5 font-bold text-school-blue-800 dark:text-school-gold-400 mb-1">
               <FolderTree className="h-3.5 w-3.5" />
               <span>Hierarquia no Google Drive:</span>
             </div>
             <code className="block font-mono text-[10px] text-slate-700 dark:text-slate-300 bg-white/70 dark:bg-slate-900/60 px-2 py-1 rounded-lg border border-slate-200/50 dark:border-slate-700/50 break-all">
-              FICHA DOS PROFESSORES / {letraInicial} / {nomeDocenteFormatado} / atestado_{(dataInicio || 'DATA').replace(/-/g, '_')}_[ID_UNICO].[ext]
+              FICHA DOS PROFESSORES / {letraInicial} / {nomeDocenteFormatado} / atestado_{(dataInicioFalta || 'DATA').replace(/-/g, '_')}_[ID_UNICO].[ext]
             </code>
           </div>
 
@@ -375,7 +512,7 @@ export function ModalAnexarAtestado({
             </button>
             <button
               type="submit"
-              disabled={enviando || !arquivo}
+              disabled={enviando || !arquivo || !selectedFaltaId}
               className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 disabled:opacity-50 transition-colors"
             >
               {enviando ? (

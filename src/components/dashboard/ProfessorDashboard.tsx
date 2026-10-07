@@ -967,6 +967,19 @@ export function ProfessorDashboard() {
           isOpen={modalAtestadoAberto}
           onClose={() => setModalAtestadoAberto(false)}
           professor={professorAtual}
+          faltas={faltasDoProfessor}
+          onSuccess={() => {
+            if (professorAtual?.id) {
+              fetch(`/api/professores/${professorAtual.id}/faltas`)
+                .then((res) => res.json())
+                .then((data) => {
+                  if (data.success && Array.isArray(data.faltas)) {
+                    setFaltasDiretas(data.faltas);
+                  }
+                })
+                .catch(() => {});
+            }
+          }}
         />
       )}
 

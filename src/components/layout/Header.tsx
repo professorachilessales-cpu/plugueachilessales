@@ -71,6 +71,11 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
     usuarioLogado?.name || 
     (role === 'professor' ? 'Professor' : 'Administrador');
 
+  const fotoUsuario = 
+    professorVinculado?.foto_url || 
+    usuarioLogado?.avatar_url || 
+    (usuarioLogado as any)?.foto_url;
+
   // Fecha o dropdown de notificações ao clicar fora (Click Outside) ou ao pressionar a tecla Esc
   useEffect(() => {
     if (!notifDropdownOpen) return;
@@ -146,25 +151,37 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
         </div>
       </div>
 
-      {/* Lado Direito: Seletor de RBAC & Usuários, Notificações, Configurações e Alternador de Tema */}
+      {/* Lado Direito: Identificação do Usuário, Notificações, Alterar Senha, Tema e Sair */}
       <div className="flex items-center gap-2 sm:gap-4">
 
-        {/* Badge Informativo do Perfil Conectado (Sem seletor livre) */}
-        <div className="flex items-center gap-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 px-3 py-1.5 text-xs font-semibold border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-inner">
-          {role === 'admin' ? (
-            <>
-              <ShieldCheck className="h-4 w-4 text-school-gold-500 shrink-0" />
-              <span className="hidden md:inline font-bold">Administrador</span>
-            </>
-          ) : (
-            <>
-              <GraduationCap className="h-4 w-4 text-school-gold-500 shrink-0" />
-              <span className="hidden md:inline font-bold">
-                {currentUser?.funcao_tipo === 'GERAL' ? 'Apoio / Geral' : 'Docente'}
-              </span>
-            </>
-          )}
-        </div>
+        {/* Identificação do Usuário Conectado (Sem rótulo 'Docente' no perfil de professor) */}
+        {role === 'admin' ? (
+          <div className="flex items-center gap-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 px-3 py-1.5 text-xs font-semibold border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-inner">
+            <ShieldCheck className="h-4 w-4 text-school-gold-500 shrink-0" />
+            <span className="hidden md:inline font-bold">Administrador</span>
+          </div>
+        ) : (
+          <div 
+            className="flex items-center gap-2 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 pl-1.5 pr-3 py-1 border border-slate-200/80 dark:border-slate-700/80 shadow-xs"
+            title={`Professor conectado: ${nomeExibicaoUsuario}`}
+          >
+            {fotoUsuario ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={fotoUsuario}
+                alt={nomeExibicaoUsuario}
+                className="h-7 w-7 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+              />
+            ) : (
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-school-blue-800 text-school-gold-300 text-[11px] font-black shrink-0">
+                {nomeExibicaoUsuario.slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[140px] sm:max-w-[220px]">
+              {nomeExibicaoUsuario}
+            </span>
+          </div>
+        )}
 
         {/* Botão Alterar Senha */}
         <button

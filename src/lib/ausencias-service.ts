@@ -1,4 +1,26 @@
-import { Turma, HorarioAula, EventoEscolar, TipoRegistroAusencia } from '@/lib/types';
+import { Turma, HorarioAula, EventoEscolar, TipoRegistroAusencia, FaltaProfessor, Professor } from '@/lib/types';
+
+export interface TurmaImpactadaDia {
+  turmaId: string;
+  turmaNome: string;
+  turno: string;
+  quantidadeAulas: number;
+  disciplina?: string;
+}
+
+export interface AusenciaVigenteHoje {
+  falta: FaltaProfessor;
+  dataInicio: string;
+  dataFim: string;
+  dataFormatada: string;
+  diasRestantes: number;
+  encerraHoje: boolean;
+  dataRetorno: string;
+  turmasImpactadas: TurmaImpactadaDia[];
+  totalAulasSemProfessorHoje: number;
+  professorMatricula?: string;
+  professorDisciplinas?: string[];
+}
 
 export interface DetalheDiaCalculo {
   data: string; // YYYY-MM-DD
@@ -71,7 +93,7 @@ export function formatDataBr(date: Date): string {
 /**
  * Normaliza strings para comparações insensíveis a acentos e maiúsculas/minúsculas.
  */
-function normalizarTexto(texto?: string): string {
+export function normalizarTexto(texto?: string): string {
   if (!texto) return '';
   return texto
     .normalize('NFD')
@@ -83,7 +105,7 @@ function normalizarTexto(texto?: string): string {
 /**
  * Verifica se um dia da semana da grade coincide com o dia da semana apurado.
  */
-function coincideDiaSemana(diaGrade: string, diaChave: string): boolean {
+export function coincideDiaSemana(diaGrade: string, diaChave: string): boolean {
   if (!diaGrade || !diaChave) return false;
   const gradeNorm = normalizarTexto(diaGrade);
   const chaveNorm = normalizarTexto(diaChave);
@@ -93,7 +115,7 @@ function coincideDiaSemana(diaGrade: string, diaChave: string): boolean {
 /**
  * Verifica se o professor é o mesmo pelo ID ou pelo nome completo.
  */
-function coincideProfessor(
+export function coincideProfessor(
   horario: HorarioAula,
   professorId: string,
   professorNome?: string
@@ -309,3 +331,108 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
     totalDiasIntervalo: diasDetalhados.length,
   };
 }
+
+/**
+ * Localiza todas as ausências ativas/vigentes na data de referência (hoje)
+ * Regra: dataReferencia >= data_inicio AND dataReferencia <= data_fim
+ * E cruza com a grade horária das turmas para apurar turmas desassistidas no dia.
+ */
+export function calcularAusenciasVigentesHoje(
+  faltas: FaltaProfessor[],
+  turmas: Turma[],
+  professores?: Professor[],
+  dataReferencia: Date = new Date()
+): AusenciaVigenteHoje[] {
+  const anoRef = dataReferencia.getFullYear();
+  const mesRef = dataReferencia.getMonth() + 1;
+  const diaRef = dataReferencia.getDate();
+  const hojeIso = `${anoRef}-${String(mesRef).padStart(2, '0')}-${String(diaRef).padStart(2, '0')}`;
+  const diaSemanaChave = DIAS_SEMANA_MAP[dataReferencia.getDay()]?.chave || 'Outro';
+
+  const formatDataPtBr = (iso: string) => {
+    const partes = iso.split('-');
+    if (partes.length < 3) return iso;
+    return `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
+  };
+
+  const ausenciasAtivas: AusenciaVigenteHoje[] = [];
+
+  for (const falta of faltas) {
+    if ((falta as any).deleted_at) continue;
+
+    const dataInicioRaw = (falta.data_inicio || falta.data_falta || '').split('T')[0];
+    const dataFimRaw = (falta.data_fim || falta.data_inicio || falta.data_falta || '').split('T')[0];
+    if (!dataInicioRaw) continue;
+
+    const dataInicio = dataInicioRaw;
+    const dataFim = dataFimRaw || dataInicio;
+
+    // Critério: CURRENT_DATE >= data_inicio AND CURRENT_DATE <= data_fim
+    if (hojeIso < dataInicio || hojeIso > dataFim) {
+      continue;
+    }
+
+    const [anoF, mesF, diaF] = dataFim.split('-').map(Number);
+    const [anoH, mesH, diaH] = hojeIso.split('-').map(Number);
+    const fimUtc = Date.UTC(anoF, mesF - 1, diaF);
+    const hojeUtc = Date.UTC(anoH, mesH - 1, diaH);
+    const diasRestantes = Math.max(0, Math.round((fimUtc - hojeUtc) / (1000 * 60 * 60 * 24)));
+
+    const dtRetorno = new Date(anoF, mesF - 1, diaF + 1);
+    const dataRetorno = `${String(dtRetorno.getDate()).padStart(2, '0')}/${String(dtRetorno.getMonth() + 1).padStart(2, '0')}`;
+
+    const dataFormatada = dataInicio === dataFim
+      ? formatDataPtBr(dataInicio)
+      : `${formatDataPtBr(dataInicio)} a ${formatDataPtBr(dataFim)}`;
+
+    const prof = professores?.find(p => p.id === falta.professor_id || p.nome_completo === falta.professor_nome);
+
+    // Mapeamento de turmas impactadas hoje pela grade horária
+    const turmasMap = new Map<string, TurmaImpactadaDia>();
+    const turmasAtivas = (turmas || []).filter(t => t.ativa !== false && (t.ativa as any) !== 0 && (t.ativa as any) !== '0');
+
+    for (const t of turmasAtivas) {
+      const grade = t.grade_horaria || [];
+      for (const h of grade) {
+        if (
+          coincideDiaSemana(h.dia_semana, diaSemanaChave) &&
+          coincideProfessor(h, falta.professor_id, falta.professor_nome)
+        ) {
+          const qtd = Number(h.quantidade_aulas) || 1;
+          const exist = turmasMap.get(t.id);
+          if (exist) {
+            exist.quantidadeAulas += qtd;
+          } else {
+            turmasMap.set(t.id, {
+              turmaId: t.id,
+              turmaNome: t.nome,
+              turno: t.turno,
+              quantidadeAulas: qtd,
+              disciplina: h.disciplina,
+            });
+          }
+        }
+      }
+    }
+
+    const turmasImpactadas = Array.from(turmasMap.values());
+    const totalAulasSemProfessorHoje = turmasImpactadas.reduce((acc, curr) => acc + curr.quantidadeAulas, 0);
+
+    ausenciasAtivas.push({
+      falta,
+      dataInicio,
+      dataFim,
+      dataFormatada,
+      diasRestantes,
+      encerraHoje: diasRestantes === 0,
+      dataRetorno,
+      turmasImpactadas,
+      totalAulasSemProfessorHoje,
+      professorMatricula: prof?.matricula,
+      professorDisciplinas: prof?.disciplinas,
+    });
+  }
+
+  return ausenciasAtivas.sort((a, b) => b.dataInicio.localeCompare(a.dataInicio));
+}
+

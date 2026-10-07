@@ -110,9 +110,18 @@ CREATE TABLE IF NOT EXISTS professores (
     contato_emergencia_parentesco TEXT,
     observacoes TEXT,
     nome TEXT,
+    senha_hash TEXT,
+    funcao_tipo TEXT DEFAULT 'PROFESSOR' CHECK(funcao_tipo IN ('PROFESSOR', 'ADMINISTRATIVO', 'GERAL')),
+    is_admin INTEGER DEFAULT 0,
+    precisa_trocar_senha INTEGER DEFAULT 1,
+    ultimo_login TEXT,
     deleted_at TEXT DEFAULT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_professores_cpf_limpo 
+    ON professores (REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', ''))
+    WHERE cpf IS NOT NULL AND cpf != '';
 
 -- 4. TABELA DE TURMAS E GRADE HORÁRIA
 CREATE TABLE IF NOT EXISTS turmas (

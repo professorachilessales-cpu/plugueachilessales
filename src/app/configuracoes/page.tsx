@@ -419,13 +419,6 @@ CREATE TABLE IF NOT EXISTS eventos (
           <Cloud className="h-4 w-4" />
           <span>Armazenamento & Google Drive</span>
         </button>
-        <Link
-          href="/configuracoes/usuarios"
-          className="flex items-center gap-1.5 border-b-2 border-transparent px-4 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
-        >
-          <UserCog className="h-4 w-4" />
-          <span>Usuários & Permissões</span>
-        </Link>
       </div>
 
       {/* Alerta de Perfil Não-Admin */}

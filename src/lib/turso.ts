@@ -342,3 +342,43 @@ export const tursoConfig = {
     return checkIsTursoConfigured();
   },
 };
+
+let schemaAutenticacaoVerificado = false;
+
+export async function garantirSchemaAutenticacaoProfessores(): Promise<void> {
+  if (schemaAutenticacaoVerificado || !checkIsTursoConfigured()) return;
+
+  try {
+    const infoRes = await executeTursoQuery('PRAGMA table_info(professores);');
+    const existingColumns = new Set((infoRes.rows || []).map((r: any) => String(r.name).toLowerCase()));
+
+    if (!existingColumns.has('senha_hash')) {
+      await executeTursoQuery('ALTER TABLE professores ADD COLUMN senha_hash TEXT;');
+    }
+    if (!existingColumns.has('funcao_tipo')) {
+      await executeTursoQuery("ALTER TABLE professores ADD COLUMN funcao_tipo TEXT DEFAULT 'PROFESSOR';");
+    }
+    if (!existingColumns.has('is_admin')) {
+      await executeTursoQuery('ALTER TABLE professores ADD COLUMN is_admin INTEGER DEFAULT 0;');
+    }
+    if (!existingColumns.has('precisa_trocar_senha')) {
+      await executeTursoQuery('ALTER TABLE professores ADD COLUMN precisa_trocar_senha INTEGER DEFAULT 1;');
+    }
+    if (!existingColumns.has('ultimo_login')) {
+      await executeTursoQuery('ALTER TABLE professores ADD COLUMN ultimo_login TEXT;');
+    }
+
+    try {
+      await executeTursoQuery(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_professores_cpf_limpo 
+        ON professores (REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', ''))
+        WHERE cpf IS NOT NULL AND cpf != '';
+      `);
+    } catch {}
+
+    schemaAutenticacaoVerificado = true;
+  } catch (e) {
+    console.warn('Aviso em garantirSchemaAutenticacaoProfessores:', e);
+  }
+}
+

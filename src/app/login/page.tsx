@@ -214,7 +214,9 @@ export default function LoginPage() {
           role: data.user.role,
           cpf: data.user.cpf,
           password_hash: '',
-          allowed_modules: data.user.allowed_modules || ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'],
+          funcao_tipo: data.user.funcao_tipo || 'PROFESSOR',
+          is_admin: Boolean(data.user.is_admin),
+          allowed_modules: data.user.funcao_tipo === 'GERAL' ? ['FOTOGRAMA', 'CALENDARIO'] : (data.user.allowed_modules || ['PROFILE', 'FOTOGRAMA', 'CALENDARIO']),
           must_change_password: (Number(data.user.must_change_password) === 1 || data.user.must_change_password === true || data.user.must_change_password === '1') && (typeof window === 'undefined' || localStorage.getItem(`plugue_pwd_changed_${data.user.id}`) !== 'true'),
           is_active: true,
           created_at: new Date().toISOString(),
@@ -242,8 +244,12 @@ export default function LoginPage() {
         }
       }
 
-      // Rota inicial obrigatória: aterrissagem padrão sempre em /dashboard
-      router.push('/dashboard');
+      // Rota inicial obrigatória: GERAL vai para /fotograma, demais para /dashboard
+      if (data.user?.funcao_tipo === 'GERAL') {
+        router.push('/fotograma');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setErro(err.message || 'Credenciais inválidas. Verifique seu CPF e senha.');
     } finally {
@@ -507,7 +513,7 @@ export default function LoginPage() {
                   maxLength={14}
                   aria-invalid={statusCpf.estado === 'invalido'}
                   aria-describedby="cpf-help"
-                  className={`w-full rounded-xl border bg-white/5 py-3 pl-10 pr-10 text-xs sm:text-sm text-white placeholder-slate-500 font-mono focus:outline-none focus:ring-2 transition-all ${
+                  className={`w-full rounded-xl border bg-white/5 py-3 !pl-11 !pr-10 input-icon-left text-xs sm:text-sm text-white placeholder-slate-500 font-mono focus:outline-none focus:ring-2 transition-all ${
                     statusCpf.estado === 'valido'
                       ? 'border-emerald-500/50 focus:border-emerald-400 focus:ring-emerald-400/20'
                       : statusCpf.estado === 'invalido'
@@ -559,7 +565,7 @@ export default function LoginPage() {
                   value={password}
                   disabled={carregando || Boolean(bloqueadoSegundos)}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/5 py-3 pl-10 pr-11 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-school-gold-400 focus:outline-none focus:ring-2 focus:ring-school-gold-400/30 transition-all"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 py-3 !pl-11 !pr-11 input-icon-left text-xs sm:text-sm text-white placeholder-slate-500 focus:border-school-gold-400 focus:outline-none focus:ring-2 focus:ring-school-gold-400/30 transition-all"
                 />
                 
                 {/* Botão de Toggle da Senha */}

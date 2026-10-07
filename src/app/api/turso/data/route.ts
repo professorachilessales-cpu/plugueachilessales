@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, isTursoConfigured, garantirSchemaAutenticacaoProfessores } from '@/lib/turso';
 import { garantirTabelasObservacoes } from '@/lib/observacoes-service';
 import { garantirSchemaRecorrenciaEventos } from '@/lib/calendario-service';
 import { isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
@@ -28,6 +28,7 @@ export async function GET() {
 
     await garantirTabelasObservacoes();
     await garantirSchemaRecorrenciaEventos();
+    await garantirSchemaAutenticacaoProfessores();
 
     // 1. Config Escola
     let escolaConfig = null;
@@ -62,23 +63,34 @@ export async function GET() {
     let professores: any[] = [];
     try {
       const profRes = await executeTursoQuery('SELECT * FROM professores ORDER BY nome_completo ASC');
-      const rawProfessores = profRes.rows.map((row: any) => ({
-        ...row,
-        tipo_profissional: row.tipo_profissional || 'docente',
-        funcao_escola: row.funcao_escola || null,
-        ativo: toBoolean(row.ativo, true),
-        eh_apoio: toBoolean(row.eh_apoio),
-        eh_administrativo: toBoolean(row.eh_administrativo),
-        disciplinas: row.disciplinas ? (typeof row.disciplinas === 'string' ? JSON.parse(row.disciplinas) : row.disciplinas) : [],
-        turmas_atribuidas_ids: row.turmas_atribuidas_ids ? (typeof row.turmas_atribuidas_ids === 'string' ? JSON.parse(row.turmas_atribuidas_ids) : row.turmas_atribuidas_ids) : [],
-      }));
+      const rawProfessores = profRes.rows.map((row: any) => {
+        const isAdmin = toBoolean(row.is_admin) || toBoolean(row.eh_administrativo) || row.funcao_escola === 'Administrativo' || row.funcao_tipo === 'ADMINISTRATIVO';
+        const isGeral = !isAdmin && (row.funcao_tipo === 'GERAL' || row.tipo_profissional === 'funcionario' || toBoolean(row.eh_apoio));
+        const funcaoTipo = isAdmin ? 'ADMINISTRATIVO' : isGeral ? 'GERAL' : (row.funcao_tipo || 'PROFESSOR');
+
+        return {
+          ...row,
+          tipo_profissional: row.tipo_profissional || 'docente',
+          funcao_escola: row.funcao_escola || null,
+          funcao_tipo: funcaoTipo,
+          is_admin: isAdmin,
+          precisa_trocar_senha: toBoolean(row.precisa_trocar_senha, true),
+          ultimo_login: row.ultimo_login || null,
+          ativo: toBoolean(row.ativo, true),
+          eh_apoio: toBoolean(row.eh_apoio),
+          eh_administrativo: isAdmin,
+          disciplinas: row.disciplinas ? (typeof row.disciplinas === 'string' ? JSON.parse(row.disciplinas) : row.disciplinas) : [],
+          turmas_atribuidas_ids: row.turmas_atribuidas_ids ? (typeof row.turmas_atribuidas_ids === 'string' ? JSON.parse(row.turmas_atribuidas_ids) : row.turmas_atribuidas_ids) : [],
+        };
+      });
 
       // Sanitizar status administrativo e turmas atribuídas
       professores = rawProfessores.map((p: any) => {
-        const admin = isProfessorAdministrativo(p, users);
+        const admin = p.is_admin || isProfessorAdministrativo(p, users);
         return {
           ...p,
           eh_administrativo: admin ? true : Boolean(p.eh_administrativo),
+          is_admin: admin,
           turmas_atribuidas_ids: admin ? [] : p.turmas_atribuidas_ids,
         };
       });

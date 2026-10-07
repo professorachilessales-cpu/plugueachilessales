@@ -396,11 +396,11 @@ export default function AuditoriaPage() {
               Usuário Responsável
             </label>
             <div className="relative">
-              <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <select
                 value={usuarioFiltro}
                 onChange={(e) => setUsuarioFiltro(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-medium"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 !pl-8 pr-3 input-icon-left py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white font-medium"
               >
                 <option value="todos">Todos os Usuários</option>
                 {usuariosUnicos.map((u) => (
@@ -432,13 +432,13 @@ export default function AuditoriaPage() {
 
         {/* Busca Textual Livre */}
         <div className="relative">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Pesquisar por aluno, turma, usuário, justificativa ou conteúdo da observação..."
             value={buscaTexto}
             onChange={(e) => setBuscaTexto(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 !pl-10 !pr-3 input-icon-left py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           />
         </div>
       </div>

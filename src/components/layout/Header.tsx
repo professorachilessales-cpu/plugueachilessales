@@ -18,9 +18,11 @@ import {
   Clock,
   Sparkles,
   LogOut,
-  Lock
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import Link from 'next/link';
+import { ModalAlterarSenha } from '@/components/auth/ModalAlterarSenha';
 
 interface HeaderProps {
   onToggleMobileSidebar: () => void;
@@ -44,10 +46,9 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
     isAdminSession,
     professores,
   } = useApp();
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [modalSenhaAberto, setModalSenhaAberto] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
 
-  const userDropdownRef = useRef<HTMLDivElement>(null);
   const notifDropdownRef = useRef<HTMLDivElement>(null);
 
   // Usuário efetivamente logado no sistema (prioriza o usuário autenticado da sessão)
@@ -71,23 +72,19 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
     usuarioLogado?.name || 
     (role === 'professor' ? 'Professor' : 'Administrador');
 
-  // Fecha os dropdowns ao clicar fora (Click Outside) ou ao pressionar a tecla Esc
+  // Fecha o dropdown de notificações ao clicar fora (Click Outside) ou ao pressionar a tecla Esc
   useEffect(() => {
-    if (!userDropdownOpen && !notifDropdownOpen) return;
+    if (!notifDropdownOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (userDropdownOpen && userDropdownRef.current && !userDropdownRef.current.contains(target)) {
-        setUserDropdownOpen(false);
-      }
-      if (notifDropdownOpen && notifDropdownRef.current && !notifDropdownRef.current.contains(target)) {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(target)) {
         setNotifDropdownOpen(false);
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setUserDropdownOpen(false);
         setNotifDropdownOpen(false);
       }
     };
@@ -99,13 +96,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [userDropdownOpen, notifDropdownOpen]);
-
-  // A simulação de usuário conectado é uma ferramenta de uso EXCLUSIVO do Administrador
-  const usuariosSimulacao = users.filter((u) => {
-    if (u.role === 'direcao' || (u.role as string) === 'diretor') return false;
-    return true;
-  });
+  }, [notifDropdownOpen]);
 
   const naoLidas = notificacoesAdmin.filter(n => !n.lido);
 
@@ -159,131 +150,33 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
       {/* Lado Direito: Seletor de RBAC & Usuários, Notificações, Configurações e Alternador de Tema */}
       <div className="flex items-center gap-2 sm:gap-4">
 
-        {/* Controle RBAC & Simulação de Usuário: Exclusivo para Administrador */}
-        {isAdminSession ? (
-          <div 
-            ref={userDropdownRef} 
-            className="relative flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 shadow-inner"
-          >
-            {/* Botão Admin: Administrador pode alternar livremente */}
-            <button
-              onClick={() => {
-                if (role !== 'admin') {
-                  setRole('admin');
-                }
-              }}
-              title="Perfil de Administrador"
-              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-all ${
-                role === 'admin'
-                  ? 'bg-school-blue-800 text-white shadow-sm ring-1 ring-school-blue-600'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <ShieldCheck className="h-4 w-4 text-school-gold-400" />
-              <span className="hidden md:inline">Admin</span>
-            </button>
+        {/* Badge Informativo do Perfil Conectado (Sem seletor livre) */}
+        <div className="flex items-center gap-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 px-3 py-1.5 text-xs font-semibold border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-inner">
+          {role === 'admin' ? (
+            <>
+              <ShieldCheck className="h-4 w-4 text-school-gold-500 shrink-0" />
+              <span className="hidden md:inline font-bold">Administrador</span>
+            </>
+          ) : (
+            <>
+              <GraduationCap className="h-4 w-4 text-school-gold-500 shrink-0" />
+              <span className="hidden md:inline font-bold">
+                {currentUser?.funcao_tipo === 'GERAL' ? 'Apoio / Geral' : 'Docente'}
+              </span>
+            </>
+          )}
+        </div>
 
-            {/* Botão Professor: Administrador pode alternar livremente */}
-            <button
-              onClick={() => {
-                if (role !== 'professor') {
-                  setRole('professor');
-                }
-              }}
-              title="Perfil de Professor"
-              className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-all ${
-                role === 'professor'
-                  ? 'bg-school-blue-800 text-white shadow-sm ring-1 ring-school-blue-600'
-                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-              }`}
-            >
-              <GraduationCap className="h-4 w-4 text-school-gold-400" />
-              <span className="hidden md:inline">Professor</span>
-            </button>
-
-            {/* Botão de Alternar Contas Rápidas (Simulação de Usuário) */}
-            <button
-              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-              aria-expanded={userDropdownOpen}
-              aria-label="Simular usuário conectado"
-              title="Simular Usuário Conectado (Exclusivo Administrador)"
-              className="ml-1 flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
-            >
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {/* Dropdown de Seleção de Usuário com Animação Suave */}
-            {userDropdownOpen && (
-              <div 
-                role="menu"
-                aria-label="Menu de Simulação de Usuário"
-                className="absolute right-0 top-full mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-2xl dark:border-slate-800 dark:bg-slate-900 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-150"
-              >
-                <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800 pb-2 mb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Simular Usuário Conectado
-                  </span>
-                  <span className="text-[9px] text-slate-400 font-mono">
-                    {usuariosSimulacao.length} opções
-                  </span>
-                </div>
-
-                <div className="max-h-64 overflow-y-auto space-y-1 pr-0.5">
-                  {usuariosSimulacao.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-slate-400">
-                      Nenhum usuário disponível para alternância.
-                    </p>
-                  ) : (
-                    usuariosSimulacao.map((u) => {
-                      const isSelected = currentUser?.id === u.id;
-                      return (
-                        <button
-                          key={u.id}
-                          role="menuitem"
-                          onClick={() => {
-                            setCurrentUser(u);
-                            setUserDropdownOpen(false);
-                          }}
-                          className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs transition-colors ${
-                            isSelected
-                              ? 'bg-school-blue-50 text-school-blue-900 font-bold dark:bg-school-blue-950/60 dark:text-school-blue-300 ring-1 ring-school-blue-500/30'
-                              : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-                          }`}
-                        >
-                          <div className="min-w-0 pr-2">
-                            <p className="truncate font-semibold">{u.name}</p>
-                            <p className="text-[10px] text-slate-400 truncate">
-                              {u.role === 'admin' ? '🛡️ Admin' : '👨‍🏫 Professor'} • CPF: {u.cpf}
-                            </p>
-                          </div>
-                          {u.must_change_password && (
-                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950 dark:text-school-gold-300 flex-shrink-0">
-                              1º Acesso
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-
-                <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800">
-                  <button
-                    role="menuitem"
-                    onClick={() => {
-                      setUserDropdownOpen(false);
-                      logout();
-                    }}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 p-2 text-xs font-bold border border-rose-200 dark:border-rose-900/60 transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Sair do Sistema</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : null}
+        {/* Botão Alterar Senha */}
+        <button
+          onClick={() => setModalSenhaAberto(true)}
+          title="Alterar Minha Senha de Acesso"
+          aria-label="Alterar Senha"
+          className="relative flex items-center gap-1.5 h-9 min-h-[36px] rounded-xl border border-slate-200 bg-white px-2.5 sm:px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 shadow-xs transition-all active:scale-95"
+        >
+          <KeyRound className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400 shrink-0" />
+          <span className="hidden sm:inline">Alterar Senha</span>
+        </button>
 
         {/* Botão de Atalho para Configurações (Apenas Administrador) */}
         {role === 'admin' && (
@@ -417,6 +310,12 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
           <span className="hidden sm:inline">Sair</span>
         </button>
       </div>
+
+      {/* Modal de Alteração de Senha */}
+      <ModalAlterarSenha
+        isOpen={modalSenhaAberto}
+        onClose={() => setModalSenhaAberto(false)}
+      />
     </header>
   );
 }

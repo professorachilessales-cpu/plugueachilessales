@@ -72,6 +72,12 @@ interface AppContextType {
   setAuthenticatedUser: (user: SystemUser | null) => void;
   isAdminSession: boolean;
 
+  // Simulação Segura de Usuário Conectado
+  simulatedProfessor: Professor | null;
+  isSimulating: boolean;
+  startSimulation: (professor: Professor) => void;
+  stopSimulation: () => void;
+
   // Gestão de Usuários & RBAC
   users: SystemUser[];
   currentUser: SystemUser;
@@ -219,6 +225,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [authenticatedUser, setAuthenticatedUserState] = useState<SystemUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [simulatedProfessor, setSimulatedProfessor] = useState<Professor | null>(null);
+  const isSimulating = Boolean(simulatedProfessor);
 
   // O administrador possui permissão total de alternância. O professor logado não pode alternar para outro perfil.
   const isAdminSession = authenticatedUser ? authenticatedUser.role === 'admin' : (role === 'admin');
@@ -315,6 +323,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setRoleState(parsedUser.role);
           if (!authUserJson) {
             setAuthenticatedUserState(parsedUser);
+          }
+          const savedSimulatedProfStr = sessionStorage.getItem('plugue_simulated_prof');
+          if (savedSimulatedProfStr) {
+            try {
+              setSimulatedProfessor(JSON.parse(savedSimulatedProfStr));
+            } catch {}
           }
           setIsAuthenticated(true);
         } catch {
@@ -943,16 +957,94 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sessionStorage.removeItem('plugue_session_active');
       sessionStorage.removeItem('plugue_session_user');
       sessionStorage.removeItem('plugue_auth_user');
+      sessionStorage.removeItem('plugue_simulated_prof');
       localStorage.removeItem('school_os_current_user_id');
       localStorage.removeItem('plugue_lembrar_usuario');
     } catch (e) {
       // ignore
     }
 
+    setSimulatedProfessor(null);
     setAuthenticatedUserState(null);
     setIsAuthenticated(false);
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
+    }
+  };
+
+  const startSimulation = (professor: Professor) => {
+    if (!isAdminSession) {
+      console.warn('Operação bloqueada: Apenas administradores podem simular usuários.');
+      return;
+    }
+
+    if (!authenticatedUser) {
+      setAuthenticatedUserState(currentUser);
+      try {
+        sessionStorage.setItem('plugue_auth_user', JSON.stringify(currentUser));
+      } catch {}
+    }
+
+    setSimulatedProfessor(professor);
+    try {
+      sessionStorage.setItem('plugue_simulated_prof', JSON.stringify(professor));
+    } catch {}
+
+    const isAdmProf = Boolean(professor.is_admin) || professor.funcao_tipo === 'ADMINISTRATIVO';
+    const roleForProf: UserRole = isAdmProf ? 'admin' : 'professor';
+
+    const simUser: SystemUser = {
+      id: professor.id,
+      name: professor.nome_completo,
+      email: professor.email || '',
+      cpf: professor.cpf || '',
+      role: roleForProf,
+      funcao_tipo: professor.funcao_tipo || 'PROFESSOR',
+      is_admin: Boolean(professor.is_admin),
+      avatar_url: professor.foto_url,
+      allowed_modules: professor.funcao_tipo === 'GERAL' ? ['FOTOGRAMA', 'CALENDARIO'] : ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'],
+      is_active: professor.status === 'ativo',
+      must_change_password: Boolean(professor.precisa_trocar_senha),
+    };
+
+    setCurrentUserState(simUser);
+    setRoleState(roleForProf);
+    try {
+      sessionStorage.setItem('plugue_session_user', JSON.stringify(simUser));
+      sessionStorage.setItem('plugue_session_active', 'true');
+    } catch {}
+
+    if (professor.funcao_tipo === 'GERAL' && typeof window !== 'undefined') {
+      window.location.href = '/fotograma';
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/dashboard';
+    }
+  };
+
+  const stopSimulation = () => {
+    const originalAdmin = authenticatedUser;
+    setSimulatedProfessor(null);
+    try {
+      sessionStorage.removeItem('plugue_simulated_prof');
+    } catch {}
+
+    if (originalAdmin) {
+      setCurrentUserState(originalAdmin);
+      setRoleState(originalAdmin.role);
+      try {
+        sessionStorage.setItem('plugue_session_user', JSON.stringify(originalAdmin));
+      } catch {}
+    } else {
+      const fallbackAdmin = users.find(u => u.role === 'admin') || initialUsers[0];
+      setCurrentUserState(fallbackAdmin);
+      setRoleState('admin');
+      try {
+        sessionStorage.setItem('plugue_session_user', JSON.stringify(fallbackAdmin));
+      } catch {}
+    }
+
+    if (typeof window !== 'undefined') {
+      window.location.href = '/professores';
     }
   };
 
@@ -3173,6 +3265,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         authenticatedUser,
         setAuthenticatedUser,
         isAdminSession,
+        simulatedProfessor,
+        isSimulating,
+        startSimulation,
+        stopSimulation,
         isAuthenticated,
         isInitialized,
         logout,

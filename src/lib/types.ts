@@ -9,6 +9,8 @@ export type AllowedModule =
   | 'CALENDARIO'   // Calendário & Eventos
   | 'RELATORIOS';  // Relatórios Pedagógicos Colaborativos
 
+export type FuncaoTipo = 'PROFESSOR' | 'ADMINISTRATIVO' | 'GERAL';
+
 export interface SystemUser {
   id: string;
   name: string;
@@ -16,9 +18,13 @@ export interface SystemUser {
   cpf: string; // 11 dígitos limpos
   password_hash: string;
   role: UserRole; // 'admin' ou 'professor'
+  funcao_tipo?: FuncaoTipo;
+  is_admin?: boolean;
   must_change_password: boolean;
+  precisa_trocar_senha?: boolean;
   allowed_modules: AllowedModule[];
   is_active: boolean;
+  ultimo_login?: string | null;
   created_at: string;
 }
 
@@ -234,6 +240,11 @@ export interface Professor {
   matricula: string;
   tipo_profissional?: TipoProfissional; // 'docente' | 'funcionario' (padrão: 'docente')
   funcao_escola?: FuncaoEscola | string; // Obrigatório para funcionários: Porteiro, Serviços Gerais, Administrativo, etc.
+  funcao_tipo?: FuncaoTipo; // 'PROFESSOR' | 'ADMINISTRATIVO' | 'GERAL'
+  senha_hash?: string | null;
+  is_admin?: boolean;
+  precisa_trocar_senha?: boolean;
+  ultimo_login?: string | null;
   formacao?: string;
   disciplinas?: string[];
   telefone: string;

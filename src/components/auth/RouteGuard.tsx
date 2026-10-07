@@ -4,7 +4,7 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { ShieldAlert, ArrowLeft, Lock, School, Sparkles } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Lock, ImageIcon, Calendar } from 'lucide-react';
 
 interface RouteGuardProps {
   children: React.ReactNode;
@@ -23,19 +23,67 @@ export function RouteGuard({ children }: RouteGuardProps) {
   const currentPath = pathname || '';
   const { role, currentUser } = useApp();
 
+  const isAdminOrDirecao = role === 'admin' || role === 'direcao';
+  const isGeral = currentUser?.funcao_tipo === 'GERAL';
   const isProfessor = role === 'professor';
+
+  const isFotogramaRoute = currentPath === '/fotograma' || currentPath.startsWith('/fotograma/');
+  const isCalendarioRoute = currentPath === '/calendario' || currentPath.startsWith('/calendario/');
+
+  // 1. Bloqueio para Apoio / Não Administrativo (funcao_tipo = 'GERAL')
+  if (isGeral && !isAdminOrDirecao && !isFotogramaRoute && !isCalendarioRoute) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center p-4 text-center animate-in fade-in-0 duration-300">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-900/80 shadow-lg shadow-purple-500/10">
+          <ShieldAlert className="h-10 w-10" />
+        </div>
+
+        <div className="mt-6 max-w-md">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+            <Lock className="h-3.5 w-3.5" />
+            403 • Acesso Restrito
+          </span>
+
+          <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+            Módulo Restrito
+          </h1>
+
+          <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+            Seu perfil de <strong>Apoio / Geral</strong> tem permissão de acesso exclusivamente aos módulos de <strong>Fotograma da Turma</strong> e <strong>Calendário Escolar</strong>.
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/fotograma"
+              className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-purple-800/20 hover:bg-purple-800 transition-all"
+            >
+              <ImageIcon className="h-4 w-4" />
+              <span>Acessar Fotograma</span>
+            </Link>
+
+            <Link
+              href="/calendario"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all"
+            >
+              <Calendar className="h-4 w-4" />
+              <span>Calendário Escolar</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Bloqueio para Docente comum
   const isRestrictedRoute = RESTRICTED_FOR_PROFESSOR.some(
     (prefix) => currentPath === prefix || currentPath.startsWith(`${prefix}/`)
   );
 
   const allowedModules = currentUser?.allowed_modules || ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'];
-  const isFotogramaRoute = currentPath === '/fotograma' || currentPath.startsWith('/fotograma/');
-  const isCalendarioRoute = currentPath === '/calendario' || currentPath.startsWith('/calendario/');
-
   const isFotogramaRevoked = isProfessor && isFotogramaRoute && !allowedModules.includes('FOTOGRAMA');
   const isCalendarioRevoked = isProfessor && isCalendarioRoute && !allowedModules.includes('CALENDARIO');
 
-  if (isProfessor && (isRestrictedRoute || isFotogramaRevoked || isCalendarioRevoked)) {
+  if (isProfessor && !isAdminOrDirecao && (isRestrictedRoute || isFotogramaRevoked || isCalendarioRevoked)) {
     const title = isFotogramaRevoked
       ? 'Acesso ao Fotograma Não Autorizado'
       : isCalendarioRevoked

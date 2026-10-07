@@ -116,10 +116,21 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
     },
   ];
 
-  // Regra crítica de RBAC: Quando em modo Professor, os módulos de administração são
-  // omitidos e os módulos modulares (Fotograma, Calendário) respeitam a Matriz de Permissões
+  // Regra crítica de RBAC:
+  // - Perfil GERAL (Apoio/Não Administrativo): estritamente Fotograma e Calendário
+  // - Perfil PROFESSOR (Docente): Dashboard, Fotograma, Calendário
+  // - Administrador / Direção: acesso a todos os módulos
+  const isGeral = currentUser?.funcao_tipo === 'GERAL';
+  const isAdminOrDirecao = role === 'admin' || role === 'direcao';
+
   const visibleNavItems = allNavItems.filter((item) => {
+    // Funcionário Geral/Apoio: somente Fotograma e Calendário
+    if (isGeral && !isAdminOrDirecao) {
+      return item.href === '/fotograma' || item.href === '/calendario';
+    }
+
     if (!item.roles.includes(role)) return false;
+
     if (role === 'professor' && 'module' in item && item.module) {
       const allowed = currentUser?.allowed_modules || ['PROFILE', 'FOTOGRAMA', 'CALENDARIO'];
       return allowed.includes(item.module as AllowedModule);
@@ -196,7 +207,7 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
           </button>
         </div>
 
-        {/* Indicador do Nível de Acesso Ativo (RBAC) */}
+        {/* Indicador do Nível de Acesso Ativo (RBAC) & Bloco Informativo de Módulos */}
         {!sidebarCollapsed ? (
           <div className="mx-3 mt-3 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xs dark:border-slate-800 dark:bg-slate-900/60 transition-all">
             <div className="flex items-center justify-between">
@@ -207,6 +218,8 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
                   role === 'admin' || role === 'direcao'
                     ? 'bg-school-blue-100 text-school-blue-800 dark:bg-school-blue-950 dark:text-school-blue-300'
+                    : isGeral
+                    ? 'bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-300'
                     : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-school-gold-300'
                 }`}
               >
@@ -220,10 +233,15 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
                     <ShieldCheck className="h-3 w-3" />
                     <span>Direção</span>
                   </>
+                ) : isGeral ? (
+                  <>
+                    <Users className="h-3 w-3" />
+                    <span>Apoio / Geral</span>
+                  </>
                 ) : (
                   <>
                     <GraduationCap className="h-3 w-3" />
-                    <span>Professor</span>
+                    <span>Docente</span>
                   </>
                 )}
               </span>
@@ -231,6 +249,41 @@ export function Sidebar({ isOpenMobile, onCloseMobile }: SidebarProps) {
             <p className="mt-1 text-xs font-semibold text-slate-800 dark:text-slate-200 truncate" title={nomeExibicaoUsuario}>
               {nomeExibicaoUsuario}
             </p>
+
+            {/* Bloco Informativo de Módulos Habilitados */}
+            <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Módulos Habilitados:
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {role === 'admin' || role === 'direcao' ? (
+                  <span className="inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    Acesso Completo (Gestão)
+                  </span>
+                ) : isGeral ? (
+                  <>
+                    <span className="inline-block rounded-md bg-purple-50 px-1.5 py-0.5 text-[9px] font-semibold text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                      Fotograma
+                    </span>
+                    <span className="inline-block rounded-md bg-purple-50 px-1.5 py-0.5 text-[9px] font-semibold text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                      Calendário
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-block rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-school-gold-300">
+                      Dashboard
+                    </span>
+                    <span className="inline-block rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-school-gold-300">
+                      Fotograma
+                    </span>
+                    <span className="inline-block rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-school-gold-300">
+                      Calendário
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="mx-auto mt-3 group relative flex items-center justify-center">

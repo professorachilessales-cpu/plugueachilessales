@@ -45,6 +45,13 @@ export function verifyPassword(password: string, storedHash: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(calculatedHash), Buffer.from(originalHash));
 }
 
+export const bcrypt = {
+  hash: async (password: string, _rounds: number = 10): Promise<string> => hashPassword(password),
+  compare: async (password: string, hash: string): Promise<boolean> => verifyPassword(password, hash),
+  hashSync: (password: string, _rounds: number = 10): string => hashPassword(password),
+  compareSync: (password: string, hash: string): boolean => verifyPassword(password, hash),
+};
+
 // ---------------------------------------------------------------------------
 // TOKENS JWT (RFC 7519 Puro com HMAC-SHA256)
 // ---------------------------------------------------------------------------

@@ -72,7 +72,7 @@ export function SearchField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-10 pr-9 min-h-[44px] sm:min-h-[44px] rounded-xl border border-slate-200 bg-white dark:border-school-dark-border dark:bg-school-dark-surface dark:text-white placeholder:text-slate-400 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-school-blue-500 shadow-sm"
+        className="w-full !pl-11 !pr-9 input-icon-left min-h-[44px] sm:min-h-[44px] rounded-xl border border-slate-200 bg-white dark:border-school-dark-border dark:bg-school-dark-surface dark:text-white placeholder:text-slate-400 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-school-blue-500 shadow-sm"
         {...props}
       />
       {value && (

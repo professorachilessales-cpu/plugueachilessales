@@ -10,7 +10,7 @@ import { MustChangePasswordModal } from '@/components/auth/MustChangePasswordMod
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const { sidebarCollapsed, isAuthenticated, isInitialized } = useApp();
+  const { sidebarCollapsed, isAuthenticated, isInitialized, isSimulating, simulatedProfessor, stopSimulation } = useApp();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -43,6 +43,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#8FAFCF] dark:bg-school-dark-bg text-slate-900 dark:text-slate-100 overflow-x-hidden">
+      {/* Banner Fixo no Topo: Simulação de Usuário Conectado */}
+      {isSimulating && simulatedProfessor && (
+        <div className="sticky top-0 z-[60] flex items-center justify-between gap-3 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-md border-b border-amber-600/40 animate-in slide-in-from-top duration-200">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-950 text-amber-400 shrink-0 text-sm">
+              👁️
+            </span>
+            <span className="truncate">
+              Você está simulando o acesso do professor <strong>{simulatedProfessor.nome_completo}</strong>
+            </span>
+          </div>
+          <button
+            onClick={stopSimulation}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-black text-white hover:bg-slate-800 transition-all shadow-sm active:scale-95"
+          >
+            Sair da Simulação
+          </button>
+        </div>
+      )}
+
       <Sidebar
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}

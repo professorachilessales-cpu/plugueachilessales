@@ -35,7 +35,8 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCheck,
-  History
+  History,
+  LogIn
 } from 'lucide-react';
 import { Professor, FaltaProfessor, TitulacaoDocente, FuncaoEscola, TipoProfissional, StatusReposicaoAusencia } from '@/lib/types';
 import { formatarTelefone, formatarCPF, formatarCEP, validarCPF } from '@/lib/validations';
@@ -162,7 +163,9 @@ export default function ProfessoresPage() {
     homologarReposicaoAula,
     aprovarAtestadoProfessor,
     deleteReposicaoAula,
-    deleteAtestadoProfessor
+    deleteAtestadoProfessor,
+    isAdminSession,
+    startSimulation
   } = useApp();
 
   const [abaAtiva, setAbaAtiva] = useState<'docentes' | 'faltas' | 'reposicoes' | 'atestados'>('docentes');
@@ -683,13 +686,13 @@ export default function ProfessoresPage() {
 
               {/* Campo de Busca Rápida */}
               <div className="relative min-w-[220px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-300" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-300 pointer-events-none" />
                 <input
                   type="text"
                   value={buscaTermo}
                   onChange={(e) => setBuscaTermo(e.target.value)}
                   placeholder="Buscar nome, CPF ou função..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-400"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 !pl-9 !pr-8 input-icon-left py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-400"
                 />
                 {buscaTermo && (
                   <button
@@ -941,8 +944,19 @@ export default function ProfessoresPage() {
                             }`}
                           >
                             <Edit2 className="h-3.5 w-3.5" />
-                            <span>Editar Dados</span>
+                            <span>Editar</span>
                           </button>
+
+                          {isAdminSession && (
+                            <button
+                              onClick={() => startSimulation(prof)}
+                              title="Simular Usuário Conectado sob a perspectiva deste colaborador"
+                              className="inline-flex items-center justify-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60 shadow-xs transition-all active:scale-95"
+                            >
+                              <LogIn className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                              <span className="hidden sm:inline">Simular</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1437,13 +1451,13 @@ export default function ProfessoresPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Busca por Professor Ativo */}
                   <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                     <input
                       type="text"
                       placeholder="Buscar professor ativo..."
                       value={buscaDebito}
                       onChange={(e) => setBuscaDebito(e.target.value)}
-                      className="w-48 sm:w-56 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      className="w-48 sm:w-56 rounded-xl border border-slate-200 bg-slate-50 !pl-9 !pr-3 input-icon-left py-1.5 text-xs text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     />
                   </div>
 
@@ -3567,6 +3581,20 @@ export default function ProfessoresPage() {
                 </h3>
               </div>
               <div className="flex items-center gap-2">
+                {isAdminSession && (
+                  <button
+                    onClick={() => {
+                      startSimulation(professorSelecionado);
+                      setModalFichaProfAberto(false);
+                    }}
+                    title="Simular Usuário Conectado sob a perspectiva deste colaborador"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-bold text-slate-950 transition-all shadow-sm active:scale-95"
+                  >
+                    <LogIn className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Simular Usuário Conectado</span>
+                    <span className="sm:hidden">Simular</span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     handleAbrirEditar(professorSelecionado);

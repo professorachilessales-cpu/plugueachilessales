@@ -332,13 +332,17 @@ export async function POST(req: NextRequest) {
       case 'save_professor': {
         const p = payload;
         const isAdmin = Boolean(
+          p.is_admin === 1 || p.is_admin === true ||
+          p.funcao_tipo === 'ADMINISTRATIVO' ||
           p.eh_administrativo ||
-          p.tipo_profissional === 'funcionario' ||
-          /diretor|secret[áa]ri|administrativ|porteir|servi[çc]os\s+gerais/i.test(p.funcao_escola || '') ||
-          /diretor|secret[áa]ri|administrativ|porteir|servi[çc]os\s+gerais/i.test(p.formacao || '')
+          /diretor|secret[áa]ri|administrativ/i.test(p.funcao_escola || '') ||
+          /diretor|secret[áa]ri|administrativ/i.test(p.formacao || '')
         );
         const isApoio = Boolean(p.eh_apoio || /apoio/i.test(p.formacao || ''));
+        const isGeral = !isAdmin && (p.funcao_tipo === 'GERAL' || p.tipo_profissional === 'funcionario' || isApoio);
+        const funcaoTipo = isAdmin ? 'ADMINISTRATIVO' : isGeral ? 'GERAL' : (p.funcao_tipo || 'PROFESSOR');
         const turmasAtribuidas = isAdmin ? [] : (p.turmas_atribuidas_ids || []);
+        const precisaTrocar = p.precisa_trocar_senha !== undefined ? (p.precisa_trocar_senha ? 1 : 0) : 1;
 
         await executeTursoQuery(
           `INSERT INTO professores (
@@ -349,8 +353,9 @@ export async function POST(req: NextRequest) {
             graduacao_fim, pos_graduacao_inicio, pos_graduacao_fim, filiacao_1, filiacao_2,
             nome_mae, nome_pai, cep, logradouro, numero, complemento, bairro, cidade, uf,
             endereco_completo, celular_whatsapp, telefone_emergencia, telefone_emergencia2,
-            contato_emergencia_nome, contato_emergencia_parentesco, observacoes, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            contato_emergencia_nome, contato_emergencia_parentesco, observacoes, created_at,
+            funcao_tipo, is_admin, precisa_trocar_senha
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             profile_id = excluded.profile_id,
             nome_completo = excluded.nome_completo,
@@ -395,7 +400,10 @@ export async function POST(req: NextRequest) {
             telefone_emergencia2 = excluded.telefone_emergencia2,
             contato_emergencia_nome = excluded.contato_emergencia_nome,
             contato_emergencia_parentesco = excluded.contato_emergencia_parentesco,
-            observacoes = excluded.observacoes`,
+            observacoes = excluded.observacoes,
+            funcao_tipo = excluded.funcao_tipo,
+            is_admin = excluded.is_admin,
+            precisa_trocar_senha = excluded.precisa_trocar_senha`,
           [
             p.id,
             p.profile_id || null,
@@ -442,7 +450,10 @@ export async function POST(req: NextRequest) {
             p.contato_emergencia_nome || null,
             p.contato_emergencia_parentesco || null,
             p.observacoes || null,
-            p.created_at || new Date().toISOString()
+            p.created_at || new Date().toISOString(),
+            funcaoTipo,
+            isAdmin ? 1 : 0,
+            precisaTrocar
           ]
         );
 
@@ -500,6 +511,15 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        return NextResponse.json({ success: true });
+      }
+
+      case 'change_professor_password': {
+        const { id, senha_hash } = payload;
+        await executeTursoQuery(
+          'UPDATE professores SET senha_hash = ?, precisa_trocar_senha = 0 WHERE id = ?;',
+          [senha_hash, id]
+        );
         return NextResponse.json({ success: true });
       }
 

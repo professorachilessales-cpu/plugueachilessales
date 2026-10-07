@@ -1214,13 +1214,13 @@ export function TimelineObservacoesAluno({ estudante }: TimelineObservacoesAluno
           {/* Filtros rápidos no Header Fixo: Busca e Ordenação */}
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={buscaHistorico}
                 onChange={(e) => setBuscaHistorico(e.target.value)}
                 placeholder="Buscar no histórico..."
-                className="w-36 sm:w-48 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-7 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="w-36 sm:w-48 rounded-xl border border-slate-200 bg-slate-50 !pl-9 !pr-7 input-icon-left py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-school-blue-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
               {buscaHistorico && (
                 <button

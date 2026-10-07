@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured, garantirSchemaAutenticacaoProfessores } from '@/lib/turso';
+import { executeTursoQuery, isTursoConfigured, garantirSchemaAutenticacaoProfessores, garantirSchemaAtestadosProfessor } from '@/lib/turso';
 import { garantirTabelasObservacoes } from '@/lib/observacoes-service';
 import { garantirSchemaRecorrenciaEventos } from '@/lib/calendario-service';
 import { isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
@@ -511,9 +511,14 @@ export async function GET() {
     // 13. Atestados dos Professores
     let atestadosProfessor: any[] = [];
     try {
+      await garantirSchemaAtestadosProfessor();
       const atestRes = await executeTursoQuery('SELECT * FROM atestados_professor ORDER BY data_upload DESC');
       atestadosProfessor = atestRes.rows.map((row: any) => ({
         ...row,
+        quantidade_dias: row.quantidade_dias !== undefined && row.quantidade_dias !== null ? Number(row.quantidade_dias) : Number(row.dias_afastamento || 1),
+        dias_afastamento: row.dias_afastamento !== undefined && row.dias_afastamento !== null ? Number(row.dias_afastamento) : Number(row.quantidade_dias || 1),
+        atestado_drive_url: row.atestado_drive_url || row.drive_view_url || (row.drive_file_id ? `https://drive.google.com/file/d/${row.drive_file_id}/view` : undefined),
+        drive_view_url: row.atestado_drive_url || row.drive_view_url || (row.drive_file_id ? `https://drive.google.com/file/d/${row.drive_file_id}/view` : undefined),
         permite_exclusao: Boolean(row.permite_exclusao),
       }));
     } catch (e) {

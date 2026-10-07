@@ -2332,9 +2332,9 @@ export default function ProfessoresPage() {
                             {atest.crm_medico ? `CRM ${atest.crm_medico}` : 'Não informado'}
                           </td>
                           <td className="px-4 py-3.5">
-                            {atest.drive_view_url ? (
+                            {(atest.atestado_drive_url || atest.drive_view_url || atest.drive_file_id) ? (
                               <a
-                                href={atest.drive_view_url}
+                                href={atest.atestado_drive_url || atest.drive_view_url || `https://drive.google.com/file/d/${atest.drive_file_id}/view`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 font-bold text-school-blue-600 hover:underline dark:text-school-gold-400"

@@ -207,6 +207,21 @@ export default function LoginPage() {
 
       // Sucesso na autenticação: sincroniza contexto global e redireciona
       if (data.user) {
+        const precisaTrocarSenha = Boolean(
+          Number(data.user.precisa_trocar_senha) === 1 ||
+          data.user.precisa_trocar_senha === true ||
+          data.user.precisa_trocar_senha === '1' ||
+          Number(data.user.must_change_password) === 1 ||
+          data.user.must_change_password === true ||
+          data.user.must_change_password === '1'
+        );
+
+        if (precisaTrocarSenha && typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem(`plugue_pwd_changed_${data.user.id}`);
+          } catch {}
+        }
+
         const fullUser = {
           id: data.user.id,
           name: data.user.name,
@@ -217,7 +232,8 @@ export default function LoginPage() {
           funcao_tipo: data.user.funcao_tipo || 'PROFESSOR',
           is_admin: Boolean(data.user.is_admin),
           allowed_modules: data.user.funcao_tipo === 'GERAL' ? ['FOTOGRAMA', 'CALENDARIO'] : (data.user.allowed_modules || ['PROFILE', 'FOTOGRAMA', 'CALENDARIO']),
-          must_change_password: (Number(data.user.must_change_password) === 1 || data.user.must_change_password === true || data.user.must_change_password === '1') && (typeof window === 'undefined' || localStorage.getItem(`plugue_pwd_changed_${data.user.id}`) !== 'true'),
+          must_change_password: precisaTrocarSenha,
+          precisa_trocar_senha: precisaTrocarSenha,
           is_active: true,
           created_at: new Date().toISOString(),
         };

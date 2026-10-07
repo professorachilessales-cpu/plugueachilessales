@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Readable } from 'stream';
 import { normalizarNomeParaDrive, obterCaminhoProfessorDrive } from '@/lib/security';
-import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured, garantirSchemaAtestadosProfessor } from '@/lib/turso';
 import { 
   getGoogleDriveClient, 
   resolverOuCriarEstruturaPastasEstudante, 
@@ -20,6 +20,7 @@ const ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/jpg',
 ];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,13 +36,21 @@ export async function POST(req: NextRequest) {
 
     // Campos específicos para atestado de professor
     const dataInicio = (formData.get('data_inicio') as string | null) || (formData.get('data_ausencia') as string | null);
-    const dataFim = formData.get('data_fim') as string | null;
-    const diasAfastamento = parseInt((formData.get('dias_afastamento') as string) || '1', 10);
+    const dataFim = formData.get('data_fim') as string | null || dataInicio;
+    const diasAfastamento = parseInt((formData.get('dias_afastamento') as string) || (formData.get('quantidade_dias') as string) || '1', 10);
     const motivoCid = formData.get('motivo_cid') as string | null;
     const faltaId = (formData.get('falta_id') as string | null) || (formData.get('ausencia_id') as string | null);
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
+    }
+
+    // Validação de limite de tamanho (até 10 MB)
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `O arquivo enviado (${(file.size / 1024 / 1024).toFixed(1)} MB) excede o limite máximo permitido de 10 MB.` },
+        { status: 400 }
+      );
     }
 
     // Se for estudante e não temos o nome mas temos o ID, busca no Turso
@@ -101,6 +110,7 @@ export async function POST(req: NextRequest) {
 
     let driveFileId = `drive_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     let driveViewLink = `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`;
+    let nomeArquivoFinal = file.name;
 
     if (drive) {
       try {
@@ -112,11 +122,13 @@ export async function POST(req: NextRequest) {
         const safeOriginalName = normalizarNomeParaDrive(file.name.substring(0, file.name.lastIndexOf('.')) || file.name);
         const ext = file.name.substring(file.name.lastIndexOf('.')) || '.pdf';
 
-        let nomeArquivoFinal = `[${tipoDocumento.toUpperCase()}]_${safeOriginalName}${ext}`;
         if (tipoUpload === 'professor_atestado') {
-          // Estrutura padronizada: atestado_medico_[DATA].pdf
+          // Hierarquia estruturada: atestado_[DATA]_[ID_UNICO].[ext]
           const dataReferencia = (dataInicio || new Date().toISOString().split('T')[0]).replace(/-/g, '_');
-          nomeArquivoFinal = `atestado_medico_${dataReferencia}${ext.toLowerCase()}`;
+          const idUnico = Math.random().toString(36).substring(2, 8).toUpperCase();
+          nomeArquivoFinal = `atestado_${dataReferencia}_${idUnico}${ext.toLowerCase()}`;
+        } else {
+          nomeArquivoFinal = `[${tipoDocumento.toUpperCase()}]_${safeOriginalName}${ext}`;
         }
 
         const fileMetadata: { name: string; parents?: string[] } = {
@@ -155,29 +167,69 @@ export async function POST(req: NextRequest) {
     }
 
     // Persistência no Turso se configurado
+    let atestId = `atest-${Date.now()}`;
     if (checkIsTursoConfigured()) {
       try {
         if (tipoUpload === 'professor_atestado' && professorId) {
-          const atestId = `atest-${Date.now()}`;
-          await executeTursoQuery(
-            `INSERT INTO atestados_professor (id, professor_id, drive_file_id, nome_arquivo, data_inicio, data_fim, dias_afastamento, motivo_cid, permite_exclusao)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-            [atestId, professorId, driveFileId, file.name, dataInicio || new Date().toISOString().split('T')[0], dataFim || new Date().toISOString().split('T')[0], diasAfastamento, motivoCid || null]
-          );
+          await garantirSchemaAtestadosProfessor();
+          const qtdDias = Math.max(1, diasAfastamento || 1);
+          const dataIniVal = dataInicio || new Date().toISOString().split('T')[0];
+          const dataFimVal = dataFim || dataIniVal;
+
+          try {
+            await executeTursoQuery(
+              `INSERT INTO atestados_professor (
+                id, professor_id, drive_file_id, atestado_drive_url, nome_arquivo, 
+                data_inicio, data_fim, dias_afastamento, quantidade_dias, motivo_cid, permite_exclusao
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+              [
+                atestId, 
+                professorId, 
+                driveFileId, 
+                driveViewLink, 
+                nomeArquivoFinal, 
+                dataIniVal, 
+                dataFimVal, 
+                qtdDias, 
+                qtdDias, 
+                motivoCid || null
+              ]
+            );
+          } catch (insertErr) {
+            await executeTursoQuery(
+              `INSERT INTO atestados_professor (
+                id, professor_id, drive_file_id, nome_arquivo, 
+                data_inicio, data_fim, dias_afastamento, motivo_cid, permite_exclusao
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+              [
+                atestId, 
+                professorId, 
+                driveFileId, 
+                nomeArquivoFinal, 
+                dataIniVal, 
+                dataFimVal, 
+                qtdDias, 
+                motivoCid || null
+              ]
+            );
+          }
 
           if (faltaId) {
             await executeTursoQuery(
               `UPDATE faltas_professores 
-               SET atestado_drive_url = ?, drive_file_id = ?, atestado_drive_link = ?, atestado_drive_id = ? 
+               SET atestado_drive_url = ?, drive_file_id = ?, atestado_drive_link = ?, atestado_drive_id = ?,
+                   data_inicio = COALESCE(?, data_inicio), data_fim = COALESCE(?, data_fim),
+                   motivo = COALESCE(?, motivo)
                WHERE id = ?`,
-              [driveViewLink, driveFileId, driveViewLink, driveFileId, faltaId]
+              [driveViewLink, driveFileId, driveViewLink, driveFileId, dataIniVal, dataFimVal, motivoCid, faltaId]
             );
             try {
               await executeTursoQuery(
                 `UPDATE ausencias_docentes 
-                 SET atestado_drive_url = ?, drive_file_id = ? 
+                 SET atestado_drive_url = ?, drive_file_id = ?,
+                     data_inicio = COALESCE(?, data_inicio), data_fim = COALESCE(?, data_fim)
                  WHERE id = ?`,
-                [driveViewLink, driveFileId, faltaId]
+                [driveViewLink, driveFileId, dataIniVal, dataFimVal, faltaId]
               );
             } catch {}
           }
@@ -196,10 +248,16 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      id: `doc-${Date.now()}`,
+      id: atestId,
       drive_file_id: driveFileId,
       url_visualizacao: driveViewLink,
-      nome_arquivo: file.name,
+      atestado_drive_url: driveViewLink,
+      data_inicio: dataInicio || new Date().toISOString().split('T')[0],
+      data_fim: dataFim || dataInicio || new Date().toISOString().split('T')[0],
+      quantidade_dias: Math.max(1, diasAfastamento || 1),
+      dias_afastamento: Math.max(1, diasAfastamento || 1),
+      motivo_cid: motivoCid || null,
+      nome_arquivo: nomeArquivoFinal,
       tamanho_bytes: file.size,
       mime_type: file.type,
       diretorio_drive: diretorioDrive,

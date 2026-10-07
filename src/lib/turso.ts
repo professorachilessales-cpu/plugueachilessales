@@ -382,3 +382,39 @@ export async function garantirSchemaAutenticacaoProfessores(): Promise<void> {
   }
 }
 
+let schemaAtestadosVerificado = false;
+
+export async function garantirSchemaAtestadosProfessor(): Promise<void> {
+  if (schemaAtestadosVerificado || !checkIsTursoConfigured()) return;
+  try {
+    await executeTursoQuery(`
+      CREATE TABLE IF NOT EXISTS atestados_professor (
+        id TEXT PRIMARY KEY,
+        professor_id TEXT NOT NULL,
+        drive_file_id TEXT,
+        atestado_drive_url TEXT,
+        nome_arquivo TEXT,
+        data_inicio TEXT NOT NULL,
+        data_fim TEXT NOT NULL,
+        dias_afastamento INTEGER NOT NULL DEFAULT 1,
+        quantidade_dias INTEGER DEFAULT 1,
+        motivo_cid TEXT,
+        data_upload TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        permite_exclusao INTEGER NOT NULL DEFAULT 1
+      );
+    `);
+    const info = await executeTursoQuery('PRAGMA table_info(atestados_professor);');
+    const cols = new Set((info.rows || []).map((r: any) => String(r.name).toLowerCase()));
+    if (!cols.has('atestado_drive_url')) {
+      await executeTursoQuery('ALTER TABLE atestados_professor ADD COLUMN atestado_drive_url TEXT;');
+    }
+    if (!cols.has('quantidade_dias')) {
+      await executeTursoQuery('ALTER TABLE atestados_professor ADD COLUMN quantidade_dias INTEGER DEFAULT 1;');
+    }
+    schemaAtestadosVerificado = true;
+  } catch (e) {
+    console.warn('Aviso ao garantir schema atestados_professor:', e);
+  }
+}
+
+

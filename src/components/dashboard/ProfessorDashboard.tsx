@@ -380,6 +380,24 @@ export function ProfessorDashboard() {
   const [reposicaoSelecionada, setReposicaoSelecionada] = useState<ReposicaoAula | null>(null);
 
   const [modalAtestadoAberto, setModalAtestadoAberto] = useState(false);
+  const [atestadoParaExcluir, setAtestadoParaExcluir] = useState<AtestadoProfessor | null>(null);
+  const [excluindoAtestado, setExcluindoAtestado] = useState(false);
+
+  // Helper para formatar período de afastamento do atestado (único ou intervalo)
+  const formatarPeriodoAtestado = (inicio: string, fim?: string): string => {
+    if (!inicio) return '—';
+    const formatarParte = (dStr: string) => {
+      const p = dStr.split('T')[0].split('-').map(Number);
+      if (p.length === 3) {
+        return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('pt-BR');
+      }
+      return dStr;
+    };
+    const iniFmt = formatarParte(inicio);
+    if (!fim || fim === inicio) return iniFmt;
+    const fimFmt = formatarParte(fim);
+    return iniFmt === fimFmt ? iniFmt : `${iniFmt} a ${fimFmt}`;
+  };
 
   if (!professorAtual) {
     return (
@@ -686,16 +704,16 @@ export function ProfessorDashboard() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 8. REPOSITÓRIO DE ATESTADOS DO PROFESSOR (GOOGLE DRIVE) */}
+      {/* 8. MEUS ATESTADOS MÉDICOS (GOOGLE DRIVE) */}
       {/* ========================================================================= */}
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Meus Atestados Médicos (Repositório Google Drive)
+              Meus Atestados Médicos
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Diretório Drive: <code className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800 font-mono text-[11px]">PLUGUE/{professorAtual.nome_completo.toLowerCase().replace(/[^a-z0-9]/g, '_')}/</code>
+              Diretório Drive: <code className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800 font-mono text-[11px]">FICHA DOS PROFESSORES / {(professorAtual.nome_completo || 'P').trim().charAt(0).toUpperCase()} / {professorAtual.nome_completo.trim().toUpperCase()}</code>
             </p>
           </div>
 
@@ -704,12 +722,12 @@ export function ProfessorDashboard() {
             className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            <span>Novo Atestado</span>
+            <span>+ Novo Atestado</span>
           </button>
         </div>
 
         {atestadosDoProfessor.length === 0 ? (
-          <p className="py-6 text-center text-xs text-slate-400">
+          <p className="py-8 text-center text-xs text-slate-400">
             Nenhum atestado médico cadastrado até o momento.
           </p>
         ) : (
@@ -717,61 +735,62 @@ export function ProfessorDashboard() {
             <table className="w-full text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
                 <tr>
-                  <th className="py-2.5 px-3">Documento</th>
-                  <th className="py-2.5 px-3">Período de Afastamento</th>
-                  <th className="py-2.5 px-3">Dias</th>
+                  <th className="py-2.5 px-3">Data da Falta / Período de Afastamento</th>
+                  <th className="py-2.5 px-3">Quantidade de Dias</th>
                   <th className="py-2.5 px-3">Motivo / CID</th>
                   <th className="py-2.5 px-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {atestadosDoProfessor.map((atest) => (
-                  <tr key={atest.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400 flex-shrink-0" />
-                        <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">
-                          {atest.nome_arquivo || 'Atestado Médico'}
+                {atestadosDoProfessor.map((atest) => {
+                  const viewUrl = atest.atestado_drive_url || atest.drive_view_url || (atest.drive_file_id ? `https://drive.google.com/file/d/${atest.drive_file_id}/view` : '#');
+                  const totalDias = atest.quantidade_dias || atest.dias_afastamento || 1;
+                  const motivoTexto = atest.motivo_cid || atest.motivo || atest.cid || '—';
+
+                  return (
+                    <tr key={atest.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400 flex-shrink-0" />
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {formatarPeriodoAtestado(atest.data_inicio, atest.data_fim)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/60">
+                          {totalDias} {totalDias === 1 ? 'dia' : 'dias'}
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-slate-700 dark:text-slate-300">
-                      {new Date(atest.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')} até {new Date(atest.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">
-                      {atest.dias_afastamento} dia(s)
-                    </td>
-                    <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
-                      {atest.motivo_cid || 'Não especificado'}
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <a
-                          href={atest.drive_file_id ? `https://drive.google.com/file/d/${atest.drive_file_id}/view` : '#'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-school-blue-600 dark:text-slate-400 dark:hover:bg-slate-800"
-                          title="Visualizar no Google Drive"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                        {atest.permite_exclusao && (
-                          <button
-                            onClick={() => {
-                              if (confirm('Deseja realmente excluir este atestado?')) {
-                                deleteAtestadoProfessor(atest.id);
-                              }
-                            }}
-                            className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
-                            title="Excluir atestado"
+                      </td>
+                      <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
+                        {motivoTexto}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <a
+                            href={viewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-school-blue-600 hover:bg-blue-50 hover:text-school-blue-700 dark:text-school-gold-400 dark:hover:bg-slate-800 transition-colors"
+                            title="Visualizar documento no Google Drive"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            <span>Visualizar</span>
+                          </a>
+
+                          <button
+                            onClick={() => setAtestadoParaExcluir(atest)}
+                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40 transition-colors"
+                            title="Excluir atestado médico"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Excluir</span>
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -949,6 +968,83 @@ export function ProfessorDashboard() {
           onClose={() => setModalAtestadoAberto(false)}
           professor={professorAtual}
         />
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE ATESTADO */}
+      {atestadoParaExcluir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0 duration-200">
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+              <div className="rounded-2xl bg-rose-100 p-2.5 text-rose-600 dark:bg-rose-950 dark:text-rose-400">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Excluir Atestado Médico
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Ação com registro obrigatório em auditoria
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-rose-50/60 p-4 border border-rose-200/80 dark:border-rose-900/40 dark:bg-rose-950/20 text-xs text-rose-900 dark:text-rose-200 space-y-2">
+              <p>
+                Deseja realmente excluir este atestado médico?
+              </p>
+              <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3 border border-rose-200/50 dark:border-rose-900/50 font-medium space-y-1 text-slate-800 dark:text-slate-200">
+                <p>• <strong>Período:</strong> {formatarPeriodoAtestado(atestadoParaExcluir.data_inicio, atestadoParaExcluir.data_fim)}</p>
+                <p>• <strong>Duração:</strong> {atestadoParaExcluir.quantidade_dias || atestadoParaExcluir.dias_afastamento || 1} dia(s)</p>
+                <p>• <strong>Motivo/CID:</strong> {atestadoParaExcluir.motivo_cid || atestadoParaExcluir.motivo || atestadoParaExcluir.cid || '—'}</p>
+                {atestadoParaExcluir.nome_arquivo && (
+                  <p className="truncate">• <strong>Arquivo:</strong> {atestadoParaExcluir.nome_arquivo}</p>
+                )}
+              </div>
+              <p className="text-[11px] text-rose-700 dark:text-rose-300">
+                O arquivo será removido do Google Drive e o vínculo será desfeito com registro em auditoria.
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={excluindoAtestado}
+                onClick={() => setAtestadoParaExcluir(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={excluindoAtestado}
+                onClick={async () => {
+                  setExcluindoAtestado(true);
+                  try {
+                    await deleteAtestadoProfessor(atestadoParaExcluir.id);
+                    setAtestadoParaExcluir(null);
+                  } catch (e) {
+                    console.error('Erro ao excluir atestado:', e);
+                  } finally {
+                    setExcluindoAtestado(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 active:scale-95 disabled:opacity-50 transition-all"
+              >
+                {excluindoAtestado ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Excluindo no Drive...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Confirmar Exclusão</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

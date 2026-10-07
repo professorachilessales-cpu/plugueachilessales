@@ -137,7 +137,7 @@ interface AppContextType {
   // 8. Gestão de Atestados dos Professores
   atestadosProfessor: AtestadoProfessor[];
   addAtestadoProfessor: (atestado: Omit<AtestadoProfessor, 'id' | 'data_upload' | 'permite_exclusao'>) => void;
-  deleteAtestadoProfessor: (id: string) => void;
+  deleteAtestadoProfessor: (id: string) => Promise<void> | void;
   aprovarAtestadoProfessor: (id: string, aprovar?: boolean) => void;
 
   // 8.1 Lógica de Débito & Reposição de Aulas (Regra dos 30 Dias)
@@ -3185,8 +3185,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setReposicoesAulas(prev => [novaReposicao, ...prev]);
   };
 
-  const deleteAtestadoProfessor = (id: string) => {
+  const deleteAtestadoProfessor = async (id: string) => {
+    const atest = atestadosProfessor.find(a => a.id === id);
     setAtestadosProfessor(prev => prev.filter(a => a.id !== id));
+
+    try {
+      await fetch(
+        `/api/upload-drive?fileId=${encodeURIComponent(atest?.drive_file_id || '')}&docId=${encodeURIComponent(id)}&professorId=${encodeURIComponent(atest?.professor_id || '')}&nomeArquivo=${encodeURIComponent(atest?.nome_arquivo || '')}`,
+        { method: 'DELETE' }
+      );
+      try {
+        await refreshActivityLogs();
+      } catch {}
+    } catch (e) {
+      console.warn('Aviso ao excluir atestado médico do Google Drive:', e);
+    }
   };
 
   const aprovarAtestadoProfessor = (id: string, aprovar?: boolean) => {

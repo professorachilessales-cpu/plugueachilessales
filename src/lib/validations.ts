@@ -133,3 +133,40 @@ export function formatarCEP(valor: string): string {
   if (digitos.length <= 5) return digitos;
   return `${digitos.substring(0, 5)}-${digitos.substring(5)}`;
 }
+
+/**
+ * Validação estrita de senha no primeiro acesso / redefinição obrigatória:
+ * 1. Comprimento Mínimo: Pelo menos 6 dígitos/caracteres.
+ * 2. Proibido usar o próprio CPF: Nem formatado com pontos/traço, nem apenas números.
+ * 3. Proibido sequências de 3 números consecutivos ou repetidos:
+ *    - Bloquear sequências crescentes/decrescentes de 3 dígitos (ex.: 123, 234, 789, 321, 987)
+ *    - Bloquear repetições idênticas de 3 dígitos (ex.: 000, 111, 999)
+ */
+export function validarNovaSenha(senha: string, cpf: string): { valida: boolean; erro?: string } {
+  const cpfLimpo = (cpf || '').replace(/\D/g, '');
+  const senhaLimpa = (senha || '').trim();
+
+  if (senhaLimpa.length < 6) {
+    return { valida: false, erro: 'A senha deve conter no mínimo 6 caracteres.' };
+  }
+  if (senhaLimpa === cpfLimpo || senhaLimpa === (cpf || '').trim()) {
+    return { valida: false, erro: 'A nova senha não pode ser o seu CPF.' };
+  }
+  // Checagem de 3 números repetidos (ex: 111, 222)
+  if (/(\d)\1\1/.test(senhaLimpa)) {
+    return { valida: false, erro: 'A senha não pode conter 3 dígitos repetidos (ex: 111, 222).' };
+  }
+  // Checagem de 3 números sequenciais crescentes ou decrescentes
+  for (let i = 0; i < senhaLimpa.length - 2; i++) {
+    const a = parseInt(senhaLimpa[i], 10);
+    const b = parseInt(senhaLimpa[i + 1], 10);
+    const c = parseInt(senhaLimpa[i + 2], 10);
+    if (!isNaN(a) && !isNaN(b) && !isNaN(c)) {
+      if ((b === a + 1 && c === b + 1) || (b === a - 1 && c === b - 1)) {
+        return { valida: false, erro: 'A senha não pode conter números em sequência (ex: 123, 321).' };
+      }
+    }
+  }
+  return { valida: true };
+}
+

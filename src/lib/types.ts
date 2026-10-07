@@ -601,11 +601,13 @@ export interface AtestadoProfessor {
   data_inicio: string;
   data_fim: string;
   dias_afastamento: number;
+  quantidade_dias?: number;
   motivo_cid?: string;
   cid?: string;
   motivo?: string;
   crm_medico?: string;
   drive_view_url?: string;
+  atestado_drive_url?: string;
   status?: 'Pendente' | 'Aprovado' | 'Rejeitado' | string;
   data_upload: string;
   permite_exclusao: boolean;

@@ -279,10 +279,10 @@ export default function LoginPage() {
     <main className="min-h-screen w-full flex flex-col lg:flex-row bg-slate-950 text-slate-100 font-sans selection:bg-school-gold-500 selection:text-slate-950 overflow-x-hidden relative">
       
       {/* ========================================================================= */}
-      {/* 1. PAINEL VISUAL / DESTAQUE (SPLIT SCREEN - PERSPECTIVA ISOMÉTRICA 3D)   */}
+      {/* 1. PAINEL VISUAL / DESTAQUE (SPLIT SCREEN - APENAS DESKTOP)              */}
       {/* ========================================================================= */}
       <section 
-        className="relative lg:w-[52%] xl:w-[55%] flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 overflow-hidden border-b lg:border-b-0 lg:border-r border-white/10 bg-gradient-to-br from-slate-950 via-school-blue-950 to-slate-900"
+        className="hidden lg:flex relative lg:w-[52%] xl:w-[55%] flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 overflow-hidden border-b lg:border-b-0 lg:border-r border-white/10 bg-gradient-to-br from-slate-950 via-school-blue-950 to-slate-900"
         aria-label="Painel institucional e visual da plataforma"
       >
         {/* Glows de ambientação e luz volumétrica */}
@@ -396,10 +396,10 @@ export default function LoginPage() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 2. PAINEL DE FORMULÁRIO DE AUTENTICAÇÃO E SEGURANÇA (GLASSMORPHISM CARD)   */}
+      {/* 2. PAINEL DE FORMULÁRIO DE AUTENTICAÇÃO E SEGURANÇA                       */}
       {/* ========================================================================= */}
       <section 
-        className="relative lg:w-[48%] xl:w-[45%] flex flex-col justify-center items-center p-4 sm:p-8 lg:p-12 xl:p-16 min-h-[640px] bg-slate-900/60 lg:bg-transparent"
+        className="relative w-full lg:w-[48%] xl:w-[45%] flex flex-col justify-center items-center p-4 sm:p-8 lg:p-12 xl:p-16 min-h-screen lg:min-h-[640px] bg-slate-900/60 lg:bg-transparent"
         aria-label="Formulário de acesso institucional"
       >
         {/* Glow de fundo exclusivo do formulário */}
@@ -407,7 +407,7 @@ export default function LoginPage() {
         <div className="absolute bottom-10 left-10 h-72 w-72 rounded-full bg-blue-600/10 blur-[100px] pointer-events-none" />
 
         {/* Seletor de Modo Claro / Escuro no Canto Superior */}
-        <div className="w-full max-w-md flex justify-end mb-3">
+        <div className="absolute top-4 right-4 z-20 lg:relative lg:top-auto lg:right-auto lg:w-full lg:max-w-md lg:flex lg:justify-end lg:mb-3">
           <button
             type="button"
             onClick={toggleTheme}
@@ -426,6 +426,43 @@ export default function LoginPage() {
               </>
             )}
           </button>
+        </div>
+
+        {/* Identidade Institucional Exclusiva da Versão MOBILE:
+            Apenas o Título do PLUGUE e o Nome da Escola */}
+        <div className="lg:hidden w-full max-w-md text-center mb-5 space-y-2.5">
+          <div className="inline-flex items-center justify-center gap-3">
+            <div className="relative h-12 w-12 rounded-2xl bg-slate-900/90 border border-school-gold-400/40 p-1.5 shadow-xl shadow-school-gold-500/10 flex items-center justify-center backdrop-blur-md">
+              <Image 
+                src="/logo-plugue.png" 
+                alt="Logo PLUGUE" 
+                width={44} 
+                height={44} 
+                className="object-contain drop-shadow-md rounded-xl"
+                priority
+              />
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-black tracking-tight text-white flex items-center gap-1.5">
+                  PLUGUE
+                </span>
+                <span className="rounded-full bg-school-gold-400/20 px-2 py-0.5 text-[10px] font-extrabold text-school-gold-300 border border-school-gold-400/40 tracking-wider">
+                  OS 2026
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 font-medium">
+                Plataforma Unificada de Gestão Educacional
+              </p>
+            </div>
+          </div>
+
+          {/* Nome da Escola */}
+          <div className="pt-0.5">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-white text-balance leading-snug drop-shadow-sm px-2">
+              {escolaConfig?.nome_escola || 'Escola Técnica Estadual Professor Achiles Sales'}
+            </h1>
+          </div>
         </div>
 
         {/* Card Moderno com Acabamento Clean e Glassmorphism */}

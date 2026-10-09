@@ -32,7 +32,6 @@ import {
 } from '@/lib/types';
 import { 
   initialEscolaConfig, 
-  initialTurmas, 
   initialEstudantes, 
   initialProfessores, 
   initialFaltasProfessores, 
@@ -157,6 +156,7 @@ interface AppContextType {
   updateTurma: (id: string, updates: Partial<Turma>) => void;
   toggleStatusTurma: (turmaId: string, novaAtiva: boolean) => Promise<void>;
   migrarEstudantes: (estudantesIds: string[], turmaOrigemId: string, turmaDestinoId: string) => Promise<void>;
+  refreshTurmas: () => Promise<void>;
 
   // Ações Auditoria
   addActivityLog: (log: Omit<ActivityLog, 'id' | 'created_at'>) => Promise<ActivityLog>;
@@ -193,7 +193,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<UserRole>('admin');
   const [escolaConfig, setEscolaConfigState] = useState<EscolaConfig>(initialEscolaConfig);
   
-  const [turmas, setTurmas] = useState<Turma[]>(initialTurmas);
+  const [turmas, setTurmas] = useState<Turma[]>([]);
   const [estudantes, setEstudantes] = useState<Estudante[]>(initialEstudantes);
   const [professores, setProfessores] = useState<Professor[]>(initialProfessores);
   const [faltasProfessores, setFaltasProfessores] = useState<FaltaProfessor[]>(initialFaltasProfessores);
@@ -399,15 +399,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setEstudantes(initialEstudantes);
             localStorage.setItem('school_os_estudantes', JSON.stringify(initialEstudantes));
           } else {
-            // Garante que estudantes no cache local recuperem o turma_id pelo turma_nome se tiver ocorrido desvinculação prévia
-            const turmaMapByName = new Map(initialTurmas.map(t => [t.nome?.trim(), t.id]));
-            const sanitizedEst = parsedEst.map(e => {
-              if ((!e.turma_id || String(e.turma_id).trim() === '') && e.turma_nome && turmaMapByName.has(String(e.turma_nome).trim())) {
-                return { ...e, turma_id: turmaMapByName.get(String(e.turma_nome).trim())! };
-              }
-              return e;
-            });
-            setEstudantes(sanitizedEst);
+            setEstudantes(parsedEst);
           }
         } catch {
           setEstudantes(initialEstudantes);
@@ -416,13 +408,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setEstudantes(initialEstudantes);
       }
 
-      // Limpeza de cache local obsoleto para garantir dados relacionais estritos do banco
+      // Limpeza definitiva de cache local de turmas (banco de dados Turso é a única fonte da verdade)
       try {
         localStorage.removeItem('school_os_turmas');
+        localStorage.removeItem('school_os_grade_horaria');
+        localStorage.removeItem('plugue_turmas');
+        localStorage.removeItem('turmas');
+        sessionStorage.removeItem('school_os_turmas');
+        sessionStorage.removeItem('plugue_turmas');
         localStorage.removeItem('school_os_professores');
       } catch {}
 
-      setTurmas(initialTurmas);
+      // Professores iniciais enquanto busca do banco
       setProfessores(initialProfessores);
 
       // Faltas persistidas
@@ -500,8 +497,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsInitialized(true);
     }
 
-    // Carregar todo o banco de dados diretamente do Turso
-    fetch('/api/turso/data')
+    // Carregar todo o banco de dados diretamente do Turso (estritamente sem cache)
+    fetch(`/api/turso/data?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+      },
+    })
       .then((res) => res.json())
       .then((json) => {
         if (json.success && json.data) {
@@ -585,7 +588,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               });
             setProfessores(cleanProf);
           }
-          if (tTurmas && tTurmas.length > 0) {
+          if (Array.isArray(tTurmas)) {
             const cleanTurmas = tTurmas.map((t: Turma) => {
               const rawProfs = t.professores_ids || (t.professor_regente_id ? [t.professor_regente_id] : []);
               const pIds = rawProfs.filter((pid: string) => {
@@ -1393,6 +1396,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (updatedTurma) {
       syncWithTurso('save_turma', updatedTurma);
+    }
+  };
+
+  const refreshTurmas = async () => {
+    try {
+      const res = await fetch(`/api/turso/data?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          Pragma: 'no-cache',
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data && Array.isArray(json.data.turmas)) {
+          const tTurmas = json.data.turmas;
+          const cleanProf = json.data.professores || professores;
+          const tUsers = json.data.users || users;
+          const cleanTurmas = tTurmas.map((t: Turma) => {
+            const rawProfs = t.professores_ids || (t.professor_regente_id ? [t.professor_regente_id] : []);
+            const pIds = rawProfs.filter((pid: string) => {
+              const prof = cleanProf.find((p: any) => p.id === pid);
+              return prof && !isProfessorAdministrativo(prof, tUsers) && !isProfessorApoio(prof);
+            });
+            let regId = t.professor_regente_id;
+            let regNome = t.professor_regente_nome;
+            const regProf = cleanProf.find((p: any) => p.id === regId);
+            if (regProf && (isProfessorAdministrativo(regProf, tUsers) || isProfessorApoio(regProf))) {
+              regId = pIds[0] || undefined;
+              regNome = regId ? cleanProf.find((p: any) => p.id === regId)?.nome_completo : undefined;
+            }
+            const cleanApoio = (t.equipe_apoio_ids || []).filter((pid: string) => {
+              const prof = cleanProf.find((p: any) => p.id === pid);
+              return prof && !isProfessorAdministrativo(prof, tUsers);
+            });
+            return {
+              ...t,
+              professores_ids: pIds,
+              professor_regente_id: regId,
+              professor_regente_nome: regNome,
+              equipe_apoio_ids: cleanApoio,
+            };
+          });
+          setTurmas(cleanTurmas);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao recarregar turmas do banco Turso:', err);
     }
   };
 
@@ -3432,6 +3483,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateTurma,
         toggleStatusTurma,
         migrarEstudantes,
+        refreshTurmas,
         addActivityLog,
         refreshActivityLogs,
         addProfessor,

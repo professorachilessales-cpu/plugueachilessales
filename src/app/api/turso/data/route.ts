@@ -566,30 +566,39 @@ export async function GET() {
       console.warn('Tabela reposicoes_aulas ainda não criada no Turso:', e);
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        escolaConfig,
-        users,
-        professores,
-        turmas,
-        turmaProfessores,
-        estudantes,
-        faltasProfessores,
-        eventos,
-        calendarioCategorias,
-        activityLogs,
-        solicitacoesRelatorio,
-        relatoriosProfessores,
-        relatoriosConsolidados,
-        notificacoesAdmin,
-        observacoesAluno,
-        observacoesAuditoria,
-        documentosEstudanteDrive,
-        atestadosProfessor,
-        reposicoesAulas,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          escolaConfig,
+          users,
+          professores,
+          turmas,
+          turmaProfessores,
+          estudantes,
+          faltasProfessores,
+          eventos,
+          calendarioCategorias,
+          activityLogs,
+          solicitacoesRelatorio,
+          relatoriosProfessores,
+          relatoriosConsolidados,
+          notificacoesAdmin,
+          observacoesAluno,
+          observacoesAuditoria,
+          documentosEstudanteDrive,
+          atestadosProfessor,
+          reposicoesAulas,
+        },
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    );
   } catch (error: any) {
     console.error('Erro geral ao carregar dados do Turso:', error);
     return NextResponse.json(

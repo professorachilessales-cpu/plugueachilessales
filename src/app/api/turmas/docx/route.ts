@@ -4,7 +4,7 @@ import {
   generateTurmaListaCadastroDocx, 
   TurmaDocxOptions 
 } from '@/lib/turma-docx-generator';
-import { initialEstudantes, initialTurmas, initialEscolaConfig } from '@/lib/mock-data';
+import { initialEstudantes, initialEscolaConfig } from '@/lib/mock-data';
 import { isTursoConfigured, executeTursoQuery } from '@/lib/turso';
 import { Turma, Estudante, EscolaConfig } from '@/lib/types';
 
@@ -134,9 +134,9 @@ export async function GET(req: NextRequest) {
     }
 
     if (!turmaEncontrada) {
-      turmaEncontrada = initialTurmas.find((t) => t.id === turmaId) || initialTurmas[0];
-      listaEstudantes = initialEstudantes.filter(
-        (e) => e.turma_id === turmaId && e.status_matricula !== 'Transferido' && e.status_matricula !== 'Evadido'
+      return NextResponse.json(
+        { error: 'Turma não encontrada no banco de dados.' },
+        { status: 404 }
       );
     }
 

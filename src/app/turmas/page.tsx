@@ -29,7 +29,8 @@ import {
   FileText,
   FileSpreadsheet,
   Loader2,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { Turno, HorarioAula, Turma, GrupoTurma, GRUPOS_TURMAS_LISTA, Professor } from '@/lib/types';
 import { analisarFaixaEtariaTurma, AnaliseTurmaFaixaEtaria } from '@/lib/faixa-etaria';
@@ -283,20 +284,40 @@ export default function TurmasPage() {
     updateTurma, 
     toggleStatusTurma, 
     migrarEstudantes, 
+    refreshTurmas,
     role 
   } = useApp();
 
-  const [turmaSelecionada, setTurmaSelecionada] = useState<Turma>(turmas[0] || null);
+  const [turmaSelecionada, setTurmaSelecionada] = useState<Turma | null>(null);
+  const [recarregandoBanco, setRecarregandoBanco] = useState(false);
 
-  // Sincroniza a turma selecionada caso a lista de turmas seja carregada assincronamente
+  // Limpeza de qualquer cache de turmas no navegador ao acessar a página
   React.useEffect(() => {
-    if (!turmaSelecionada && turmas.length > 0) {
-      setTurmaSelecionada(turmas[0]);
-    } else if (turmaSelecionada) {
-      const atualizada = turmas.find((t) => t.id === turmaSelecionada.id);
-      if (atualizada && atualizada !== turmaSelecionada) {
-        setTurmaSelecionada(atualizada);
+    try {
+      localStorage.removeItem('school_os_turmas');
+      localStorage.removeItem('school_os_grade_horaria');
+      localStorage.removeItem('plugue_turmas');
+      localStorage.removeItem('turmas');
+      sessionStorage.removeItem('school_os_turmas');
+      sessionStorage.removeItem('plugue_turmas');
+    } catch {}
+  }, []);
+
+  // Sincroniza a turma selecionada caso a lista de turmas seja carregada assincronamente do banco
+  React.useEffect(() => {
+    if (turmas.length > 0) {
+      if (!turmaSelecionada) {
+        setTurmaSelecionada(turmas[0]);
+      } else {
+        const atualizada = turmas.find((t) => t.id === turmaSelecionada.id);
+        if (atualizada && atualizada !== turmaSelecionada) {
+          setTurmaSelecionada(atualizada);
+        } else if (!atualizada) {
+          setTurmaSelecionada(turmas[0]);
+        }
       }
+    } else {
+      setTurmaSelecionada(null);
     }
   }, [turmas, turmaSelecionada]);
 
@@ -690,15 +711,53 @@ export default function TurmasPage() {
           </p>
         </div>
 
-        {role === 'admin' && (
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setModalNovaTurmaAberto(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/25 hover:bg-school-blue-700 transition-all dark:bg-school-blue-600"
+            type="button"
+            disabled={recarregandoBanco}
+            onClick={async () => {
+              setRecarregandoBanco(true);
+              try {
+                localStorage.removeItem('school_os_turmas');
+                localStorage.removeItem('school_os_grade_horaria');
+                localStorage.removeItem('plugue_turmas');
+                localStorage.removeItem('turmas');
+                sessionStorage.removeItem('school_os_turmas');
+                sessionStorage.removeItem('plugue_turmas');
+                await refreshTurmas();
+                setFeedbackMsg({
+                  tipo: 'sucesso',
+                  texto: 'Turmas e grade horária sincronizadas diretamente do banco de dados (sem cache)!',
+                });
+                setTimeout(() => setFeedbackMsg(null), 4000);
+              } catch (e) {
+                console.error(e);
+                setFeedbackMsg({
+                  tipo: 'erro',
+                  texto: 'Erro ao conectar ao banco de dados para sincronizar turmas.',
+                });
+                setTimeout(() => setFeedbackMsg(null), 4000);
+              } finally {
+                setRecarregandoBanco(false);
+              }
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
+            title="Limpar qualquer cache local e recarregar os dados diretamente do banco de dados"
           >
-            <Plus className="h-4 w-4" />
-            <span>Cadastrar Nova Turma</span>
+            <RefreshCw className={`h-4 w-4 text-school-blue-600 dark:text-school-gold-400 ${recarregandoBanco ? 'animate-spin' : ''}`} />
+            <span>{recarregandoBanco ? 'Sincronizando...' : 'Atualizar do Banco'}</span>
           </button>
-        )}
+
+          {role === 'admin' && (
+            <button
+              onClick={() => setModalNovaTurmaAberto(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/25 hover:bg-school-blue-700 transition-all dark:bg-school-blue-600"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Cadastrar Nova Turma</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Banner de Feedback de Ações (Auditoria / Migração / Status) */}
@@ -781,10 +840,31 @@ export default function TurmasPage() {
       </div>
 
       {/* Grid de Turmas Ativas com Controle de Lotação & Status */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {turmas
-          .filter((t) => filtroGrupo === 'todos' || t.grupo === filtroGrupo)
-          .map((turma) => {
+      {turmas.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-xs text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-school-blue-600 dark:text-school-gold-400 mb-3" />
+          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+            Carregando turmas diretamente do banco de dados...
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
+            Limpando caches locais e sincronizando registros oficiais em tempo real do banco de dados Turso.
+          </p>
+        </div>
+      ) : turmas.filter((t) => filtroGrupo === 'todos' || t.grupo === filtroGrupo).length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-dashed border-slate-200 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 text-center">
+          <BookOpen className="h-8 w-8 text-slate-400 mb-2" />
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+            Nenhuma turma encontrada no grupo selecionado ({filtroGrupo}).
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Selecione outro filtro de grupo acima ou cadastre uma nova turma.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {turmas
+            .filter((t) => filtroGrupo === 'todos' || t.grupo === filtroGrupo)
+            .map((turma) => {
           const alunosMatriculados = estudantes.filter((e) => e.turma_id === turma.id).length;
           const pctOcupacao = Math.min(100, Math.round((alunosMatriculados / turma.capacidade) * 100));
           const isSelected = turmaSelecionada?.id === turma.id;
@@ -1093,6 +1173,7 @@ export default function TurmasPage() {
           );
         })}
       </div>
+      )}
 
       {/* Módulo de Grade Horária e Links Virtuais da Turma Selecionada */}
       {turmaSelecionada && (

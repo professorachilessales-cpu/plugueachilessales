@@ -34,6 +34,7 @@ import {
 import { Turno, HorarioAula, Turma, GrupoTurma, GRUPOS_TURMAS_LISTA, Professor } from '@/lib/types';
 import { analisarFaixaEtariaTurma, AnaliseTurmaFaixaEtaria } from '@/lib/faixa-etaria';
 import { ModalFaixaEtariaTurma } from '@/components/turmas/ModalFaixaEtariaTurma';
+import { ModalEditarGradeTurma } from '@/components/turmas/ModalEditarGradeTurma';
 import { isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
 
 interface SecaoEquipeTurmaFormProps {
@@ -302,6 +303,8 @@ export default function TurmasPage() {
   const [modalNovaTurmaAberto, setModalNovaTurmaAberto] = useState(false);
   const [modalEditarTurmaAberto, setModalEditarTurmaAberto] = useState(false);
   const [turmaEditando, setTurmaEditando] = useState<Turma | null>(null);
+  const [modalEditarGradeAberto, setModalEditarGradeAberto] = useState(false);
+  const [turmaEditandoGrade, setTurmaEditandoGrade] = useState<Turma | null>(null);
   const [modalNovoHorarioAberto, setModalNovoHorarioAberto] = useState(false);
   const [turmaFaixaEtariaModal, setTurmaFaixaEtariaModal] = useState<AnaliseTurmaFaixaEtaria | null>(null);
   const [filtroGrupo, setFiltroGrupo] = useState<string>('todos');
@@ -425,6 +428,22 @@ export default function TurmasPage() {
       equipe_apoio_ids: apoioInicial,
     });
     setModalEditarTurmaAberto(true);
+  };
+
+  const handleAbrirEditarGrade = (t: Turma) => {
+    setTurmaEditandoGrade(t);
+    setTurmaSelecionada(t);
+    setModalEditarGradeAberto(true);
+  };
+
+  const handleSalvarGrade = (turmaId: string, novaGrade: HorarioAula[]) => {
+    updateTurma(turmaId, { grade_horaria: novaGrade });
+    if (turmaSelecionada?.id === turmaId) {
+      setTurmaSelecionada({ ...turmaSelecionada, grade_horaria: novaGrade });
+    }
+    if (turmaEditandoGrade?.id === turmaId) {
+      setTurmaEditandoGrade({ ...turmaEditandoGrade, grade_horaria: novaGrade });
+    }
   };
 
   const handleToggleStatusTurma = async () => {
@@ -982,6 +1001,45 @@ export default function TurmasPage() {
                 );
               })()}
 
+              {/* Botões de Ação da Turma (Editar Dados e Editar Grade Horária) */}
+              {role === 'admin' && (
+                <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex items-center justify-between gap-1 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Edit2 className="h-3 w-3 text-school-blue-600 dark:text-school-gold-400" />
+                      Gerenciar Turma:
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAbrirEditarTurma(turma);
+                      }}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-slate-100 px-2 py-1.5 text-[11px] font-bold text-slate-700 hover:text-school-blue-700 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700 transition-all shadow-2xs group"
+                      title="Editar dados da turma (nome, turno, capacidade, sala, professores e status)"
+                    >
+                      <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 shrink-0 group-hover:scale-110 transition-transform" />
+                      <span className="truncate">Editar Turma</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAbrirEditarGrade(turma);
+                      }}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/80 hover:bg-amber-100 px-2 py-1.5 text-[11px] font-bold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/60 transition-all shadow-2xs group"
+                      title="Editar a grade horária semanal de aulas desta turma"
+                    >
+                      <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
+                      <span className="truncate">Editar Grade</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Botões de Impressão DOCX da Turma */}
               <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
                 <div className="flex items-center justify-between gap-1 mb-2">
@@ -1123,6 +1181,15 @@ export default function TurmasPage() {
                   >
                     <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
                     <span>Editar Turma</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleAbrirEditarGrade(turmaSelecionada)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/60 transition-all shadow-2xs"
+                    title="Editar a grade horária semanal de aulas desta turma"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Editar Grade Horária</span>
                   </button>
 
                   <button
@@ -1634,6 +1701,30 @@ export default function TurmasPage() {
                 </button>
               </div>
 
+              {/* 3. BOTÃO: GRADE HORÁRIA DA TURMA */}
+              <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 dark:border-amber-900/60 dark:bg-amber-950/30">
+                <div>
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-300">
+                    <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <span>Grade Horária Semanal</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
+                    Configure as aulas e docentes desta turma nos dias da semana.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalEditarTurmaAberto(false);
+                    handleAbrirEditarGrade(turmaEditando);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-bold text-white shadow hover:bg-amber-700 transition-all dark:bg-amber-600 whitespace-nowrap"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>Editar Grade</span>
+                </button>
+              </div>
+
               {/* Formulário de Edição */}
               <form onSubmit={handleSalvarEdicaoTurma} className="space-y-4 pt-1">
                 <div className="grid grid-cols-2 gap-3">
@@ -2124,6 +2215,16 @@ export default function TurmasPage() {
           </div>
         );
       })()}
+
+      {/* Modal de Edição Interativa da Grade Horária da Turma */}
+      <ModalEditarGradeTurma
+        turma={turmaEditandoGrade}
+        isOpen={modalEditarGradeAberto}
+        onClose={() => setModalEditarGradeAberto(false)}
+        professores={professores}
+        onSalvarGrade={handleSalvarGrade}
+        onAbrirEditarTurma={(t) => handleAbrirEditarTurma(t)}
+      />
 
       {/* Modal de Detalhes da Faixa Etária e Distorção Idade-Série */}
       {turmaFaixaEtariaModal && (

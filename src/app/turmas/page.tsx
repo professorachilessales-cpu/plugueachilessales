@@ -748,7 +748,7 @@ export default function TurmasPage() {
             <span>{recarregandoBanco ? 'Sincronizando...' : 'Atualizar do Banco'}</span>
           </button>
 
-          {role === 'admin' && (
+          {(role === 'admin' || role === 'direcao') && (
             <button
               onClick={() => setModalNovaTurmaAberto(true)}
               className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/25 hover:bg-school-blue-700 transition-all dark:bg-school-blue-600"
@@ -788,14 +788,14 @@ export default function TurmasPage() {
         </div>
       )}
 
-      {/* Alerta de Perfil Não-Admin se acessado por docente */}
-      {role !== 'admin' && (
+      {/* Alerta informativo quando acessado por docente */}
+      {role === 'professor' && (
         <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
           <Lock className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
           <div>
-            <p className="font-bold uppercase tracking-wider text-[11px]">Módulo Restrito à Gestão e Secretaria Escolar</p>
+            <p className="font-bold uppercase tracking-wider text-[11px]">Módulo de Gestão Escolar</p>
             <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
-              O gerenciamento e a edição de turmas, salas e horários são exclusivos para a administração. Professores devem utilizar o <strong>Fotograma da Turma</strong> para consultar os estudantes e dados de contato.
+              Professores possuem visualização para consulta de turmas e horários. O gerenciamento e a edição cadastral são realizados pela coordenação e direção escolar.
             </p>
           </div>
         </div>
@@ -922,19 +922,17 @@ export default function TurmasPage() {
                   <div className="text-right text-[11px] font-medium text-slate-500 dark:text-slate-400">
                     {turma.sala}
                   </div>
-                  {role === 'admin' && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAbrirEditarTurma(turma);
-                      }}
-                      className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-school-blue-600 dark:hover:bg-slate-800"
-                      title="Alterar dados da turma"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAbrirEditarTurma(turma);
+                    }}
+                    className="rounded-lg p-1 text-slate-400 hover:bg-blue-50 hover:text-school-blue-600 dark:hover:bg-slate-800 transition-colors"
+                    title="Editar dados da turma"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
 
@@ -1082,43 +1080,41 @@ export default function TurmasPage() {
               })()}
 
               {/* Botões de Ação da Turma (Editar Dados e Editar Grade Horária) */}
-              {role === 'admin' && (
-                <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
-                  <div className="flex items-center justify-between gap-1 mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                      <Edit2 className="h-3 w-3 text-school-blue-600 dark:text-school-gold-400" />
-                      Gerenciar Turma:
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAbrirEditarTurma(turma);
-                      }}
-                      className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-slate-100 px-2 py-1.5 text-[11px] font-bold text-slate-700 hover:text-school-blue-700 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700 transition-all shadow-2xs group"
-                      title="Editar dados da turma (nome, turno, capacidade, sala, professores e status)"
-                    >
-                      <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 shrink-0 group-hover:scale-110 transition-transform" />
-                      <span className="truncate">Editar Turma</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAbrirEditarGrade(turma);
-                      }}
-                      className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/80 hover:bg-amber-100 px-2 py-1.5 text-[11px] font-bold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/60 transition-all shadow-2xs group"
-                      title="Editar a grade horária semanal de aulas desta turma"
-                    >
-                      <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
-                      <span className="truncate">Editar Grade</span>
-                    </button>
-                  </div>
+              <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="flex items-center justify-between gap-1 mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <Edit2 className="h-3 w-3 text-school-blue-600 dark:text-school-gold-400" />
+                    Gerenciar Turma:
+                  </span>
                 </div>
-              )}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAbrirEditarTurma(turma);
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/90 hover:bg-blue-100 px-2.5 py-2 text-xs font-bold text-school-blue-900 hover:text-school-blue-950 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs group cursor-pointer"
+                    title="Editar dados da turma (nome, turno, capacidade, sala, professores e status)"
+                  >
+                    <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 shrink-0 group-hover:scale-110 transition-transform" />
+                    <span className="truncate">Editar Turma</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAbrirEditarGrade(turma);
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/90 hover:bg-amber-100 px-2.5 py-2 text-xs font-bold text-amber-900 hover:text-amber-950 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-900/60 transition-all shadow-2xs group cursor-pointer"
+                    title="Editar a grade horária semanal de aulas desta turma"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
+                    <span className="truncate">Editar Grade</span>
+                  </button>
+                </div>
+              </div>
 
               {/* Botões de Impressão DOCX da Turma */}
               <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
@@ -1253,12 +1249,12 @@ export default function TurmasPage() {
                 <span>Lista AEE &amp; CPF (DOCX)</span>
               </button>
 
-              {role === 'admin' && (
+              {(role === 'admin' || role === 'direcao') && (
                 <>
                   <button
                     onClick={() => handleAbrirEditarTurma(turmaSelecionada)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    title="Alterar informações desta turma"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-1.5 text-xs font-bold text-school-blue-900 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200 transition-all shadow-2xs"
+                    title="Editar informações cadastrais desta turma"
                   >
                     <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
                     <span>Editar Turma</span>
@@ -1266,7 +1262,7 @@ export default function TurmasPage() {
 
                   <button
                     onClick={() => handleAbrirEditarGrade(turmaSelecionada)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/60 transition-all shadow-2xs"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 transition-all shadow-2xs"
                     title="Editar a grade horária semanal de aulas desta turma"
                   >
                     <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
@@ -1462,7 +1458,7 @@ export default function TurmasPage() {
                         </span>
                       )}
                     </div>
-                    {role === 'admin' && (
+                    {(role === 'admin' || role === 'direcao') && (
                       <button
                         type="button"
                         onClick={() => {
@@ -1514,7 +1510,7 @@ export default function TurmasPage() {
                                 </div>
                               </div>
 
-                              {role === 'admin' && (
+                              {(role === 'admin' || role === 'direcao') && (
                                 <button
                                   type="button"
                                   onClick={() => handleRemoverHorario(aula.id)}

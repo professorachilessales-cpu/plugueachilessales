@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Overlays de tela inteira não devem receber margens dos contêineres space-y/space-x. */
+.fixed.inset-0 {
+  margin: 0 !important;
+}
+
 /* ==========================================================================
    PLUGUE DESIGN SYSTEM — TOKENS INSTITUCIONAIS
    Paleta: Azul (#1E3A8A / #1D4ED8) + Ouro/Amarelo (#F4B400 / #F6C445)

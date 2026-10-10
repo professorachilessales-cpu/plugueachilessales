@@ -153,12 +153,15 @@ export default function CalendarioPage() {
     deleteEvento,
     refreshEventos,
     role,
+    currentUser,
     categoriasEvento,
     addCategoriaEvento,
     updateCategoriaEvento,
     deleteCategoriaEvento,
     escolaConfig
   } = useApp();
+
+  const podeGerenciarCalendario = role === 'admin' || role === 'direcao' || currentUser?.funcao_tipo === 'ADMINISTRATIVO';
 
   // Consulta direta ao banco de dados na inicialização do componente
   useEffect(() => {
@@ -276,11 +279,11 @@ export default function CalendarioPage() {
 
   // Categorias disponíveis respeitando a visibilidade docente
   const categoriasDisponiveis = useMemo(() => {
-    if (role === 'admin' || role === 'direcao') {
+    if (podeGerenciarCalendario) {
       return categoriasEvento;
     }
     return categoriasEvento.filter((c) => c.visivel_docentes !== false);
-  }, [categoriasEvento, role]);
+  }, [categoriasEvento, podeGerenciarCalendario]);
 
   // Categoria padrão inicial para o formulário (Avaliação / Provas em vermelho #EF4444)
   const categoriaPadrao = useMemo(() => {
@@ -320,12 +323,12 @@ export default function CalendarioPage() {
   const todosEventosPermitidos = useMemo(() => {
     return eventos.filter((ev) => {
       const catInfo = getCategoriaInfo(ev.categoria);
-      if (role === 'professor' && catInfo.visivel_docentes === false) {
+      if (!podeGerenciarCalendario && catInfo.visivel_docentes === false) {
         return false;
       }
       return true;
     });
-  }, [eventos, role, categoriasEvento]);
+  }, [eventos, podeGerenciarCalendario, categoriasEvento]);
 
   // 2. Eventos filtrados pela categoria selecionada pelo usuário
   const eventosVisiveis = useMemo(() => {
@@ -536,7 +539,7 @@ export default function CalendarioPage() {
           </button>
 
           {/* Gestão Dinâmica de Categorias (Exclusivo Administrador) */}
-          {role === 'admin' && (
+          {podeGerenciarCalendario && (
             <button
               onClick={() => {
                 cancelarEdicaoCategoria();
@@ -550,7 +553,7 @@ export default function CalendarioPage() {
           )}
 
           {/* Opção exclusiva para Administrador */}
-          {role === 'admin' && (
+          {podeGerenciarCalendario && (
             <button
               onClick={() => {
                 setEditandoEventoId(null);
@@ -952,7 +955,7 @@ export default function CalendarioPage() {
                 Nenhum evento encontrado nesta categoria
               </h3>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                {role === 'admin'
+                {podeGerenciarCalendario
                   ? 'Ajuste os filtros acima ou cadastre um novo evento escolar.'
                   : 'Ajuste os filtros acima para visualizar os eventos escolares.'}
               </p>
@@ -1022,7 +1025,7 @@ export default function CalendarioPage() {
                     </div>
                   </div>
 
-                  {role === 'admin' && (
+                  {podeGerenciarCalendario && (
                     <div className="flex items-center gap-1 self-end sm:self-auto print:hidden">
                       <button
                         onClick={() => iniciarEdicaoEvento(ev)}
@@ -1108,7 +1111,7 @@ export default function CalendarioPage() {
             </div>
 
             <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
-              {role === 'admin' ? (
+              {podeGerenciarCalendario ? (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
@@ -1144,7 +1147,7 @@ export default function CalendarioPage() {
       )}
 
       {/* Modal de Criação/Edição de Evento (Apenas Datas, Sem Horários - Exclusivo Administrador) */}
-      {modalNovoEventoAberto && role === 'admin' && (
+      {modalNovoEventoAberto && podeGerenciarCalendario && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
@@ -1335,7 +1338,7 @@ export default function CalendarioPage() {
       )}
 
       {/* Modal de Gestão Dinâmica de Categorias & Cores (Exclusivo Administrador) */}
-      {modalCategoriasAberto && role === 'admin' && (
+      {modalCategoriasAberto && podeGerenciarCalendario && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">

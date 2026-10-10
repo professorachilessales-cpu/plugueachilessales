@@ -162,14 +162,14 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
           </div>
         ) : (
           <div 
-            className="flex items-center gap-2 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 pl-1.5 pr-3 py-1 border border-slate-200/80 dark:border-slate-700/80 shadow-xs"
-            title={`Professor conectado: ${nomeExibicaoUsuario}`}
+            className="flex items-center rounded-xl bg-slate-100/80 dark:bg-slate-800/80 px-1.5 py-1 border border-slate-200/80 dark:border-slate-700/80 shadow-xs"
+            title="Professor conectado"
           >
             {fotoUsuario ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={fotoUsuario}
-                alt={nomeExibicaoUsuario}
+                alt="Foto do professor"
                 className="h-7 w-7 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0"
               />
             ) : (
@@ -177,9 +177,6 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
                 {nomeExibicaoUsuario.slice(0, 2).toUpperCase()}
               </div>
             )}
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[140px] sm:max-w-[220px]">
-              {nomeExibicaoUsuario}
-            </span>
           </div>
         )}
 

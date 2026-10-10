@@ -122,61 +122,79 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const modelo = process.env.GROQ_MODEL?.trim() || 'qwen/qwen3.8-27b';
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-      signal: AbortSignal.timeout(50000),
-      body: JSON.stringify({
-        model: modelo,
-        messages: [
-          { role: 'system', content: montarSystemPromptConsolidacao() },
-          { role: 'user', content: promptConsolidacao },
-        ],
-        temperature: 0.5,
-        max_completion_tokens: 3500,
-        stream: false,
-        ...(modelo === 'qwen/qwen3.8-27b'
-          ? { reasoning_effort: 'none', reasoning_format: 'hidden' } : {}),
-      }),
-    });
-
-    if (!response.ok) {
-      let error = 'A Groq está temporariamente indisponível. Tente novamente em instantes.';
-      let status = 502;
-      if (response.status === 429) {
-        error = 'O limite de uso da Groq foi atingido. Aguarde um pouco e tente novamente.';
-        status = 429;
-      } else if (response.status === 401) {
-        error = 'A Groq não aceitou a chave. Confira GROQ_API_KEY no servidor e faça um novo deploy.';
-        status = 503;
-      } else if (response.status === 403 || response.status === 404) {
-        error = 'O modelo da Groq não está disponível ou não tem permissão de acesso. Confira GROQ_MODEL e as permissões no console da Groq.';
-        status = 503;
-      } else if (response.status === 400 || response.status === 422) {
-        error = 'A Groq rejeitou os parâmetros da consolidação. Confira a compatibilidade do modelo GROQ_MODEL.';
+    const modeloConfigurado = (process.env.GROQ_MODEL || '').trim().replace(/^["']|["']$/g, '').trim();
+    const modelos = [...new Set([modeloConfigurado, 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b'].filter(Boolean))];
+    const prazo = Date.now() + 50000;
+    for (const [indice, modelo] of modelos.entries()) {
+      const tempoRestante = prazo - Date.now();
+      if (tempoRestante <= 0) {
+        return NextResponse.json({ error: 'A Groq demorou para responder. Tente novamente.' }, { status: 504 });
       }
-      return NextResponse.json({ error }, { status });
-    }
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+        signal: AbortSignal.timeout(tempoRestante),
+        body: JSON.stringify({
+          model: modelo,
+          messages: [
+            { role: 'system', content: montarSystemPromptConsolidacao() },
+            { role: 'user', content: promptConsolidacao },
+          ],
+          temperature: 0.5,
+          max_completion_tokens: 3500,
+          stream: false,
+          ...(modelo === 'qwen/qwen3.8-27b'
+            ? { reasoning_effort: 'none', reasoning_format: 'hidden' }
+            : modelo === 'openai/gpt-oss-120b' ? { reasoning_effort: 'low' } : {}),
+        }),
+      });
 
-    const json = await response.json();
-    const candidate = json.choices?.[0];
-    const rawText = typeof candidate?.message?.content === 'string' ? candidate.message.content : '';
-    const semRaciocinio = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-    const textoFinal = limparMetatextoEEncerramentos(semRaciocinio);
-    if (!textoFinal || candidate?.finish_reason !== 'stop' || /<\/?think>/i.test(semRaciocinio)) {
-      return NextResponse.json(
-        { error: 'A Groq não retornou um parecer consolidado completo. Tente novamente.' },
-        { status: 502 }
-      );
-    }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        const codigo = typeof payload?.error?.code === 'string' ? payload.error.code : '';
+        const erroModelo = response.status === 404 || ['model_not_found', 'model_decommissioned', 'model_permission_blocked'].includes(codigo);
+        // Tenta outro modelo apenas para recusas específicas de modelo, usando a mesma chave.
+        if (erroModelo && indice < modelos.length - 1) continue;
+        let error = 'A Groq está temporariamente indisponível. Tente novamente em instantes.';
+        let status = 502;
+        if (response.status === 429) {
+          error = 'O limite de uso da Groq foi atingido. Aguarde um pouco e tente novamente.';
+          status = 429;
+        } else if (response.status === 401) {
+          error = 'A Groq não aceitou a chave. Confira GROQ_API_KEY no servidor e faça um novo deploy.';
+          status = 503;
+        } else if (erroModelo) {
+          error = 'Nenhum dos modelos de consolidação está disponível para esta chave. Confira GROQ_MODEL e libere qwen/qwen3.8-27b ou openai/gpt-oss-120b nas permissões da organização e do projeto no console da Groq.';
+          status = 503;
+        } else if (response.status === 403) {
+          error = 'A Groq negou acesso a esta chave ou projeto. Confira as permissões da organização e do projeto no console da Groq.';
+          status = 503;
+        } else if (response.status === 400 || response.status === 422) {
+          error = 'A Groq rejeitou os parâmetros da consolidação. Confira a compatibilidade do modelo GROQ_MODEL.';
+        }
+        return NextResponse.json({ error }, { status });
+      }
 
-    return NextResponse.json({
-      success: true,
-      conteudo_consolidado: textoFinal,
-      textoConsolidado: textoFinal,
-      provider: 'groq-' + modelo,
-    });
+      const json = await response.json();
+      const candidate = json.choices?.[0];
+      const rawText = typeof candidate?.message?.content === 'string' ? candidate.message.content : '';
+      const semRaciocinio = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      const textoFinal = limparMetatextoEEncerramentos(semRaciocinio);
+      if (!textoFinal || candidate?.finish_reason !== 'stop' || /<\/?think>/i.test(semRaciocinio)) {
+        return NextResponse.json(
+          { error: 'A Groq não retornou um parecer consolidado completo. Tente novamente.' },
+          { status: 502 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        conteudo_consolidado: textoFinal,
+        textoConsolidado: textoFinal,
+        provider: 'groq-' + modelo,
+      });
+    }
+    return NextResponse.json({ error: 'Não foi possível selecionar um modelo da Groq.' }, { status: 503 });
   } catch (error: any) {
     const timeout = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
     return NextResponse.json(

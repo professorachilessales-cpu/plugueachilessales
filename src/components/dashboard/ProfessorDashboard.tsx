@@ -520,7 +520,7 @@ export function ProfessorDashboard() {
 
                     <div className="mt-3 rounded-xl bg-amber-50 p-2.5 text-[11px] text-amber-900 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 dark:border-amber-900/60 flex items-center gap-2">
                       <Sparkles className="h-3.5 w-3.5 text-school-gold-600 flex-shrink-0" />
-                      <span>Assistência de Redação Pedagógica com Google IA disponível.</span>
+                      <span>Assistência de Redação Pedagógica com IA disponível.</span>
                     </div>
                   </div>
 

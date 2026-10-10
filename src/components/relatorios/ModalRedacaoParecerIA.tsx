@@ -138,7 +138,7 @@ export function ModalRedacaoParecerIA({
     }, 100);
   };
 
-  // Acionamento oficial do motor Google Gemini padronizado com o módulo administrativo
+  // Acionamento da assistência de redação pela Groq
   const handlePolirComIA = async () => {
     if (polindo) return;
     if (!textoParecer || textoParecer.trim().length < 5) {
@@ -170,7 +170,7 @@ export function ModalRedacaoParecerIA({
       setFoiRefinadoPorIa(true);
     } catch (e: any) {
       setErro(e instanceof TypeError
-        ? 'Não foi possível conectar ao Google IA. Tente novamente em instantes. Suas observações foram preservadas.'
+        ? 'Não foi possível conectar à IA. Tente novamente em instantes. Suas observações foram preservadas.'
         : e.message || 'Falha ao processar com a IA.');
     } finally {
       setPolindo(false);
@@ -298,7 +298,7 @@ export function ModalRedacaoParecerIA({
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h4 className="text-xs font-bold text-school-blue-900 dark:text-blue-200 uppercase tracking-wider">
-                  Assistência de Redação Pedagógica com Google IA
+                  Assistência de Redação Pedagógica com IA
                 </h4>
                 <span className="rounded-md bg-school-blue-100 dark:bg-school-blue-900/80 px-2 py-0.5 text-[10px] font-bold text-school-blue-800 dark:text-blue-200">
                   Concordância Ativa: {dadosGenero.termo}
@@ -339,7 +339,7 @@ export function ModalRedacaoParecerIA({
                 {foiRefinadoPorIa && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800">
                     <Sparkles className="h-3 w-3 text-purple-600" />
-                    <span>Lapidado com Google Gemini</span>
+                    <span>Lapidado com IA</span>
                   </span>
                 )}
                 <span className="text-[11px] text-slate-400">
@@ -354,7 +354,7 @@ export function ModalRedacaoParecerIA({
               value={textoParecer}
               onChange={(e) => setTextoParecer(e.target.value)}
               onBlur={handleSalvarRascunho}
-              placeholder="Digite suas observações ou anotações livres sobre o estudante (ex.: O estudante participa com empenho nas aulas de Ciências, porém precisa aprimorar a organização dos materiais...). Em seguida, clique em 'Assistência de Redação Pedagógica com Google IA' para transformar o texto no padrão institucional oficial."
+              placeholder="Digite suas observações ou anotações livres sobre o estudante (ex.: O estudante participa com empenho nas aulas de Ciências, porém precisa aprimorar a organização dos materiais...). Em seguida, clique em 'Assistência de Redação Pedagógica com IA' para transformar o texto no padrão institucional oficial."
               className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 focus:border-school-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-school-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-school-gold-400 transition-all resize-y min-h-[180px] font-sans"
             />
 
@@ -369,12 +369,12 @@ export function ModalRedacaoParecerIA({
                 {polindo ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin text-school-gold-400" />
-                    <span>Refinando com Google Gemini...</span>
+                    <span>Refinando com IA...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4 text-school-gold-400 group-hover:rotate-12 transition-transform" />
-                    <span>Assistência de Redação Pedagógica com Google IA</span>
+                    <span>Assistência de Redação Pedagógica com IA</span>
                   </>
                 )}
               </button>

@@ -245,7 +245,7 @@ export function gerarConsolidadoHeuristico(params: {
 }
 
 /**
- * System Prompt Oficial Padronizado para Assistência de Redação Pedagógica Docente com Google Gemini 3.8
+ * System Prompt para Assistência de Redação Pedagógica Docente
  */
 export function montarSystemPromptPolimentoDocente(): string {
   return `Você é um assistente pedagógico especialista na educação básica brasileira.

@@ -2451,7 +2451,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     const data = await res.json().catch(() => {
-      throw new Error('Não foi possível receber a resposta do Google IA. Tente novamente em instantes.');
+      throw new Error('Não foi possível receber a resposta da IA. Tente novamente em instantes.');
     });
     if (!res.ok || !data.success) {
       throw new Error(data.error || 'Falha ao polir parecer com IA.');
@@ -2459,7 +2459,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const textoIa = typeof data.texto_ia === 'string' ? data.texto_ia.trim() : '';
     if (!textoIa) {
-      throw new Error('O Google IA não retornou um parecer. Tente novamente; suas observações foram preservadas.');
+      throw new Error('A IA não retornou um parecer. Tente novamente; suas observações foram preservadas.');
     }
     setRelatoriosProfessores(prev =>
       prev.map(r => (r.id === relatorioId ? { ...r, rascunho_original: rascunho, texto_ia: textoIa, texto_final: textoIa } : r))

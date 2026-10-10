@@ -23,10 +23,10 @@ function load(file) {
 }
 const { POST } = load('src/app/api/ia/polir-relatorio/route.ts');
 const input = { rascunho: 'Participa das aulas e precisa avançar na leitura.', estudanteNome: 'Alice', estudanteGenero: 'F', anoEscolar: '4º anos' };
-const generated = (text, finishReason = 'STOP') => Response.json({ candidates: [{ finishReason, content: { parts: [{ text }] } }] });
+const generated = (text, finishReason = 'stop') => Response.json({ choices: [{ finish_reason: finishReason, message: { content: text } }] });
 
 async function run(body, mock, env = {}) {
-  const keys = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_MODEL'];
+  const keys = ['GROQ_API_KEY', 'GROQ_MODEL', 'GEMINI_API_KEY'];
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   const originalFetch = global.fetch;
   const originalWarn = console.warn;
@@ -35,7 +35,7 @@ async function run(body, mock, env = {}) {
   try {
     console.warn = (...args) => logs.push(args);
     for (const key of keys) delete process.env[key];
-    Object.assign(process.env, { GEMINI_API_KEY: 'test-key', GEMINI_MODEL: 'models/gemini-configurado', ...env });
+    Object.assign(process.env, { GROQ_API_KEY: 'test-key', GROQ_MODEL: 'modelo-configurado', ...env });
     global.fetch = async (url, options) => {
       calls.push({ url, options, payload: JSON.parse(options.body) });
       return mock(calls.length, calls.at(-1));
@@ -57,26 +57,27 @@ test('envia anotações, série, gênero e regras; usa modelo e chave do servido
   assert.equal(result.status, 200);
   assert.match(result.data.texto_ia, /A estudante/);
   const { url, payload, options } = result.calls[0];
-  assert.match(url, /gemini-configurado:generateContent$/);
-  assert.equal(options.headers['x-goog-api-key'], 'test-key');
+  assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(payload.model, 'modelo-configurado');
+  assert.equal(options.headers.Authorization, 'Bearer test-key');
   assert.ok(!url.includes('test-key'));
-  assert.match(payload.contents[0].parts[0].text, /Alice.*4º anos/);
-  assert.match(payload.contents[0].parts[0].text, /feminino/);
-  assert.ok(payload.contents[0].parts[0].text.includes(input.rascunho));
-  assert.match(payload.systemInstruction.parts[0].text, /no máximo 200 palavras/);
-  assert.match(payload.systemInstruction.parts[0].text, /NÃO inclua sugestões finais/);
+  assert.match(payload.messages[1].content, /Alice.*4º anos/);
+  assert.match(payload.messages[1].content, /feminino/);
+  assert.ok(payload.messages[1].content.includes(input.rascunho));
+  assert.match(payload.messages[0].content, /no máximo 200 palavras/);
+  assert.match(payload.messages[0].content, /NÃO inclua sugestões finais/);
 });
 
 test('gênero ausente não é inferido pelo nome e turma é contexto alternativo', async () => {
   const result = await run({ rascunho: input.rascunho, alunoNome: 'Alice', turmaNome: '5º A' }, () => generated('Alice participa das aulas.'));
   assert.equal(result.data.genero_aplicado, 'não informado');
-  assert.match(result.calls[0].payload.contents[0].parts[0].text, /5º A/);
+  assert.match(result.calls[0].payload.messages[1].content, /5º A/);
 });
 
-test('reúne partes de texto e ignora partes de raciocínio', async () => {
-  const result = await run(input, () => Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [
-    { text: 'raciocínio interno', thought: true }, { text: 'Alice participa.' }, { text: 'Precisa avançar na leitura.' },
-  ] } }] }));
+test('usa apenas o conteúdo final e ignora message.reasoning', async () => {
+  const result = await run(input, () => Response.json({ choices: [{ finish_reason: 'stop', message: {
+    reasoning: 'raciocínio interno', content: 'Alice participa.\nPrecisa avançar na leitura.',
+  } }] }));
   assert.equal(result.data.texto_ia, 'Alice participa.\nPrecisa avançar na leitura.');
 });
 
@@ -100,13 +101,13 @@ test('rejeita duas respostas extensas em vez de substituir o rascunho', async ()
 });
 
 test('rejeita resposta truncada mesmo com menos de 200 palavras', async () => {
-  const result = await run(input, () => generated('Texto interrompido', 'MAX_TOKENS'));
+  const result = await run(input, () => generated('Texto interrompido', 'length'));
   assert.equal(result.status, 502);
   assert.equal(result.calls.length, 2);
 });
 
 for (const [status, expected] of [[429, 429], [403, 503], [401, 503], [400, 502], [500, 502]]) {
-  test('erro Google ' + status + ' retorna feedback sem fallback silencioso', async () => {
+  test('erro Groq ' + status + ' retorna feedback sem fallback silencioso', async () => {
     const result = await run(input, () => Response.json({ error: { message: 'detalhes privados' } }, { status }));
     assert.equal(result.status, expected);
     assert.equal(result.calls.length, 1);
@@ -116,11 +117,11 @@ for (const [status, expected] of [[429, 429], [403, 503], [401, 503], [400, 502]
   });
 }
 
-test('modelo indisponível permite fallback para outro modelo Gemini', async () => {
-  const result = await run(input, n => n === 1 ? new Response(null, { status: 404 }) : generated('Alice participa das aulas.'));
-  assert.equal(result.status, 200);
-  assert.equal(result.calls.length, 2);
-  assert.match(result.calls[1].url, /gemini-3.8-flash/);
+test('modelo indisponível informa erro sem chamar Google ou outro provedor', async () => {
+  const result = await run(input, () => new Response(null, { status: 404 }));
+  assert.equal(result.status, 503);
+  assert.equal(result.calls.length, 1);
+  assert.match(result.data.error, /GROQ_MODEL/);
 });
 
 for (const [name, expected] of [['TimeoutError', 504], ['TypeError', 502]]) {
@@ -133,15 +134,15 @@ for (const [name, expected] of [['TimeoutError', 504], ['TypeError', 502]]) {
 }
 
 test('resposta vazia ou bloqueada não é salva como relatório', async () => {
-  for (const mock of [() => Response.json({}), () => generated('bloqueado', 'SAFETY'), () => generated('')]) {
+  for (const mock of [() => Response.json({}), () => generated('bloqueado', 'content_filter'), () => generated('')]) {
     const result = await run(input, mock);
     assert.equal(result.status, 502);
     assert.equal(result.data.texto_ia, undefined);
   }
 });
 
-test('sem chave ou sem anotações não chama o Google', async () => {
-  const noKey = await run(input, () => assert.fail('chamada inesperada'), { GEMINI_API_KEY: '' });
+test('sem chave ou sem anotações não chama a Groq', async () => {
+  const noKey = await run(input, () => assert.fail('chamada inesperada'), { GROQ_API_KEY: '', GEMINI_API_KEY: 'ignorar-chave-google' });
   assert.equal(noKey.status, 503);
   const noText = await run({ rascunho: '' }, () => assert.fail('chamada inesperada'));
   assert.equal(noText.status, 400);
@@ -152,46 +153,49 @@ test('limpa metatexto e seções finais proibidas', async () => {
   assert.equal(result.data.texto_ia, 'Alice participa das aulas.');
 });
 
-for (const [reason, expected] of [
-  ['API_KEY_INVALID', /inválida/],
-  ['API_KEY_EXPIRED', /expirada/],
-  ['API_KEY_SERVICE_BLOCKED', /restrições de API/],
-  ['API_KEY_HTTP_REFERRER_BLOCKED', /site ou IP/],
-  ['API_KEY_IP_ADDRESS_BLOCKED', /site ou IP/],
-  ['SERVICE_DISABLED', /desativada/],
-  ['BILLING_DISABLED', /faturamento/],
-]) {
-  test('identifica ' + reason + ' sem expor detalhes privados', async () => {
-    const result = await run(input, () => Response.json({ error: {
-      message: 'chave-secreta-e-dados-do-projeto',
-      details: [{ reason }],
-    } }, { status: reason.startsWith('API_KEY_I') || reason === 'API_KEY_EXPIRED' ? 400 : 403 }));
+
+test('modelo padrão Qwen solicita redação sem raciocínio e usa GROQ_API_KEY', async () => {
+  const result = await run(input, () => generated('Alice participa.'), { GROQ_MODEL: '', GEMINI_API_KEY: 'chave-google-ignorada' });
+  const payload = result.calls[0].payload;
+  assert.equal(payload.model, 'qwen/qwen3.8-27b');
+  assert.equal(payload.reasoning_effort, 'none');
+  assert.equal(payload.reasoning_format, 'hidden');
+  assert.equal(payload.max_completion_tokens, 2048);
+  assert.equal(result.calls[0].options.headers.Authorization, 'Bearer test-key');
+  assert.equal(result.data.provider, 'groq-qwen/qwen3.8-27b');
+});
+
+test('modelo configurado não recebe parâmetros de raciocínio específicos do Qwen', async () => {
+  const result = await run(input, () => generated('Alice participa.'));
+  assert.equal(result.calls[0].payload.reasoning_effort, undefined);
+  assert.equal(result.calls[0].payload.reasoning_format, undefined);
+});
+
+test('descarta blocos think e rejeita raciocínio sem fechamento', async () => {
+  const valid = await run(input, () => generated('<think>raciocínio interno</think> Alice participa.'));
+  assert.equal(valid.data.texto_ia, 'Alice participa.');
+  const invalid = await run(input, () => generated('<think>raciocínio interno'));
+  assert.equal(invalid.status, 502);
+  assert.equal(invalid.data.texto_ia, undefined);
+});
+
+for (const code of ['model_not_found', 'model_decommissioned', 'model_permission_blocked']) {
+  test('trata código ' + code + ' sem divulgar mensagem bruta', async () => {
+    const result = await run(input, () => Response.json({ error: { code, message: 'dados-privados' } }, { status: 400 }));
     assert.equal(result.status, 503);
-    assert.match(result.data.error, expected);
     assert.equal(result.calls.length, 1);
-    assert.ok(!JSON.stringify({ data: result.data, logs: result.logs }).includes('chave-secreta-e-dados-do-projeto'));
+    assert.equal(result.data.texto_ia, undefined);
+    assert.ok(!JSON.stringify({ data: result.data, logs: result.logs }).includes('dados-privados'));
   });
 }
 
-test('400 genérico não é tratado como chave inválida', async () => {
-  const result = await run(input, () => Response.json({ error: { status: 'INVALID_ARGUMENT' } }, { status: 400 }));
+test('JSON de entrada inválido retorna 400 e não chama o provedor', async () => {
+  const result = await POST({ json: async () => { throw new SyntaxError('inválido'); } });
+  assert.equal(result.status, 400);
+});
+
+test('erro 422 informa incompatibilidade de parâmetros', async () => {
+  const result = await run(input, () => new Response(null, { status: 422 }));
   assert.equal(result.status, 502);
   assert.match(result.data.error, /parâmetros/);
-  assert.ok(!result.data.error.includes('inválida'));
-});
-
-test('403 sem motivo específico informa acesso negado sem afirmar a causa', async () => {
-  const result = await run(input, () => Response.json({ error: { status: 'PERMISSION_DENIED' } }, { status: 403 }));
-  assert.match(result.data.error, /negou acesso/);
-});
-
-test('chave vazada é diferenciada de falta de permissão', async () => {
-  const result = await run(input, () => Response.json({ error: { message: 'Your API key was reported as leaked.' } }, { status: 403 }));
-  assert.match(result.data.error, /por exposição/);
-});
-
-test('400 por chave inválida identifica mensagem sem details', async () => {
-  const result = await run(input, () => Response.json({ error: { message: 'API key not valid. Please pass a valid API key.' } }, { status: 400 }));
-  assert.equal(result.status, 503);
-  assert.match(result.data.error, /inválida/);
 });

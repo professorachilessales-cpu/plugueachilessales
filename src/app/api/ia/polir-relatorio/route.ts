@@ -76,12 +76,50 @@ export async function POST(req: NextRequest) {
           }
         );
         if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          const googleError = payload?.error;
+          const message = texto(googleError?.message).toLowerCase();
+          const reasons: string[] = Array.isArray(googleError?.details)
+            ? googleError.details.map((detail: { reason?: unknown }) => texto(detail?.reason)) : [];
+          const motivo = reasons.find(reason => [
+            'API_KEY_INVALID', 'API_KEY_EXPIRED', 'API_KEY_SERVICE_BLOCKED',
+            'API_KEY_HTTP_REFERRER_BLOCKED', 'API_KEY_IP_ADDRESS_BLOCKED',
+            'SERVICE_DISABLED', 'BILLING_DISABLED',
+          ].includes(reason));
+          // Registra somente códigos conhecidos, sem chave, anotações ou mensagem bruta do Google.
+          console.warn('[Google IA] Chamada recusada', { httpStatus: response.status, motivo: motivo || 'OUTRO' });
+          const preservado = ' Suas observações foram preservadas.';
+          if (motivo === 'API_KEY_INVALID' || motivo === 'API_KEY_EXPIRED'
+            || /api key not valid|api key expired|api key.*revoked/.test(message)) {
+            return falha('O Google recusou a chave Gemini: ela está inválida, expirada ou revogada. Confira a chave no Google AI Studio e atualize GEMINI_API_KEY na Vercel.' + preservado, 503);
+          }
+          if (message.includes('reported as leaked')) {
+            return falha('O Google bloqueou a chave Gemini por exposição. Gere uma nova chave no Google AI Studio e substitua GEMINI_API_KEY na Vercel.' + preservado, 503);
+          }
+          if (motivo === 'API_KEY_HTTP_REFERRER_BLOCKED' || motivo === 'API_KEY_IP_ADDRESS_BLOCKED') {
+            return falha('As restrições de site ou IP da chave Gemini bloqueiam as chamadas do servidor da Vercel. Configure uma chave adequada para uso no servidor.' + preservado, 503);
+          }
+          if (motivo === 'API_KEY_SERVICE_BLOCKED') {
+            return falha('A chave Gemini não permite acesso à API Generative Language. Confira as restrições de API da chave no projeto do Google.' + preservado, 503);
+          }
+          if (motivo === 'SERVICE_DISABLED') {
+            return falha('A API Generative Language está desativada no projeto do Google associado à chave. Ative essa API no Google Cloud.' + preservado, 503);
+          }
+          if (motivo === 'BILLING_DISABLED' || googleError?.status === 'FAILED_PRECONDITION' || response.status === 402) {
+            return falha('O Google exige uma configuração adicional do projeto para usar a IA. Confira disponibilidade e faturamento da API no Google AI Studio.' + preservado, 503);
+          }
           if (response.status === 404) break;
           if (response.status === 429) {
             return falha('O limite de uso do Google IA foi atingido. Aguarde um pouco e tente novamente. Suas observações foram preservadas.', 429);
           }
-          if ([400, 401, 403].includes(response.status)) {
-            return falha('Não foi possível autorizar a assistência do Google IA. Entre em contato com a equipe responsável. Suas observações foram preservadas.', 503);
+          if (response.status === 403) {
+            return falha('O Google negou acesso ao projeto Gemini (403). Confira as permissões e o status da chave no Google AI Studio.' + preservado, 503);
+          }
+          if (response.status === 401) {
+            return falha('O Google não aceitou a autenticação da chave Gemini (401). Confira se a chave foi criada para a Gemini API no Google AI Studio.' + preservado, 503);
+          }
+          if (response.status === 400) {
+            return falha('O Google rejeitou os parâmetros da chamada (400). A equipe responsável deve conferir o modelo GEMINI_MODEL e a compatibilidade da requisição.' + preservado, 502);
           }
           return falha('O Google IA está temporariamente indisponível. Tente novamente em instantes. Suas observações foram preservadas.', 502);
         }

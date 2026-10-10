@@ -29,8 +29,11 @@ async function run(body, mock, env = {}) {
   const keys = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_MODEL'];
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   const originalFetch = global.fetch;
+  const originalWarn = console.warn;
   const calls = [];
+  const logs = [];
   try {
+    console.warn = (...args) => logs.push(args);
     for (const key of keys) delete process.env[key];
     Object.assign(process.env, { GEMINI_API_KEY: 'test-key', GEMINI_MODEL: 'models/gemini-configurado', ...env });
     global.fetch = async (url, options) => {
@@ -38,9 +41,10 @@ async function run(body, mock, env = {}) {
       return mock(calls.length, calls.at(-1));
     };
     const response = await POST({ json: async () => body });
-    return { status: response.status, data: await response.json(), calls };
+    return { status: response.status, data: await response.json(), calls, logs };
   } finally {
     global.fetch = originalFetch;
+    console.warn = originalWarn;
     for (const key of keys) {
       if (saved[key] === undefined) delete process.env[key];
       else process.env[key] = saved[key];
@@ -101,7 +105,7 @@ test('rejeita resposta truncada mesmo com menos de 200 palavras', async () => {
   assert.equal(result.calls.length, 2);
 });
 
-for (const [status, expected] of [[429, 429], [403, 503], [401, 503], [400, 503], [500, 502]]) {
+for (const [status, expected] of [[429, 429], [403, 503], [401, 503], [400, 502], [500, 502]]) {
   test('erro Google ' + status + ' retorna feedback sem fallback silencioso', async () => {
     const result = await run(input, () => Response.json({ error: { message: 'detalhes privados' } }, { status }));
     assert.equal(result.status, expected);
@@ -146,4 +150,48 @@ test('sem chave ou sem anotações não chama o Google', async () => {
 test('limpa metatexto e seções finais proibidas', async () => {
   const result = await run(input, () => generated('Segue o parecer: Alice participa das aulas.\nPróximos passos: Estimular leitura.'));
   assert.equal(result.data.texto_ia, 'Alice participa das aulas.');
+});
+
+for (const [reason, expected] of [
+  ['API_KEY_INVALID', /inválida/],
+  ['API_KEY_EXPIRED', /expirada/],
+  ['API_KEY_SERVICE_BLOCKED', /restrições de API/],
+  ['API_KEY_HTTP_REFERRER_BLOCKED', /site ou IP/],
+  ['API_KEY_IP_ADDRESS_BLOCKED', /site ou IP/],
+  ['SERVICE_DISABLED', /desativada/],
+  ['BILLING_DISABLED', /faturamento/],
+]) {
+  test('identifica ' + reason + ' sem expor detalhes privados', async () => {
+    const result = await run(input, () => Response.json({ error: {
+      message: 'chave-secreta-e-dados-do-projeto',
+      details: [{ reason }],
+    } }, { status: reason.startsWith('API_KEY_I') || reason === 'API_KEY_EXPIRED' ? 400 : 403 }));
+    assert.equal(result.status, 503);
+    assert.match(result.data.error, expected);
+    assert.equal(result.calls.length, 1);
+    assert.ok(!JSON.stringify({ data: result.data, logs: result.logs }).includes('chave-secreta-e-dados-do-projeto'));
+  });
+}
+
+test('400 genérico não é tratado como chave inválida', async () => {
+  const result = await run(input, () => Response.json({ error: { status: 'INVALID_ARGUMENT' } }, { status: 400 }));
+  assert.equal(result.status, 502);
+  assert.match(result.data.error, /parâmetros/);
+  assert.ok(!result.data.error.includes('inválida'));
+});
+
+test('403 sem motivo específico informa acesso negado sem afirmar a causa', async () => {
+  const result = await run(input, () => Response.json({ error: { status: 'PERMISSION_DENIED' } }, { status: 403 }));
+  assert.match(result.data.error, /negou acesso/);
+});
+
+test('chave vazada é diferenciada de falta de permissão', async () => {
+  const result = await run(input, () => Response.json({ error: { message: 'Your API key was reported as leaked.' } }, { status: 403 }));
+  assert.match(result.data.error, /por exposição/);
+});
+
+test('400 por chave inválida identifica mensagem sem details', async () => {
+  const result = await run(input, () => Response.json({ error: { message: 'API key not valid. Please pass a valid API key.' } }, { status: 400 }));
+  assert.equal(result.status, 503);
+  assert.match(result.data.error, /inválida/);
 });

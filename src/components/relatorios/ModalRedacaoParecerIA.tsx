@@ -140,6 +140,7 @@ export function ModalRedacaoParecerIA({
 
   // Acionamento oficial do motor Google Gemini padronizado com o módulo administrativo
   const handlePolirComIA = async () => {
+    if (polindo) return;
     if (!textoParecer || textoParecer.trim().length < 5) {
       setErro('Por favor, digite suas observações sobre o estudante antes de acionar a Assistência de Redação Pedagógica.');
       return;
@@ -168,7 +169,9 @@ export function ModalRedacaoParecerIA({
       setVersaoIaRefinada(resultado);
       setFoiRefinadoPorIa(true);
     } catch (e: any) {
-      setErro(e.message || 'Falha ao processar com a IA.');
+      setErro(e instanceof TypeError
+        ? 'Não foi possível conectar ao Google IA. Tente novamente em instantes. Suas observações foram preservadas.'
+        : e.message || 'Falha ao processar com a IA.');
     } finally {
       setPolindo(false);
     }

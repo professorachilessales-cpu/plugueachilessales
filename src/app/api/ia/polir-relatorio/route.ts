@@ -1,261 +1,120 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeTextarea } from '@/lib/security';
-import { 
-  determinarGeneroEstudante,
+import {
   montarSystemPromptPolimentoDocente,
   montarPromptPolimentoDocente,
-  montarPromptPipelinePolimentoRelato, 
-  limparMetatextoEEncerramentosRelato, 
-  simularPolimentoPedagogicoRelato 
+  limparMetatextoEEncerramentosRelato,
 } from '@/lib/pareceres-ia';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+const texto = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+const falha = (error: string, status: number) => NextResponse.json({ error }, { status });
 
 export async function POST(req: NextRequest) {
+  let body;
   try {
-    const body = await req.json();
-    const { 
-      rascunho, 
-      alunoNome, 
-      estudanteNome,
-      nome_estudante,
-      alunoGenero,
-      estudanteGenero,
-      genero,
-      sexo,
-      turmaNome, 
-      disciplina, 
-      professorNome,
-      tentativa = 1,
-      apiKey: customApiKey,
-      geminiApiKey: customGeminiApiKey,
-    } = body;
+    body = await req.json();
+  } catch {
+    return falha('Não foi possível ler as observações. Tente novamente.', 400);
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return falha('Envie as observações do estudante para elaborar o relatório.', 400);
+  }
 
-    const rascunhoLimpo = sanitizeTextarea(rascunho);
-    if (!rascunhoLimpo || rascunhoLimpo.trim().length < 5) {
-      return NextResponse.json(
-        { error: 'Por favor, insira um relato preliminar com mais detalhes para que a IA possa refinar.' },
-        { status: 400 }
-      );
-    }
+  const rascunho = sanitizeTextarea(body.rascunho);
+  if (rascunho.length < 5) {
+    return falha('Por favor, insira um relato preliminar com mais detalhes para que a IA possa refinar.', 400);
+  }
 
-    const nomeFinal = (estudanteNome || alunoNome || nome_estudante || 'Estudante').trim();
-    const generoInformado = estudanteGenero || alunoGenero || genero || sexo || '';
+  // As credenciais são lidas somente no servidor, a partir do ambiente configurado.
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '')
+    .trim().replace(/^["']|["']$/g, '').trim();
+  if (!apiKey || apiKey.includes('your-key')) {
+    return falha('A assistência do Google IA ainda não está configurada. Entre em contato com a equipe responsável.', 503);
+  }
 
-    // Identificação de gênero para concordância gramatical estrita em gênero e número
-    const dadosGenero = determinarGeneroEstudante({
-      nome_completo: nomeFinal,
-      genero: generoInformado,
-      sexo: generoInformado,
-    });
+  const nome = texto(body.estudanteNome) || texto(body.alunoNome) || texto(body.nome_estudante) || 'Estudante';
+  const generoCadastro = (texto(body.estudanteGenero) || texto(body.alunoGenero) || texto(body.genero) || texto(body.sexo)).toLowerCase();
+  const genero = ['f', 'feminino', 'mulher'].includes(generoCadastro) ? 'feminino'
+    : ['m', 'masculino', 'homem'].includes(generoCadastro) ? 'masculino' : 'não informado';
+  const prompt = montarPromptPolimentoDocente({
+    estudanteNome: nome,
+    generoGramatical: genero,
+    anoEscolar: texto(body.anoEscolar) || texto(body.serie) || texto(body.turmaNome),
+    disciplinaNome: texto(body.disciplina),
+    textoOriginalProfessor: rascunho,
+  });
+  // Prioriza o modelo do ambiente; só troca de modelo quando ele não está disponível.
+  const modelos = Array.from(new Set([
+    texto(process.env.GEMINI_MODEL).replace(/^models\//, ''),
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
+  ].filter(Boolean)));
+  const prazo = Date.now() + 55000;
 
-    const numTentativa = Number(tentativa) || 1;
-    const promptPipeline = montarPromptPolimentoDocente({
-      estudanteNome: nomeFinal,
-      generoGramatical: dadosGenero.generoGramatical,
-      disciplinaNome: disciplina,
-      textoOriginalProfessor: rascunhoLimpo,
-    });
-
-    // 1. Provedor Primário: Google Gemini API Oficial
-    const rawKey = (customApiKey || customGeminiApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
-    const geminiApiKey = rawKey.replace(/^["']|["']$/g, '').trim();
-    let statusGoogleErro: string | null = null;
-    let motivoGoogleErro: string | null = null;
-
-    if (geminiApiKey && !geminiApiKey.includes('your-key')) {
-      const modelosGemini = [
-        process.env.GEMINI_MODEL,
-        'gemini-3.8-flash',
-        'gemini-3.8',
-        'gemini-2.5-flash',
-        'gemini-1.5-flash',
-        'gemini-2.0-flash',
-        'gemini-2.5-pro',
-        'gemini-flash-latest'
-      ].filter(Boolean) as string[];
-
-      const systemInstructionText = montarSystemPromptPolimentoDocente();
-
-      for (const modelo of modelosGemini) {
-        try {
-          // Tentativa A: generateContent com systemInstruction e parâmetros equilibrados (temp 0.55, topP 0.95, topK 40, maxTokens 1500)
-          const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                systemInstruction: {
-                  parts: [{ text: systemInstructionText }]
-                },
-                contents: [
-                  {
-                    role: 'user',
-                    parts: [{ text: promptPipeline }],
-                  },
-                ],
-                generationConfig: {
-                  temperature: 0.55, // Faixa 0.5 a 0.6 padronizada com o módulo administrativo
-                  topP: 0.95,
-                  topK: 40,
-                  maxOutputTokens: 1500,
-                },
-              }),
-            }
-          );
-
-          if (response.ok) {
-            const json = await response.json();
-            const candidateText = json.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (candidateText && candidateText.trim().length > 0) {
-              const textoFinal = limparMetatextoEEncerramentosRelato(candidateText);
-              return NextResponse.json({
-                success: true,
-                texto_ia: textoFinal,
-                provider: `google-gemini-${modelo}`,
-                genero_aplicado: dadosGenero.generoGramatical,
-                nome_estudante: nomeFinal,
-                tentativa: numTentativa,
-              });
-            }
-          } else {
-            let erroInfoGoogle: any = null;
-            try {
-              erroInfoGoogle = await response.json();
-            } catch (_) {}
-
-            // Interrupção imediata se a chave ou o projeto estiver bloqueado pelo Google (403 PERMISSION_DENIED)
-            if (response.status === 403 || erroInfoGoogle?.error?.status === 'PERMISSION_DENIED') {
-              const motivo = erroInfoGoogle?.error?.details?.[0]?.reason || erroInfoGoogle?.error?.message || 'API_KEY_SERVICE_BLOCKED';
-              console.warn(`[Google Gemini API] Chave restrita/bloqueada no Google Cloud (${response.status}: ${motivo}). Evitando chamadas redundantes.`);
-              statusGoogleErro = 'bloqueada_403';
-              motivoGoogleErro = motivo;
-              break;
-            }
-
-            // Se for 400 por chave inválida, também interrompe imediatamente
-            if (response.status === 400 && erroInfoGoogle?.error?.message?.includes('API key not valid')) {
-              statusGoogleErro = 'chave_invalida';
-              motivoGoogleErro = 'API key not valid';
-              break;
-            }
-
-            // Se generateContent não funcionou, tenta endpoint interactions
-            try {
-              const interactionsResponse = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/interactions?key=${geminiApiKey}`,
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    model: modelo,
-                    system_instruction: systemInstructionText,
-                    input: promptPipeline,
-                    generation_config: {
-                      temperature: 0.55,
-                      max_output_tokens: 1500,
-                    }
-                  }),
-                }
-              );
-
-              if (interactionsResponse.ok) {
-                const interJson = await interactionsResponse.json();
-                const interText = interJson.output_text || 
-                  interJson.steps?.find((s: any) => s.type === 'model_output')?.content?.find((c: any) => c.type === 'text')?.text;
-                if (interText && interText.trim().length > 0) {
-                  const textoFinal = limparMetatextoEEncerramentosRelato(interText);
-                  return NextResponse.json({
-                    success: true,
-                    texto_ia: textoFinal,
-                    provider: `google-gemini-interactions-${modelo}`,
-                    genero_aplicado: dadosGenero.generoGramatical,
-                    nome_estudante: nomeFinal,
-                    tentativa: numTentativa,
-                  });
-                }
-              }
-            } catch (interError) {
-              // segue para o próximo modelo ou fallback
-            }
-          }
-        } catch (geminiError) {
-          console.warn(`[Google Gemini API] Tentativa com ${modelo} falhou:`, geminiError);
+  try {
+    for (const modelo of modelos) {
+      for (let revisao = 0; revisao < 2; revisao++) {
+        const tempoRestante = prazo - Date.now();
+        if (tempoRestante <= 0) {
+          return falha('O Google IA demorou para responder. Suas observações foram preservadas; tente novamente.', 504);
         }
-      }
-    }
-
-    // 2. Provedor Secundário: OpenAI API (se configurado no ambiente)
-    const rawOpenAiKey = process.env.OPENAI_API_KEY || '';
-    const openAiApiKey = rawOpenAiKey.replace(/^["']|["']$/g, '').trim();
-    if (openAiApiKey && openAiApiKey !== '' && !openAiApiKey.includes('your-key')) {
-      try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openAiApiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content: montarSystemPromptPolimentoDocente()
-              },
-              { role: 'user', content: promptPipeline },
-            ],
-            temperature: 0.55,
-            top_p: 0.95,
-            max_tokens: 1500,
-          }),
+        const response = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            signal: AbortSignal.timeout(Math.min(25000, tempoRestante)),
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: montarSystemPromptPolimentoDocente() }] },
+              contents: [{ role: 'user', parts: [{ text: prompt + (revisao
+                ? '\nRedija uma versão mais concisa, com até 200 palavras, terminando em uma frase completa e sem conclusão genérica.' : '') }] }],
+              generationConfig: { temperature: 0.55, topP: 0.95, maxOutputTokens: 4096 },
+            }),
+          }
+        );
+        if (!response.ok) {
+          if (response.status === 404) break;
+          if (response.status === 429) {
+            return falha('O limite de uso do Google IA foi atingido. Aguarde um pouco e tente novamente. Suas observações foram preservadas.', 429);
+          }
+          if ([400, 401, 403].includes(response.status)) {
+            return falha('Não foi possível autorizar a assistência do Google IA. Entre em contato com a equipe responsável. Suas observações foram preservadas.', 503);
+          }
+          return falha('O Google IA está temporariamente indisponível. Tente novamente em instantes. Suas observações foram preservadas.', 502);
+        }
+        const json = await response.json();
+        const candidate = json.candidates?.[0];
+        // Ignora partes internas de raciocínio e reúne todas as partes de texto da resposta.
+        const partes = candidate?.content?.parts;
+        const rawText = Array.isArray(partes) ? partes
+          .filter((part: { thought?: boolean; text?: string }) => !part.thought && typeof part.text === 'string')
+          .map((part: { text: string }) => part.text).join('\n') : '';
+        const resultado = limparMetatextoEEncerramentosRelato(rawText);
+        if (candidate?.finishReason === 'MAX_TOKENS' || resultado.split(/\s+/u).length > 200) {
+          if (revisao === 0) continue;
+          return falha('A IA não conseguiu produzir um relatório completo de até 200 palavras. Tente novamente. Suas observações foram preservadas.', 502);
+        }
+        if (!resultado || candidate?.finishReason !== 'STOP') {
+          return falha('O Google IA não retornou um parecer válido para essas observações. Revise o texto e tente novamente.', 502);
+        }
+        return NextResponse.json({
+          success: true,
+          texto_ia: resultado,
+          provider: 'google-gemini-' + modelo,
+          genero_aplicado: genero,
+          nome_estudante: nome,
+          tentativa: Number(body.tentativa) || 1,
         });
-
-        if (response.ok) {
-          const json = await response.json();
-          const rawText = json.choices?.[0]?.message?.content;
-          if (rawText && rawText.trim().length > 0) {
-            const textoFinal = limparMetatextoEEncerramentosRelato(rawText);
-            return NextResponse.json({
-              success: true,
-              texto_ia: textoFinal,
-              provider: 'openai-gpt-4o-mini',
-              genero_aplicado: dadosGenero.generoGramatical,
-              nome_estudante: nomeFinal,
-            });
-          }
-        }
-      } catch (openAiError) {
-        console.warn('Tentativa com OpenAI falhou:', openAiError);
       }
     }
-
-    // 3. Fallback Pedagógico Resiliente de Alta Precisão (Garante funcionamento ininterrupto)
-    const textoPolido = simularPolimentoPedagogicoRelato(
-      rascunhoLimpo, 
-      nomeFinal, 
-      dadosGenero.generoGramatical
-    );
-    const textoFinal = limparMetatextoEEncerramentosRelato(textoPolido);
-
-    return NextResponse.json({
-      success: true,
-      texto_ia: textoFinal,
-      provider: 'polidor-pedagogico-plugue',
-      status_google: statusGoogleErro || 'indisponivel',
-      motivo_google: motivoGoogleErro || undefined,
-      aviso_chave: statusGoogleErro === 'bloqueada_403'
-        ? 'A chave do Google Gemini no servidor foi rejeitada pelo Google Cloud (403 PERMISSION_DENIED / API_KEY_SERVICE_BLOCKED). O relato foi aprimorado pelo motor pedagógico interno Plugue.'
-        : undefined,
-      genero_aplicado: dadosGenero.generoGramatical,
-      nome_estudante: nomeFinal,
-    });
-  } catch (error: any) {
-    console.error('Erro no endpoint de polimento de relato:', error);
-    return NextResponse.json(
-      { error: error?.message || 'Erro interno ao processar polimento de relatório.' },
-      { status: 500 }
-    );
+    return falha('O modelo do Google IA não está disponível. Entre em contato com a equipe responsável pela configuração.', 503);
+  } catch (error) {
+    if (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) {
+      return falha('O Google IA demorou para responder. Suas observações foram preservadas; tente novamente.', 504);
+    }
+    return falha('Não foi possível conectar ao Google IA. Tente novamente em instantes. Suas observações foram preservadas.', 502);
   }
 }

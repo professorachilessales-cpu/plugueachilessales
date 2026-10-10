@@ -2442,6 +2442,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         estudanteGenero: generoEstudante,
         genero: generoEstudante,
         turmaNome: turma?.nome || '',
+        anoEscolar: turma?.grupo || turma?.nome || aluno?.turma_nome || '',
         disciplina: prof?.disciplinas?.join(', ') || '',
         professorNome: prof?.nome_completo || currentUser.name,
         tentativa,
@@ -2449,12 +2450,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }),
     });
 
-    const data = await res.json();
-    if (!res.ok) {
+    const data = await res.json().catch(() => {
+      throw new Error('Não foi possível receber a resposta do Google IA. Tente novamente em instantes.');
+    });
+    if (!res.ok || !data.success) {
       throw new Error(data.error || 'Falha ao polir parecer com IA.');
     }
 
-    const textoIa = data.texto_ia || rascunho;
+    const textoIa = typeof data.texto_ia === 'string' ? data.texto_ia.trim() : '';
+    if (!textoIa) {
+      throw new Error('O Google IA não retornou um parecer. Tente novamente; suas observações foram preservadas.');
+    }
     setRelatoriosProfessores(prev =>
       prev.map(r => (r.id === relatorioId ? { ...r, rascunho_original: rascunho, texto_ia: textoIa, texto_final: textoIa } : r))
     );

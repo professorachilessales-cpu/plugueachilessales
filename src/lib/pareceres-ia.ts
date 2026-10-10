@@ -85,7 +85,7 @@ export function determinarGeneroEstudante(estudante: {
 }
 
 /**
- * Constrói o Prompt Oficial com Técnica de Consolidação Inteligente e Padrão Institucional via Gemini
+ * Constrói o Prompt Oficial com Técnica de Consolidação Inteligente e Padrão Institucional
  */
 export function montarPromptConsolidacaoPedagogica(params: {
   estudanteNome: string;
@@ -97,7 +97,7 @@ export function montarPromptConsolidacaoPedagogica(params: {
   const isFeminino = params.generoGramatical === 'feminino';
   const estudanteGenero = isFeminino ? 'FEMININO' : 'MASCULINO';
 
-  return `Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar, operando via Gemini.
+  return `Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar.
 Sua missão é ler todos os relatórios e apontamentos individuais enviados pelos diferentes professores de um estudante e consolidá-los em um parecer único, abrangente, rico e pedagogicamente sofisticado.
 
 ---
@@ -138,7 +138,7 @@ DIRETRIZES OBRIGATÓRIAS DE CONSOLIDAÇÃO E REDAÇÃO:
  * Constrói o System Prompt oficial com rigor formal pedagógico e restrições estritas de saída (compatibilidade)
  */
 export function montarSystemPromptConsolidacao(): string {
-  return `Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar, operando via Gemini.
+  return `Você é um coordenador pedagógico sênior e especialista em redação institucional avaliativa escolar.
 Sua missão é ler todos os relatórios e apontamentos individuais enviados pelos diferentes professores de um estudante e consolidá-los em um parecer único, abrangente, rico e pedagogicamente sofisticado.
 
 DIRETRIZES OBRIGATÓRIAS DE CONSOLIDAÇÃO E REDAÇÃO:

@@ -918,21 +918,8 @@ export default function TurmasPage() {
                     {turma.nome}
                   </h4>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-right text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    {turma.sala}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAbrirEditarTurma(turma);
-                    }}
-                    className="rounded-lg p-1 text-slate-400 hover:bg-blue-50 hover:text-school-blue-600 dark:hover:bg-slate-800 transition-colors"
-                    title="Editar dados da turma"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </button>
+                <div className="text-right text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  {turma.sala}
                 </div>
               </div>
 
@@ -2181,7 +2168,9 @@ export default function TurmasPage() {
               p.ativo !== false &&
               !isProfessorAdministrativo(p) &&
               !isProfessorApoio(p) &&
-              (profsTurmaIds.includes(p.id) || (regenteNome && p.nome_completo?.trim().toLowerCase() === regenteNome))
+              (profsTurmaIds.includes(p.id) ||
+                (turmaAtual && Array.isArray(p.turmas_atribuidas_ids) && p.turmas_atribuidas_ids.includes(turmaAtual.id)) ||
+                (regenteNome && p.nome_completo?.trim().toLowerCase() === regenteNome))
           )
           .sort((a: Professor, b: Professor) => a.nome_completo.localeCompare(b.nome_completo));
 

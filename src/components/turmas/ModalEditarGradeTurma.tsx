@@ -63,37 +63,52 @@ export function ModalEditarGradeTurma({
     }
   }, [turma, isOpen]);
 
-  // Professores aptos para regência (ativos, NÃO administrativos e NÃO apoio)
-  const { docentesTurma, outrosDocentes } = useMemo(() => {
-    if (!turma) return { docentesTurma: [], outrosDocentes: [] };
+  // Apenas docentes vinculados à turma (ativos, NÃO administrativos e NÃO apoio)
+  const docentesTurma = useMemo(() => {
+    if (!turma) return [];
 
-    const rawProfsTurmaIds = turma.professores_ids && turma.professores_ids.length > 0
-      ? turma.professores_ids
-      : (turma.professor_regente_id ? [turma.professor_regente_id] : []);
+    let rawProfsTurmaIds: string[] = [];
+    if (Array.isArray(turma.professores_ids)) {
+      rawProfsTurmaIds = [...turma.professores_ids];
+    } else if (typeof (turma as any).professores_ids === 'string') {
+      try {
+        const parsed = JSON.parse((turma as any).professores_ids);
+        if (Array.isArray(parsed)) rawProfsTurmaIds = [...parsed];
+      } catch {}
+    }
+
+    if (turma.professor_regente_id && !rawProfsTurmaIds.includes(turma.professor_regente_id)) {
+      rawProfsTurmaIds.push(turma.professor_regente_id);
+    }
 
     const regenteNome = turma.professor_regente_nome?.trim().toLowerCase();
 
-    // Filtra docentes gerais ativos e aptos
+    // Filtra docentes gerais ativos e aptos (não administrativos e não equipe de apoio exclusiva)
     const todosAptos = professores.filter(
       (p) => p.ativo !== false && !isProfessorAdministrativo(p) && !isProfessorApoio(p)
     );
 
-    const daTurma: Professor[] = [];
-    const outros: Professor[] = [];
-
-    todosAptos.forEach((p) => {
-      const vinculado = rawProfsTurmaIds.includes(p.id) || (regenteNome && p.nome_completo?.trim().toLowerCase() === regenteNome);
-      if (vinculado) {
-        daTurma.push(p);
-      } else {
-        outros.push(p);
+    const daTurma = todosAptos.filter((p) => {
+      let turmasAtribuidas: string[] = [];
+      if (Array.isArray(p.turmas_atribuidas_ids)) {
+        turmasAtribuidas = p.turmas_atribuidas_ids;
+      } else if (typeof (p as any).turmas_atribuidas_ids === 'string') {
+        try {
+          const parsed = JSON.parse((p as any).turmas_atribuidas_ids);
+          if (Array.isArray(parsed)) turmasAtribuidas = parsed;
+        } catch {}
       }
+
+      const vinculado =
+        rawProfsTurmaIds.includes(p.id) ||
+        turmasAtribuidas.includes(turma.id) ||
+        (regenteNome ? p.nome_completo?.trim().toLowerCase() === regenteNome : false);
+
+      return Boolean(vinculado);
     });
 
     daTurma.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
-    outros.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
-
-    return { docentesTurma: daTurma, outrosDocentes: outros };
+    return daTurma;
   }, [turma, professores]);
 
   if (!isOpen || !turma) return null;
@@ -125,6 +140,14 @@ export function ModalEditarGradeTurma({
     e.preventDefault();
     if (!docenteSelecionado.trim()) {
       mostrarFeedback('erro', 'Por favor, selecione um docente para a aula.');
+      return;
+    }
+
+    const docenteValido = docentesTurma.some(
+      (p) => p.nome_completo.trim().toLowerCase() === docenteSelecionado.trim().toLowerCase()
+    );
+    if (!docenteValido) {
+      mostrarFeedback('erro', 'O docente selecionado não pertence a esta turma.');
       return;
     }
 
@@ -281,9 +304,23 @@ export function ModalEditarGradeTurma({
             </div>
 
             {docentesTurma.length === 0 && (
-              <div className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200/70 dark:border-amber-900/60">
-                <Info className="h-3 w-3 shrink-0" />
-                <span>Nenhum docente vinculado diretamente na regência desta turma.</span>
+              <div className="flex items-center justify-between gap-2 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1 rounded-md border border-amber-200/70 dark:border-amber-900/60">
+                <div className="flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  <span>Nenhum docente vinculado diretamente na regência desta turma.</span>
+                </div>
+                {onAbrirEditarTurma && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onAbrirEditarTurma(turma);
+                    }}
+                    className="font-bold underline hover:text-amber-900 dark:hover:text-amber-200 cursor-pointer shrink-0"
+                  >
+                    Vincular Docentes
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -348,34 +385,43 @@ export function ModalEditarGradeTurma({
               {/* Docente */}
               <div className="sm:col-span-5">
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Docente *
+                  Docente da Turma *
                 </label>
                 <select
                   required
                   value={docenteSelecionado}
                   onChange={(e) => setDocenteSelecionado(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  disabled={docentesTurma.length === 0}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <option value="">Selecione o docente...</option>
-                  {docentesTurma.length > 0 && (
-                    <optgroup label="Docentes da Turma (Regência)">
-                      {docentesTurma.map((p) => (
-                        <option key={p.id} value={p.nome_completo}>
-                          ★ {p.nome_completo} {p.disciplinas?.length ? `(${p.disciplinas.join(', ')})` : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {outrosDocentes.length > 0 && (
-                    <optgroup label="Outros Docentes Aptos">
-                      {outrosDocentes.map((p) => (
-                        <option key={p.id} value={p.nome_completo}>
-                          {p.nome_completo} {p.disciplinas?.length ? `(${p.disciplinas.join(', ')})` : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
+                  <option value="">
+                    {docentesTurma.length === 0
+                      ? 'Nenhum docente vinculado a esta turma'
+                      : 'Selecione o docente da turma...'}
+                  </option>
+                  {docentesTurma.map((p) => (
+                    <option key={p.id} value={p.nome_completo}>
+                      {p.nome_completo} {p.disciplinas?.length ? `(${p.disciplinas.join(', ')})` : ''}
+                    </option>
+                  ))}
                 </select>
+                {docentesTurma.length === 0 && (
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-amber-600 dark:text-amber-400">
+                    <span>Nenhum docente vinculado a esta turma.</span>
+                    {onAbrirEditarTurma && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onAbrirEditarTurma(turma);
+                        }}
+                        className="font-bold underline hover:text-amber-800 dark:hover:text-amber-300 ml-1 cursor-pointer"
+                      >
+                        Vincular na Turma
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Quantidade de Aulas */}
@@ -389,12 +435,13 @@ export function ModalEditarGradeTurma({
                   min={1}
                   max={8}
                   step={1}
+                  disabled={docentesTurma.length === 0}
                   value={quantidadeAulas}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
                     setQuantidadeAulas(isNaN(val) ? 1 : Math.max(1, Math.min(8, val)));
                   }}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-center font-bold text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-center font-bold text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -402,7 +449,7 @@ export function ModalEditarGradeTurma({
               <div className="sm:col-span-2">
                 <button
                   type="submit"
-                  disabled={!docenteSelecionado.trim()}
+                  disabled={!docenteSelecionado.trim() || docentesTurma.length === 0}
                   className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-school-blue-800 px-3 py-2 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all dark:bg-school-blue-600"
                 >
                   <Plus className="h-4 w-4" />

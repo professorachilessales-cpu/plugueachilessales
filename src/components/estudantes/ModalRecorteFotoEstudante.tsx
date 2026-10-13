@@ -35,7 +35,8 @@ export function ModalRecorteFotoEstudante({
   const OUTPUT_WIDTH = 600;
   const OUTPUT_HEIGHT = 800; // 600 * 4 / 3 = 800px (alta definição oficial)
 
-  const [zoom, setZoom] = useState<number>(1);
+  const [dimensoesImagem, setDimensoesImagem] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [zoom, setZoom] = useState<number>(1); // 1 = 100% (encaixe padrão na moldura)
   const [rotacao, setRotacao] = useState<number>(0); // em graus (0, 90, 180, 270)
   const [posicao, setPosicao] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [arrastando, setArrastando] = useState<boolean>(false);
@@ -47,6 +48,22 @@ export function ModalRecorteFotoEstudante({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageElementRef = useRef<HTMLImageElement | null>(null);
+  const pinchDistanceRef = useRef<number | null>(null);
+  const pinchInitialZoomRef = useRef<number>(1);
+
+  // Calcula a escala base que faz a foto cobrir perfeitamente o enquadramento 3x4 (270x360)
+  const calcularBaseScale = useCallback((imgWidth: number, imgHeight: number, rot: number) => {
+    if (!imgWidth || !imgHeight) return 1;
+    const isRotated90 = (rot % 180 !== 0);
+    const effWidth = isRotated90 ? imgHeight : imgWidth;
+    const effHeight = isRotated90 ? imgWidth : imgHeight;
+    const aspectImg = effWidth / effHeight;
+    const aspectCrop = CROP_WIDTH / CROP_HEIGHT; // 270 / 360 = 0.75
+    // Escala base para cobrir o enquadramento (cover padrão)
+    return aspectImg > aspectCrop
+      ? CROP_HEIGHT / effHeight
+      : CROP_WIDTH / effWidth;
+  }, [CROP_WIDTH, CROP_HEIGHT]);
 
   // Carregar e validar a imagem
   useEffect(() => {
@@ -56,19 +73,10 @@ export function ModalRecorteFotoEstudante({
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       imageElementRef.current = img;
+      setDimensoesImagem({ width: img.naturalWidth, height: img.naturalHeight });
       setCarregandoImagem(false);
-      // Auto-centralizar e ajustar zoom inicial para preencher a janela 3x4
-      const aspectImg = img.naturalWidth / img.naturalHeight;
-      const aspectCrop = CROP_WIDTH / CROP_HEIGHT; // 0.75
-      let initialZoom = 1;
-      if (aspectImg > aspectCrop) {
-        // Imagem mais larga que 3x4: ajusta pela altura
-        initialZoom = (CROP_HEIGHT / img.naturalHeight) * 1.05;
-      } else {
-        // Imagem mais alta ou quadrada: ajusta pela largura
-        initialZoom = (CROP_WIDTH / img.naturalWidth) * 1.05;
-      }
-      setZoom(Math.max(0.5, Math.min(initialZoom, 2)));
+      // Inicia em 100% de zoom (foto perfeitamente ajustada à janela 3x4)
+      setZoom(1);
       setPosicao({ x: 0, y: 0 });
       setRotacao(0);
     };
@@ -82,19 +90,21 @@ export function ModalRecorteFotoEstudante({
   // Controles de Rotação
   const girarHorario = () => {
     setRotacao((prev) => (prev + 90) % 360);
+    setPosicao({ x: 0, y: 0 });
   };
 
   const girarAntiHorario = () => {
     setRotacao((prev) => (prev - 90 + 360) % 360);
+    setPosicao({ x: 0, y: 0 });
   };
 
-  // Controles de Zoom
+  // Controles de Zoom (permite reduzir até 0.15 = 15%, possibilitando enquadrar fotos de perto)
   const aumentarZoom = () => {
-    setZoom((prev) => Math.min(prev + 0.15, 3.5));
+    setZoom((prev) => Math.min(3.5, Number((prev + 0.05).toFixed(2))));
   };
 
   const diminuirZoom = () => {
-    setZoom((prev) => Math.max(prev - 0.15, 0.4));
+    setZoom((prev) => Math.max(0.15, Number((prev - 0.05).toFixed(2))));
   };
 
   const resetarAjustes = () => {
@@ -106,8 +116,8 @@ export function ModalRecorteFotoEstudante({
   // Suporte a Mouse Wheel para Zoom no enquadramento
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom((prev) => Math.max(0.4, Math.min(prev + delta, 3.5)));
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+    setZoom((prev) => Math.max(0.15, Math.min(Number((prev + delta).toFixed(2)), 3.5)));
   };
 
   // Manipulação de Arraste com Mouse
@@ -132,7 +142,7 @@ export function ModalRecorteFotoEstudante({
     setArrastando(false);
   }, []);
 
-  // Manipulação de Arraste Touch (Mobile / Tablet)
+  // Manipulação de Arraste e Gesto de Pinça (Pinch-to-zoom) no Mobile / Tablet
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       setArrastando(true);
@@ -141,25 +151,48 @@ export function ModalRecorteFotoEstudante({
         x: touch.clientX - posicao.x,
         y: touch.clientY - posicao.y,
       });
+      pinchDistanceRef.current = null;
+    } else if (e.touches.length === 2) {
+      setArrastando(false);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchDistanceRef.current = dist;
+      pinchInitialZoomRef.current = zoom;
     }
   };
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!arrastando || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    setPosicao({
-      x: touch.clientX - pontoInicialArrasto.x,
-      y: touch.clientY - pontoInicialArrasto.y,
-    });
-  }, [arrastando, pontoInicialArrasto]);
+    if (e.touches.length === 1 && arrastando) {
+      const touch = e.touches[0];
+      setPosicao({
+        x: touch.clientX - pontoInicialArrasto.x,
+        y: touch.clientY - pontoInicialArrasto.y,
+      });
+    } else if (e.touches.length === 2 && pinchDistanceRef.current !== null) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = dist / pinchDistanceRef.current;
+      const novoZoom = Math.max(0.15, Math.min(Number((pinchInitialZoomRef.current * factor).toFixed(2)), 3.5));
+      setZoom(novoZoom);
+    }
+  }, [arrastando, pontoInicialArrasto, zoom]);
 
-  const handleTouchEnd = useCallback(() => {
-    setArrastando(false);
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    if (e.touches.length < 2) {
+      pinchDistanceRef.current = null;
+    }
+    if (e.touches.length === 0) {
+      setArrastando(false);
+    }
   }, []);
 
   // Ouvintes globais para arraste contínuo mesmo fora da viewport de corte
   useEffect(() => {
-    if (arrastando) {
+    if (arrastando || pinchDistanceRef.current !== null) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
       window.addEventListener('touchmove', handleTouchMove);
@@ -210,8 +243,9 @@ export function ModalRecorteFotoEstudante({
       // Aplica a rotação de 90°
       ctx.rotate((rotacao * Math.PI) / 180);
 
-      // Aplica a escala combinada de zoom e resolução
-      const renderScale = zoom * scaleMultiplier;
+      // Aplica a escala combinada de base normalizada, zoom ajustável e resolução
+      const baseScaleCanvas = calcularBaseScale(img.naturalWidth, img.naturalHeight, rotacao);
+      const renderScale = baseScaleCanvas * zoom * scaleMultiplier;
       ctx.scale(renderScale, renderScale);
 
       // Desenha a imagem centralizada
@@ -302,7 +336,7 @@ export function ModalRecorteFotoEstudante({
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onTouchStart={handleTouchStart}
-              className={`relative overflow-hidden rounded-2xl cursor-grab active:cursor-grabbing border-2 border-school-blue-400/80 shadow-[0_0_35px_rgba(59,130,246,0.3)] bg-slate-900 transition-all`}
+              className={`relative overflow-hidden rounded-2xl cursor-grab active:cursor-grabbing border-2 border-school-blue-400/80 shadow-[0_0_35px_rgba(59,130,246,0.3)] bg-white transition-all`}
               style={{
                 width: `${CROP_WIDTH}px`,
                 height: `${CROP_HEIGHT}px`,
@@ -312,7 +346,7 @@ export function ModalRecorteFotoEstudante({
               <div
                 className="absolute inset-0 flex items-center justify-center pointer-events-none"
                 style={{
-                  transform: `translate(${posicao.x}px, ${posicao.y}px) rotate(${rotacao}deg) scale(${zoom})`,
+                  transform: `translate(${posicao.x}px, ${posicao.y}px) rotate(${rotacao}deg) scale(${calcularBaseScale(dimensoesImagem.width, dimensoesImagem.height, rotacao) * zoom})`,
                   transformOrigin: 'center center',
                   transition: arrastando ? 'none' : 'transform 0.05s ease-out',
                 }}
@@ -445,10 +479,10 @@ export function ModalRecorteFotoEstudante({
                   </svg>
                 )}
 
-                {/* Badge de instrução de arraste */}
-                <div className="absolute bottom-2 inset-x-0 flex justify-center pointer-events-none">
-                  <span className="rounded-full bg-slate-900/80 px-2.5 py-0.5 text-[10px] font-medium text-slate-300 backdrop-blur-sm border border-slate-700/60 shadow">
-                    Arraste para centralizar o rosto
+                {/* Badge de instrução de arraste e zoom */}
+                <div className="absolute bottom-2 inset-x-0 flex justify-center pointer-events-none px-2">
+                  <span className="rounded-full bg-slate-900/85 px-3 py-1 text-[10px] font-medium text-slate-200 backdrop-blur-sm border border-slate-700/60 shadow text-center">
+                    Arraste para posicionar &bull; Use os controles abaixo para reduzir ou ampliar
                   </span>
                 </div>
               </div>
@@ -481,48 +515,89 @@ export function ModalRecorteFotoEstudante({
         </div>
 
         {/* Barra de Ferramentas & Controles de Edição */}
-        <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700 space-y-4">
+        <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700 space-y-3.5">
           {/* Controle de Zoom Slider & Botões */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={diminuirZoom}
-              title="Diminuir Zoom"
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </button>
-            <div className="flex-1 flex items-center gap-2">
-              <input
-                type="range"
-                min="0.4"
-                max="3.5"
-                step="0.05"
-                value={zoom}
-                onChange={(e) => setZoom(parseFloat(e.target.value))}
-                className="w-full accent-school-blue-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700"
-              />
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 w-10 text-right">
-                {Math.round(zoom * 100)}%
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Maximize2 className="h-3.5 w-3.5 text-school-blue-500" />
+                Reduzir / Ampliar Foto
               </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setZoom(0.75)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all border ${
+                    Math.round(zoom * 100) === 75
+                      ? 'bg-school-blue-600 text-white border-school-blue-600 shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                  }`}
+                  title="Reduzir para 75% (Ideal para encaixar rosto no guia oval)"
+                >
+                  75% Guia Oval
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoom(1)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all border ${
+                    Math.round(zoom * 100) === 100
+                      ? 'bg-school-blue-600 text-white border-school-blue-600 shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                  }`}
+                  title="Enquadramento padrão 100%"
+                >
+                  100% Padrão
+                </button>
+                <span className="text-[11px] font-bold text-school-blue-600 dark:text-school-blue-400 w-11 text-right">
+                  {Math.round(zoom * 100)}%
+                </span>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={aumentarZoom}
-              title="Aumentar Zoom"
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </button>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={diminuirZoom}
+                title="Reduzir Foto (-5%)"
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-school-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 shadow-sm transition-all active:scale-95 shrink-0"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </button>
+              <div className="flex-1 flex items-center">
+                <input
+                  type="range"
+                  min="0.15"
+                  max="3.5"
+                  step="0.01"
+                  value={zoom}
+                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                  className="w-full accent-school-blue-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={aumentarZoom}
+                title="Ampliar Foto (+5%)"
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-school-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 shadow-sm transition-all active:scale-95 shrink-0"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400 px-0.5">
+              <span>Mais reduzida (15%)</span>
+              <span>Encaixe do Guia (75%)</span>
+              <span>Mais ampliada (350%)</span>
+            </div>
           </div>
 
           {/* Controles de Rotação 90° e Redefinição */}
-          <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={girarAntiHorario}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 shadow-sm transition-all"
                 title="Girar 90° anti-horário"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -531,7 +606,7 @@ export function ModalRecorteFotoEstudante({
               <button
                 type="button"
                 onClick={girarHorario}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 shadow-sm transition-all"
                 title="Girar 90° horário"
               >
                 <RotateCw className="h-3.5 w-3.5" />
@@ -542,7 +617,7 @@ export function ModalRecorteFotoEstudante({
             <button
               type="button"
               onClick={resetarAjustes}
-              className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white"
+              className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
               Redefinir

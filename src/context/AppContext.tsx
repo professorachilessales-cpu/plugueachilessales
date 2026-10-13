@@ -179,7 +179,7 @@ interface AppContextType {
   // Ações Eventos & Categorias
   addEvento: (evento: Omit<EventoEscolar, 'id' | 'created_at'>) => void | Promise<any>;
   updateEvento: (id: string, evento: Partial<EventoEscolar>) => void | Promise<any>;
-  deleteEvento: (id: string) => void | Promise<any>;
+  deleteEvento: (id: string, aPartirDeAno?: number) => void | Promise<any>;
   refreshEventos: () => Promise<void>;
   addCategoriaEvento: (cat: Omit<CalendarioCategoria, 'id'>) => Promise<{ success: boolean; error?: string }>;
   updateCategoriaEvento: (id: string, cat: Partial<CalendarioCategoria>) => Promise<{ success: boolean; error?: string }>;
@@ -2024,19 +2024,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const deleteEvento = async (id: string) => {
-    setEventos((prev) => prev.filter((ev) => ev.id !== id));
+  const deleteEvento = async (id: string, aPartirDeAno?: number) => {
+    if (aPartirDeAno) {
+      setEventos((prev) =>
+        prev
+          .map((ev) => {
+            if (ev.id !== id) return ev;
+            const anoIni = Number((ev.data_inicio || '').split('-')[0]) || aPartirDeAno;
+            if (aPartirDeAno <= anoIni) return null;
+            return {
+              ...ev,
+              recorrencia_data_limite: `${aPartirDeAno - 1}-12-31`,
+            };
+          })
+          .filter(Boolean) as EventoEscolar[]
+      );
+    } else {
+      setEventos((prev) => prev.filter((ev) => ev.id !== id));
+    }
+
     try {
-      const res = await fetch(`/api/calendario/eventos?id=${encodeURIComponent(id)}`, {
+      const url = aPartirDeAno
+        ? `/api/calendario/eventos?id=${encodeURIComponent(id)}&apartir_de_ano=${aPartirDeAno}`
+        : `/api/calendario/eventos?id=${encodeURIComponent(id)}`;
+      const res = await fetch(url, {
         method: 'DELETE',
         cache: 'no-store',
       });
       if (!res.ok) {
-        syncWithTurso('delete_evento', { id });
+        syncWithTurso('delete_evento', { id, aPartirDeAno });
       }
     } catch (err) {
       console.error('Erro ao excluir evento:', err);
-      syncWithTurso('delete_evento', { id });
+      syncWithTurso('delete_evento', { id, aPartirDeAno });
     }
   };
 

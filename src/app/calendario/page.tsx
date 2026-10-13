@@ -90,27 +90,7 @@ function eventoOcorreNoDia(
   mesNum: number, // 1..12
   anoNum: number
 ): boolean {
-  const inicioStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
-  const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T')
-    ? (ev.data_fim || ev.data_inicio).split('T')[0]
-    : (ev.data_fim || ev.data_inicio);
-
-  // 1. Verificação direta do período base cadastrado
-  if (dataString >= inicioStr && dataString <= fimStr) {
-    return true;
-  }
-
-  // 2. Se a recorrência não estiver ativa ou for 'NENHUMA', encerra
-  if (!ev.recorrencia_ativa || !ev.recorrencia_tipo || ev.recorrencia_tipo === 'NENHUMA') {
-    return false;
-  }
-
-  // 3. Se a data atual do grid for anterior ao início original do evento, não ocorre
-  if (dataString < inicioStr) {
-    return false;
-  }
-
-  // 4. Se houver data limite de expiração da recorrência e o dia a ultrapassar
+  // 1. Se houver data limite de expiração da recorrência e o dia a ultrapassar, não ocorre
   if (ev.recorrencia_data_limite) {
     const limiteStr = ev.recorrencia_data_limite.includes('T')
       ? ev.recorrencia_data_limite.split('T')[0]
@@ -118,6 +98,26 @@ function eventoOcorreNoDia(
     if (dataString > limiteStr) {
       return false;
     }
+  }
+
+  const inicioStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
+  const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T')
+    ? (ev.data_fim || ev.data_inicio).split('T')[0]
+    : (ev.data_fim || ev.data_inicio);
+
+  // 2. Verificação direta do período base cadastrado
+  if (dataString >= inicioStr && dataString <= fimStr) {
+    return true;
+  }
+
+  // 3. Se a recorrência não estiver ativa ou for 'NENHUMA', encerra
+  if (!ev.recorrencia_ativa || !ev.recorrencia_tipo || ev.recorrencia_tipo === 'NENHUMA') {
+    return false;
+  }
+
+  // 4. Se a data atual do grid for anterior ao início original do evento, não ocorre
+  if (dataString < inicioStr) {
+    return false;
   }
 
   // Cálculo de duração do evento base em dias
@@ -181,6 +181,8 @@ export default function CalendarioPage() {
   const [modalNovoEventoAberto, setModalNovoEventoAberto] = useState(false);
   const [editandoEventoId, setEditandoEventoId] = useState<string | null>(null);
   const [modalCategoriasAberto, setModalCategoriasAberto] = useState(false);
+  const [eventoParaExcluir, setEventoParaExcluir] = useState<EventoEscolar | null>(null);
+  const [anoContextoExclusao, setAnoContextoExclusao] = useState<number>(new Date().getFullYear());
 
   // Estados do formulário de criação/edição de categoria
   const [editandoCatId, setEditandoCatId] = useState<string | null>(null);
@@ -314,6 +316,7 @@ export default function CalendarioPage() {
       data_fim: hojeStr,
       categoria: categoriaPadrao.id,
       cor: categoriaPadrao.cor_hex || '#EF4444',
+      repetir_anualmente: false,
     };
   };
 
@@ -358,6 +361,7 @@ export default function CalendarioPage() {
       data_fim: ev.data_fim,
       categoria: ev.categoria,
       cor: ev.cor || getCategoriaInfo(ev.categoria).cor_hex,
+      repetir_anualmente: ev.recorrencia_tipo === 'ANUAL' && Boolean(ev.recorrencia_ativa),
     });
     setEventoSelecionado(null);
     setModalNovoEventoAberto(true);
@@ -375,26 +379,31 @@ export default function CalendarioPage() {
       dtFim = dtInicio;
     }
 
+    const [iniAno, iniMes, iniDia] = dtInicio.split('-').map(Number);
+    const recTipo = formEvento.repetir_anualmente ? 'ANUAL' : 'NENHUMA';
+    const recAtiva = Boolean(formEvento.repetir_anualmente);
+    const recDia = formEvento.repetir_anualmente ? iniDia : null;
+    const recMes = formEvento.repetir_anualmente ? iniMes : null;
+
+    const payload = {
+      titulo: formEvento.titulo.trim(),
+      descricao: formEvento.descricao.trim(),
+      data_inicio: dtInicio,
+      data_fim: dtFim,
+      categoria: formEvento.categoria,
+      cor: formEvento.cor || getCategoriaInfo(formEvento.categoria).cor_hex,
+      all_day: true,
+      recorrencia_tipo: recTipo as RecorrenciaTipo,
+      recorrencia_ativa: recAtiva,
+      recorrencia_dia: recDia,
+      recorrencia_mes: recMes,
+      recorrencia_data_limite: null,
+    };
+
     if (editandoEventoId) {
-      await updateEvento(editandoEventoId, {
-        titulo: formEvento.titulo.trim(),
-        descricao: formEvento.descricao.trim(),
-        data_inicio: dtInicio,
-        data_fim: dtFim,
-        categoria: formEvento.categoria,
-        cor: formEvento.cor || getCategoriaInfo(formEvento.categoria).cor_hex,
-        all_day: true,
-      });
+      await updateEvento(editandoEventoId, payload);
     } else {
-      await addEvento({
-        titulo: formEvento.titulo.trim(),
-        descricao: formEvento.descricao.trim(),
-        data_inicio: dtInicio,
-        data_fim: dtFim,
-        categoria: formEvento.categoria,
-        cor: formEvento.cor || getCategoriaInfo(formEvento.categoria).cor_hex,
-        all_day: true,
-      });
+      await addEvento(payload);
     }
 
     setModalNovoEventoAberto(false);
@@ -912,6 +921,8 @@ export default function CalendarioPage() {
                         }
                       }
 
+                      const ehRecorrente = ev.recorrencia_tipo === 'ANUAL' && ev.recorrencia_ativa;
+
                       return (
                         <button
                           key={`${ev.id}-${dataString}`}
@@ -921,16 +932,18 @@ export default function CalendarioPage() {
                             backgroundColor: corFinal,
                             color: textColor,
                           }}
-                          title={`${ev.titulo} (${formatarIntervalo(ev.data_inicio, ev.data_fim)})`}
+                          title={`${ev.titulo} (${formatarIntervalo(ev.data_inicio, ev.data_fim)})${ehRecorrente ? ' - Repete anualmente' : ''}`}
                         >
                           {isFirstDay || isStartOfRow || !isMultiDay ? (
                             <span className="truncate flex items-center gap-1">
                               {isMultiDay && <Layers className="h-2.5 w-2.5 shrink-0 opacity-80" />}
+                              {ehRecorrente && <Repeat className="h-2.5 w-2.5 shrink-0 opacity-90" />}
                               <span className="truncate">{ev.titulo}</span>
                             </span>
                           ) : (
                             <span className="truncate opacity-90 text-[9px] font-medium flex items-center gap-1">
                               <span className="h-1 w-1 rounded-full bg-white/70 shrink-0" />
+                              {ehRecorrente && <Repeat className="h-2 w-2 shrink-0 opacity-80" />}
                               <span className="truncate">{ev.titulo}</span>
                             </span>
                           )}
@@ -1004,6 +1017,13 @@ export default function CalendarioPage() {
                             {ev.publico_alvo}
                           </span>
                         )}
+
+                        {ev.recorrencia_tipo === 'ANUAL' && ev.recorrencia_ativa && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200 dark:bg-blue-950/50 dark:border-blue-900/60 dark:text-blue-300">
+                            <Repeat className="h-3 w-3" />
+                            Repete anualmente
+                          </span>
+                        )}
                       </div>
 
                       <h3 className="text-base font-bold text-slate-900 dark:text-white">
@@ -1035,7 +1055,10 @@ export default function CalendarioPage() {
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => deleteEvento(ev.id)}
+                        onClick={() => {
+                          setAnoContextoExclusao(ano);
+                          setEventoParaExcluir(ev);
+                        }}
                         className="inline-flex items-center rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
                         title="Excluir Evento"
                       >
@@ -1096,6 +1119,15 @@ export default function CalendarioPage() {
                 </p>
               </div>
 
+              {eventoSelecionado.recorrencia_tipo === 'ANUAL' && eventoSelecionado.recorrencia_ativa && (
+                <div className="flex items-center gap-2.5 rounded-xl bg-blue-50 p-3 text-xs text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900 dark:text-blue-300">
+                  <Repeat className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                  <span>
+                    <strong>Evento Recorrente:</strong> Este evento se repete no mesmo dia todos os anos no calendário escolar.
+                  </span>
+                </div>
+              )}
+
               {eventoSelecionado.descricao ? (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -1115,7 +1147,9 @@ export default function CalendarioPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      deleteEvento(eventoSelecionado.id);
+                      const ev = eventoSelecionado;
+                      setAnoContextoExclusao(ano);
+                      setEventoParaExcluir(ev);
                       setEventoSelecionado(null);
                     }}
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
@@ -1142,6 +1176,126 @@ export default function CalendarioPage() {
                 Fechar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação e Exclusão Condicional (Ano em diante vs Todos os anos) */}
+      {eventoParaExcluir && podeGerenciarCalendario && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-school-dark-border dark:bg-school-dark-surface animate-in zoom-in-95">
+            <div className="flex items-start gap-3.5 border-b border-slate-100 pb-4 dark:border-slate-800">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {eventoParaExcluir.recorrencia_tipo === 'ANUAL' && eventoParaExcluir.recorrencia_ativa
+                    ? 'Excluir Evento Recorrente'
+                    : 'Confirmar Exclusão de Evento'}
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  {eventoParaExcluir.titulo}
+                </p>
+              </div>
+              <button
+                onClick={() => setEventoParaExcluir(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {eventoParaExcluir.recorrencia_tipo === 'ANUAL' && eventoParaExcluir.recorrencia_ativa ? (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl bg-amber-50 p-3.5 text-xs text-amber-800 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-900/60 dark:text-amber-300">
+                  <div className="flex items-center gap-1.5 font-bold mb-1">
+                    <Repeat className="h-4 w-4" />
+                    Evento com repetição anual cadastrado
+                  </div>
+                  Este evento ocorre no mesmo dia todos os anos. Como você deseja excluí-lo?
+                </div>
+
+                <div className="space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const id = eventoParaExcluir.id;
+                      const anoExcl = anoContextoExclusao;
+                      setEventoParaExcluir(null);
+                      await deleteEvento(id, anoExcl);
+                    }}
+                    className="w-full text-left rounded-xl border border-slate-200 p-3.5 transition hover:border-blue-400 hover:bg-blue-50/50 dark:border-slate-700 dark:hover:border-blue-500 dark:hover:bg-blue-950/20 group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                        Excluir daquele ano ({anoContextoExclusao}) em diante
+                      </span>
+                      <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
+                        Recomendado
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Exclui a ocorrência no ano de {anoContextoExclusao} e em todos os anos futuros, mantendo o histórico registrado nos anos anteriores.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const id = eventoParaExcluir.id;
+                      setEventoParaExcluir(null);
+                      await deleteEvento(id);
+                    }}
+                    className="w-full text-left rounded-xl border border-rose-200 p-3.5 transition hover:border-rose-400 hover:bg-rose-50/50 dark:border-rose-900/50 dark:hover:border-rose-700 dark:hover:bg-rose-950/20 group"
+                  >
+                    <span className="text-xs font-bold text-rose-700 dark:text-rose-400">
+                      Excluir todas as ocorrências (todos os anos)
+                    </span>
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Remove o evento permanentemente do sistema em todos os anos, apagando tanto o histórico passado quanto os anos futuros.
+                    </p>
+                  </button>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEventoParaExcluir(null)}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Tem certeza de que deseja excluir permanentemente o evento <strong>"{eventoParaExcluir.titulo}"</strong>? Esta ação não pode ser desfeita.
+                </p>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEventoParaExcluir(null)}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const id = eventoParaExcluir.id;
+                      setEventoParaExcluir(null);
+                      await deleteEvento(id);
+                    }}
+                    className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-rose-700"
+                  >
+                    Excluir Evento
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1298,6 +1452,27 @@ export default function CalendarioPage() {
                     ))}
                   </div>
                 </div>
+              </div>
+
+              {/* Repetição Anual do Evento */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-school-dark-border dark:bg-slate-800/40">
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={formEvento.repetir_anualmente}
+                    onChange={(e) => setFormEvento({ ...formEvento, repetir_anualmente: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700"
+                  />
+                  <div>
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <Repeat className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                      Repetir no mesmo dia todos os anos
+                    </span>
+                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Quando marcada, o evento fica registrado e é exibido automaticamente nesta mesma data em todos os anos no calendário escolar.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* Descrição / Observação (Opcional) */}

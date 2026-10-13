@@ -305,6 +305,7 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const aPartirDeAno = searchParams.get('apartir_de_ano');
 
     if (!id) {
       return NextResponse.json(
@@ -314,15 +315,49 @@ export async function DELETE(req: NextRequest) {
     }
 
     if (isTursoConfigured) {
-      // Exclusão definitiva em ambas as tabelas no Turso
-      await executeTursoQuery('DELETE FROM calendario_eventos WHERE id = ?', [id]);
-      try {
-        await executeTursoQuery('DELETE FROM eventos WHERE id = ?', [id]);
-      } catch {}
+      if (aPartirDeAno) {
+        const anoNum = Number(aPartirDeAno);
+        // Busca a data de início original do evento para saber se é o primeiro ano
+        const eventoExistente = await executeTursoQuery(
+          'SELECT data_inicio FROM calendario_eventos WHERE id = ?',
+          [id]
+        );
+        const dataInicio = eventoExistente.rows?.[0]?.data_inicio
+          ? String(eventoExistente.rows[0].data_inicio)
+          : '';
+        const anoInicio = dataInicio ? Number(dataInicio.split('-')[0]) : anoNum;
+
+        if (isNaN(anoNum) || anoNum <= anoInicio) {
+          // Se for o ano de início ou anterior, exclui completamente
+          await executeTursoQuery('DELETE FROM calendario_eventos WHERE id = ?', [id]);
+          try {
+            await executeTursoQuery('DELETE FROM eventos WHERE id = ?', [id]);
+          } catch {}
+        } else {
+          // Define a data limite da recorrência para 31/12 do ano anterior
+          const limite = `${anoNum - 1}-12-31`;
+          await executeTursoQuery(
+            'UPDATE calendario_eventos SET recorrencia_data_limite = ? WHERE id = ?',
+            [limite, id]
+          );
+          try {
+            await executeTursoQuery(
+              'UPDATE eventos SET recorrencia_data_limite = ? WHERE id = ?',
+              [limite, id]
+            );
+          } catch {}
+        }
+      } else {
+        // Exclusão definitiva de todas as ocorrências em ambas as tabelas
+        await executeTursoQuery('DELETE FROM calendario_eventos WHERE id = ?', [id]);
+        try {
+          await executeTursoQuery('DELETE FROM eventos WHERE id = ?', [id]);
+        } catch {}
+      }
     }
 
     return NextResponse.json(
-      { success: true, message: 'Evento excluído definitivamente do banco de dados.' },
+      { success: true, message: 'Operação de exclusão realizada com sucesso.' },
       { headers: NO_CACHE_HEADERS }
     );
   } catch (error: any) {

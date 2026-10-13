@@ -150,7 +150,27 @@ function verificarFeriadoOuNaoLetivo(
     const inicioIso = ev.data_inicio ? ev.data_inicio.split('T')[0] : '';
     const fimIso = ev.data_fim ? ev.data_fim.split('T')[0] : inicioIso;
 
-    if (inicioIso && dataIso >= inicioIso && dataIso <= fimIso) {
+    let ocorre = Boolean(inicioIso && dataIso >= inicioIso && dataIso <= fimIso);
+
+    // Suporte a recorrência anual
+    if (!ocorre && ev.recorrencia_ativa && ev.recorrencia_tipo === 'ANUAL' && dataIso >= inicioIso) {
+      if (!ev.recorrencia_data_limite || dataIso <= ev.recorrencia_data_limite.split('T')[0]) {
+        const [dMes, dDia] = dataIso.split('-').slice(1).map(Number);
+        const [iAno, iMes, iDia] = inicioIso.split('-').map(Number);
+        const [fAno, fMes, fDia] = fimIso.split('-').map(Number);
+        const dtI = new Date(iAno, iMes - 1, iDia);
+        const dtF = new Date(fAno, fMes - 1, fDia);
+        const diffDias = Math.max(0, Math.round((dtF.getTime() - dtI.getTime()) / (1000 * 60 * 60 * 24)));
+        const baseMes = ev.recorrencia_mes != null ? Number(ev.recorrencia_mes) : iMes;
+        const baseDia = ev.recorrencia_dia != null ? Number(ev.recorrencia_dia) : iDia;
+
+        if (dMes === baseMes && dDia >= baseDia && dDia <= baseDia + diffDias) {
+          ocorre = true;
+        }
+      }
+    }
+
+    if (ocorre) {
       const cat = normalizarTexto(ev.categoria);
       const tit = normalizarTexto(ev.titulo);
       const isFeriado =

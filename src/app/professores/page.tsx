@@ -133,6 +133,16 @@ function formatarDataNascimentoEIdade(dataNasc?: string | null): { dataFormatada
   };
 }
 
+// Formata exibição da Matrícula com prefixo e em negrito
+function formatarMatricula(mat?: string | null): string {
+  if (!mat || !mat.trim()) return 'Matrícula: NÃO INFORMADA';
+  const limpa = mat.trim();
+  if (/^matr[ií]cula:?\s*/i.test(limpa)) {
+    return `Matrícula: ${limpa.replace(/^matr[ií]cula:?\s*/i, '')}`;
+  }
+  return `Matrícula: ${limpa}`;
+}
+
 const formProfInicial = {
   nome_completo: '',
   matricula: '',
@@ -897,8 +907,8 @@ export default function ProfessoresPage() {
                       <div>
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-school-gold-400 block uppercase">
-                              {prof.matricula || 'MATRÍCULA N/I'}
+                            <span className="text-xs font-mono font-bold text-slate-800 dark:text-school-gold-400 block uppercase">
+                              <strong>{formatarMatricula(prof.matricula)}</strong>
                             </span>
                             <h3 className="text-base font-black text-slate-900 dark:text-white uppercase truncate mt-0.5">
                               {prof.nome_completo}
@@ -3645,7 +3655,7 @@ export default function ProfessoresPage() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-xs font-bold text-school-blue-700 dark:text-school-gold-400 uppercase">
-                    {professorSelecionado.matricula || 'MATRÍCULA N/I'}
+                    <strong>{formatarMatricula(professorSelecionado.matricula)}</strong>
                   </span>
 
                   {professorSelecionado.tipo_profissional === 'funcionario' ? (

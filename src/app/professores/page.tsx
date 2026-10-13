@@ -67,12 +67,79 @@ function getEmojiFuncao(funcao?: string): string {
   }
 }
 
+// Formata data de nascimento no formato DD/MM/AAAA e calcula a idade em anos entre parênteses
+function formatarDataNascimentoEIdade(dataNasc?: string | null): { dataFormatada: string; idadeTexto: string; displayCompleto: string } {
+  if (!dataNasc || !dataNasc.trim()) {
+    return { dataFormatada: 'NÃO INFORMADA', idadeTexto: '', displayCompleto: 'NÃO INFORMADA' };
+  }
+
+  const str = dataNasc.trim();
+  let ano = 0, mes = 0, dia = 0;
+
+  if (str.includes('T')) {
+    const [datePart] = str.split('T');
+    const parts = datePart.split('-').map(Number);
+    ano = parts[0];
+    mes = parts[1];
+    dia = parts[2];
+  } else if (str.includes('-')) {
+    const parts = str.split('-').map(Number);
+    if (parts[0] > 1000) {
+      ano = parts[0];
+      mes = parts[1];
+      dia = parts[2];
+    } else {
+      dia = parts[0];
+      mes = parts[1];
+      ano = parts[2];
+    }
+  } else if (str.includes('/')) {
+    const parts = str.split('/').map(Number);
+    if (parts[2] > 1000) {
+      dia = parts[0];
+      mes = parts[1];
+      ano = parts[2];
+    } else {
+      ano = parts[0];
+      mes = parts[1];
+      dia = parts[2];
+    }
+  }
+
+  if (!ano || !mes || !dia || isNaN(ano) || isNaN(mes) || isNaN(dia)) {
+    return { dataFormatada: str, idadeTexto: '', displayCompleto: str };
+  }
+
+  const diaStr = String(dia).padStart(2, '0');
+  const mesStr = String(mes).padStart(2, '0');
+  const dataFormatada = `${diaStr}/${mesStr}/${ano}`;
+
+  const hoje = new Date();
+  let anos = hoje.getFullYear() - ano;
+  const m = hoje.getMonth() + 1 - mes;
+  if (m < 0 || (m === 0 && hoje.getDate() < dia)) {
+    anos--;
+  }
+
+  if (isNaN(anos) || anos < 0) {
+    return { dataFormatada, idadeTexto: '', displayCompleto: dataFormatada };
+  }
+
+  const idadeTexto = `(${anos} ${anos === 1 ? 'ano' : 'anos'})`;
+  return {
+    dataFormatada,
+    idadeTexto,
+    displayCompleto: `${dataFormatada} ${idadeTexto}`
+  };
+}
+
 const formProfInicial = {
   nome_completo: '',
   matricula: '',
   cpf: '',
   rg: '',
   rg_data_expedicao: '',
+  data_nascimento: '',
   formacao: '',
   disciplinasStr: '',
   titulacao: 'GRADUAÇÃO' as TitulacaoDocente,
@@ -374,6 +441,7 @@ export default function ProfessoresPage() {
       cpf: formProf.cpf.trim().toUpperCase(),
       rg: formProf.rg.trim().toUpperCase(),
       rg_data_expedicao: formProf.rg_data_expedicao,
+      data_nascimento: formProf.data_nascimento,
       formacao: formProf.formacao.trim().toUpperCase(),
       disciplinas: formProf.disciplinasStr.split(',').map((d) => d.trim().toUpperCase()).filter(Boolean),
       titulacao: formProf.titulacao,
@@ -934,6 +1002,16 @@ export default function ProfessoresPage() {
                                   </span>
                                 )}
                               </div>
+                            </div>
+
+                            {/* Data de Nascimento e Idade (dd/mm/aaaa (XX anos)) */}
+                            <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                Data de Nascimento:
+                              </span>
+                              <span className="font-semibold text-slate-800 dark:text-white font-mono text-[11px]">
+                                {formatarDataNascimentoEIdade(prof.data_nascimento).displayCompleto}
+                              </span>
                             </div>
                           </>
                         )}
@@ -2471,7 +2549,7 @@ export default function ProfessoresPage() {
                     />
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
                       Data de Expedição do RG
                     </label>
@@ -2479,6 +2557,18 @@ export default function ProfessoresPage() {
                       type="date"
                       value={formProf.rg_data_expedicao}
                       onChange={(e) => setFormProf({ ...formProf, rg_data_expedicao: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">
+                      Data de Nascimento
+                    </label>
+                    <input
+                      type="date"
+                      value={formProf.data_nascimento}
+                      onChange={(e) => setFormProf({ ...formProf, data_nascimento: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
                   </div>
@@ -3648,9 +3738,7 @@ export default function ProfessoresPage() {
                     <div><strong>RG:</strong> {professorSelecionado.rg || 'NÃO INFORMADO'}</div>
                     <div>
                       <strong>Data Nascimento:</strong>{' '}
-                      {professorSelecionado.data_nascimento
-                        ? new Date(professorSelecionado.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR')
-                        : 'NÃO INFORMADA'}
+                      <span className="font-mono">{formatarDataNascimentoEIdade(professorSelecionado.data_nascimento).displayCompleto}</span>
                     </div>
                     <div><strong>Gênero:</strong> {professorSelecionado.genero || 'NÃO INFORMADO'}</div>
                     <div><strong>Matrícula:</strong> {professorSelecionado.matricula || 'NÃO INFORMADA'}</div>
@@ -3753,6 +3841,10 @@ export default function ProfessoresPage() {
                         ? new Date(professorSelecionado.rg_data_expedicao + 'T00:00:00').toLocaleDateString('pt-BR')
                         : 'NÃO INFORMADA'}
                     </div>
+                    <div className="sm:col-span-3">
+                      <strong>Data Nascimento:</strong>{' '}
+                      <span className="font-mono font-medium">{formatarDataNascimentoEIdade(professorSelecionado.data_nascimento).displayCompleto}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -3772,6 +3864,10 @@ export default function ProfessoresPage() {
                     </div>
                     <div className="sm:col-span-2">
                       <strong>Disciplinas:</strong> {professorSelecionado.disciplinas?.join(', ') || 'NENHUMA'}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <strong>Data de Nascimento:</strong>{' '}
+                      <span className="font-mono font-semibold">{formatarDataNascimentoEIdade(professorSelecionado.data_nascimento).displayCompleto}</span>
                     </div>
                   </div>
                 </div>

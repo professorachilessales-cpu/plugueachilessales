@@ -2256,7 +2256,7 @@ export default function TurmasPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block font-semibold text-slate-700 dark:text-slate-300">
-                      Quantidade de aulas dele por dia *
+                      Quantidade de aulas por dia *
                     </label>
                     <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-900/60">
                       Mínimo 3 aulas

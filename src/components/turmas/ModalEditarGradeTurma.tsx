@@ -852,7 +852,7 @@ export function ModalEditarGradeTurma({
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     {totalAulasExistentesNoDia > 0
                       ? `Este dia já possui ${totalAulasExistentesNoDia} aula(s). As aulas selecionadas serão colocadas a mais das cadastradas!`
-                      : `Escolha o professor e a quantidade de aulas dele na ${modalDiaAberto}.`}
+                      : `Escolha o professor e a quantidade de aulas na ${modalDiaAberto}.`}
                   </p>
                 </div>
               </div>
@@ -976,11 +976,11 @@ export function ModalEditarGradeTurma({
                       )}
                     </div>
 
-                    {/* Quantidade de aulas dele na xxxx */}
+                    {/* Quantidade de aulas na xxxx */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                          Quantidade de aulas dele na {modalDiaAberto}:
+                          Quantidade de aulas na {modalDiaAberto}:
                         </span>
                         <span className="text-xs font-black text-school-blue-900 dark:text-school-gold-400">
                           {item.quantidade_aulas} {item.quantidade_aulas === 1 ? 'aula' : 'aulas'}

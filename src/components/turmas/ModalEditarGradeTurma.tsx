@@ -129,7 +129,18 @@ export function ModalEditarGradeTurma({
     return todosDocentesAptos;
   }, [docentesTurma, todosDocentesAptos]);
 
-  if (!isOpen || !turma) return null;
+  // Aulas existentes no dia aberto no modal
+  const aulasExistentesNoDiaAberto = useMemo(() => {
+    if (!modalDiaAberto) return [];
+    return gradeLocal.filter((h) => h.dia_semana === modalDiaAberto);
+  }, [modalDiaAberto, gradeLocal]);
+
+  const totalAulasExistentesNoDia = useMemo(() => {
+    return aulasExistentesNoDiaAberto.reduce(
+      (acc, h) => acc + (Number(h.quantidade_aulas) || 1),
+      0
+    );
+  }, [aulasExistentesNoDiaAberto]);
 
   const totalAulasSemana = gradeLocal.reduce(
     (acc, h) => acc + (Number(h.quantidade_aulas) || 1),
@@ -151,21 +162,10 @@ export function ModalEditarGradeTurma({
 
   const persistirGrade = (novaGrade: HorarioAula[]) => {
     setGradeLocal(novaGrade);
-    onSalvarGrade(turma.id, novaGrade);
+    if (turma) {
+      onSalvarGrade(turma.id, novaGrade);
+    }
   };
-
-  // Aulas existentes no dia aberto no modal
-  const aulasExistentesNoDiaAberto = useMemo(() => {
-    if (!modalDiaAberto) return [];
-    return gradeLocal.filter((h) => h.dia_semana === modalDiaAberto);
-  }, [modalDiaAberto, gradeLocal]);
-
-  const totalAulasExistentesNoDia = useMemo(() => {
-    return aulasExistentesNoDiaAberto.reduce(
-      (acc, h) => acc + (Number(h.quantidade_aulas) || 1),
-      0
-    );
-  }, [aulasExistentesNoDiaAberto]);
 
   // Abre modal rápido para o dia específico (caso já tenha aulas, permite colocar a mais das cadastradas)
   const abrirModalDia = (
@@ -363,6 +363,8 @@ export function ModalEditarGradeTurma({
       mostrarFeedback('sucesso', `Aula de ${horario.professor_nome} removida da ${horario.dia_semana}.`);
     }
   };
+
+  if (!isOpen || !turma) return null;
 
   return (
     <div 

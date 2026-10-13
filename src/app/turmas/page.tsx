@@ -666,9 +666,10 @@ export default function TurmasPage() {
     let novaGrade: HorarioAula[];
     if (indexExistente >= 0) {
       novaGrade = [...gradeAtual];
+      const qtdAnterior = Number(novaGrade[indexExistente].quantidade_aulas) || 1;
       novaGrade[indexExistente] = {
         ...novaGrade[indexExistente],
-        quantidade_aulas: Math.floor(qtd),
+        quantidade_aulas: qtdAnterior + Math.floor(qtd),
       };
     } else {
       novaGrade = [...gradeAtual, novoItem];

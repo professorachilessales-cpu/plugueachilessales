@@ -154,15 +154,38 @@ export function ModalEditarGradeTurma({
     onSalvarGrade(turma.id, novaGrade);
   };
 
-  // Abre modal rápido para o dia específico com padrão de 3 aulas
+  // Aulas existentes no dia aberto no modal
+  const aulasExistentesNoDiaAberto = useMemo(() => {
+    if (!modalDiaAberto) return [];
+    return gradeLocal.filter((h) => h.dia_semana === modalDiaAberto);
+  }, [modalDiaAberto, gradeLocal]);
+
+  const totalAulasExistentesNoDia = useMemo(() => {
+    return aulasExistentesNoDiaAberto.reduce(
+      (acc, h) => acc + (Number(h.quantidade_aulas) || 1),
+      0
+    );
+  }, [aulasExistentesNoDiaAberto]);
+
+  // Abre modal rápido para o dia específico
   const abrirModalDia = (dia: 'Segunda' | 'Terça' | 'Quarta' | 'Quinta' | 'Sexta') => {
     setDiaSelecionado(dia);
+    const aulasExistentes = gradeLocal.filter((h) => h.dia_semana === dia);
+    const totalExistentes = aulasExistentes.reduce(
+      (acc, h) => acc + (Number(h.quantidade_aulas) || 1),
+      0
+    );
+
     const primeiroProf = listaDocentesDisponiveis[0]?.nome_completo || '';
+    // Se o dia já tem aulas, padrão é adicionar 1 aula a mais (o usuário pode escolher quanto quiser a mais).
+    // Se o dia não tem nenhuma aula, padrão é 3 aulas (mínimo exigido por dia).
+    const qtdInicial = totalExistentes > 0 ? 1 : 3;
+
     setItensAulaDia([
       {
         id: `dia-${Date.now()}-1`,
         professor_nome: primeiroProf,
-        quantidade_aulas: 3, // Padrão de no mínimo 3 aulas
+        quantidade_aulas: qtdInicial,
       },
     ]);
     setModalDiaAberto(dia);
@@ -212,10 +235,27 @@ export function ModalEditarGradeTurma({
       return;
     }
 
-    if (totalAulasNoModalDia < 3) {
+    const totalAdicional = itensPreenchidos.reduce(
+      (acc, it) => acc + Math.max(1, Math.floor(Number(it.quantidade_aulas) || 1)),
+      0
+    );
+
+    const totalFinalDia = totalAulasExistentesNoDia + totalAdicional;
+
+    // Se o dia ainda não possui nenhuma aula cadastrada, exige no mínimo 3 aulas
+    if (totalAulasExistentesNoDia === 0 && totalAdicional < 3) {
       mostrarFeedback(
         'erro',
-        `É obrigatório adicionar no mínimo 3 aulas no dia (atualmente selecionado: ${totalAulasNoModalDia} aula(s)).`
+        `Para cadastrar a grade deste dia, é necessário no mínimo 3 aulas (atualmente: ${totalAdicional} aula(s)).`
+      );
+      return;
+    }
+
+    // Se já existem aulas ou está somando, garante que o total geral do dia continue no mínimo 3
+    if (totalFinalDia < 3) {
+      mostrarFeedback(
+        'erro',
+        `O dia deve conter no mínimo 3 aulas no total (atualmente: ${totalFinalDia} aula(s)).`
       );
       return;
     }
@@ -224,23 +264,27 @@ export function ModalEditarGradeTurma({
 
     itensPreenchidos.forEach((item) => {
       const nomeLimpo = item.professor_nome.trim();
-      const qtd = Math.max(1, Math.floor(Number(item.quantidade_aulas) || 1));
+      const qtdAdicional = Math.max(1, Math.floor(Number(item.quantidade_aulas) || 1));
 
       const indexExistente = novaGrade.findIndex(
         (h) => h.dia_semana === modalDiaAberto && h.professor_nome.trim().toLowerCase() === nomeLimpo.toLowerCase()
       );
 
       if (indexExistente >= 0) {
+        // Professor já cadastrado no dia: SOMA e coloca a mais das cadastradas!
+        const qtdAnterior = Number(novaGrade[indexExistente].quantidade_aulas) || 1;
+        const novaQtd = qtdAnterior + qtdAdicional;
         novaGrade[indexExistente] = {
           ...novaGrade[indexExistente],
-          quantidade_aulas: qtd,
+          quantidade_aulas: novaQtd,
         };
       } else {
+        // Novo professor no dia
         novaGrade.push({
           id: `h-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           dia_semana: modalDiaAberto,
           professor_nome: nomeLimpo,
-          quantidade_aulas: qtd,
+          quantidade_aulas: qtdAdicional,
         });
       }
     });
@@ -248,7 +292,9 @@ export function ModalEditarGradeTurma({
     persistirGrade(novaGrade);
     mostrarFeedback(
       'sucesso',
-      `${totalAulasNoModalDia} aula(s) registrada(s) com sucesso na ${modalDiaAberto}!`
+      totalAulasExistentesNoDia > 0
+        ? `+${totalAdicional} aula(s) adicionada(s) a mais na ${modalDiaAberto}! Total no dia: ${totalFinalDia} aulas.`
+        : `${totalAdicional} aula(s) registrada(s) com sucesso na ${modalDiaAberto}!`
     );
     setModalDiaAberto(null);
   };
@@ -790,14 +836,24 @@ export function ModalEditarGradeTurma({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="text-base font-black text-slate-900 dark:text-white">
-                      Adicionar Aulas: {modalDiaAberto}-feira
+                      {totalAulasExistentesNoDia > 0
+                        ? `Adicionar Aulas a Mais: ${modalDiaAberto}-feira`
+                        : `Adicionar Aulas: ${modalDiaAberto}-feira`}
                     </h4>
-                    <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800 dark:bg-amber-950 dark:text-school-gold-400 border border-amber-200 dark:border-amber-900/60">
-                      Mínimo 3 aulas
-                    </span>
+                    {totalAulasExistentesNoDia > 0 ? (
+                      <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60">
+                        +{totalAulasNoModalDia} aula(s) a mais
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800 dark:bg-amber-950 dark:text-school-gold-400 border border-amber-200 dark:border-amber-900/60">
+                        Mínimo 3 aulas
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Escolha apenas o professor e a quantidade de aulas dele por dia
+                    {totalAulasExistentesNoDia > 0
+                      ? `O dia já possui ${totalAulasExistentesNoDia} aula(s). As aulas selecionadas serão colocadas a mais!`
+                      : 'Escolha apenas o professor e a quantidade de aulas dele por dia (mínimo 3 aulas)'}
                   </p>
                 </div>
               </div>
@@ -812,113 +868,168 @@ export function ModalEditarGradeTurma({
 
             {/* Conteúdo dos Professores e Quantidades */}
             <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
-              {itensAulaDia.map((item, index) => (
-                <div 
-                  key={item.id}
-                  className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/40 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <GraduationCap className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
-                      <span>{itensAulaDia.length > 1 ? `Professor ${index + 1}` : 'Professor'}</span>
-                    </label>
-                    {itensAulaDia.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoverLinhaProfessorDia(item.id)}
-                        className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 flex items-center gap-1 font-semibold"
-                        title="Remover este professor"
+              {/* Bloco de Aulas Já Cadastradas no Dia */}
+              {aulasExistentesNoDiaAberto.length > 0 && (
+                <div className="rounded-2xl border border-school-blue-200 bg-school-blue-50/70 p-3.5 dark:border-school-blue-900/70 dark:bg-school-blue-950/30">
+                  <div className="flex items-center justify-between text-xs font-bold text-school-blue-900 dark:text-school-blue-200 mb-2">
+                    <span className="flex items-center gap-1.5 font-black">
+                      <Clock className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                      Aulas já cadastradas na {modalDiaAberto}:
+                    </span>
+                    <span className="rounded-md bg-school-blue-200/80 px-2 py-0.5 text-[10px] font-extrabold text-school-blue-900 dark:bg-school-blue-900 dark:text-school-blue-100">
+                      {totalAulasExistentesNoDia} {totalAulasExistentesNoDia === 1 ? 'aula' : 'aulas'} no total
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {aulasExistentesNoDiaAberto.map((a) => (
+                      <span
+                        key={a.id}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 shadow-2xs"
                       >
-                        <Trash2 className="h-3 w-3" />
-                        <span>Remover</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Seleção do Professor */}
-                  <div>
-                    <select
-                      value={item.professor_nome}
-                      onChange={(e) => handleAtualizarLinhaProfessorDia(item.id, 'professor_nome', e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                    >
-                      <option value="">Selecione o professor...</option>
-                      {listaDocentesDisponiveis.map((p) => (
-                        <option key={p.id} value={p.nome_completo}>
-                          {p.nome_completo} {p.disciplinas?.length ? `(${p.disciplinas.join(', ')})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Quantidade de Aulas dele por dia */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                        Quantidade de aulas dele na {modalDiaAberto}:
-                      </span>
-                      <span className="text-xs font-black text-school-blue-900 dark:text-school-gold-400">
-                        {item.quantidade_aulas} {item.quantidade_aulas === 1 ? 'aula' : 'aulas'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Stepper */}
-                      <div className="flex items-center border border-slate-200 rounded-xl bg-white dark:border-slate-700 dark:bg-slate-800 overflow-hidden shadow-2xs">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleAtualizarLinhaProfessorDia(
-                              item.id,
-                              'quantidade_aulas',
-                              Math.max(1, item.quantidade_aulas - 1)
-                            )
-                          }
-                          className="p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
-                          title="Diminuir 1 aula"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-                        <span className="w-10 text-center text-xs font-black text-slate-900 dark:text-white">
-                          {item.quantidade_aulas}
+                        <span>{a.professor_nome}:</span>
+                        <span className="text-school-blue-700 dark:text-school-gold-400 font-black">
+                          {a.quantidade_aulas} {Number(a.quantidade_aulas) === 1 ? 'aula' : 'aulas'}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleAtualizarLinhaProfessorDia(
-                              item.id,
-                              'quantidade_aulas',
-                              Math.min(8, item.quantidade_aulas + 1)
-                            )
-                          }
-                          className="p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
-                          title="Aumentar 1 aula"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-
-                      {/* Botões de Seleção Rápida */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {[3, 4, 5, 6].map((num) => (
-                          <button
-                            key={num}
-                            type="button"
-                            onClick={() => handleAtualizarLinhaProfessorDia(item.id, 'quantidade_aulas', num)}
-                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                              item.quantidade_aulas === num
-                                ? 'bg-school-blue-800 text-white shadow-xs dark:bg-school-gold-500 dark:text-slate-950 font-black'
-                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
-                            }`}
-                          >
-                            {num} aulas
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                      </span>
+                    ))}
                   </div>
                 </div>
-              ))}
+              )}
+
+              {itensAulaDia.map((item, index) => {
+                const profExistente = aulasExistentesNoDiaAberto.find(
+                  (a) => a.professor_nome.trim().toLowerCase() === item.professor_nome.trim().toLowerCase()
+                );
+                const qtdAtual = profExistente ? Number(profExistente.quantidade_aulas) || 1 : 0;
+
+                return (
+                  <div 
+                    key={item.id}
+                    className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/40 space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <GraduationCap className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
+                        <span>{itensAulaDia.length > 1 ? `Professor ${index + 1}` : 'Professor'}</span>
+                      </label>
+                      {itensAulaDia.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoverLinhaProfessorDia(item.id)}
+                          className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 flex items-center gap-1 font-semibold"
+                          title="Remover este professor"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Remover</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Seleção do Professor */}
+                    <div>
+                      <select
+                        value={item.professor_nome}
+                        onChange={(e) => handleAtualizarLinhaProfessorDia(item.id, 'professor_nome', e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      >
+                        <option value="">Selecione o professor...</option>
+                        {listaDocentesDisponiveis.map((p) => (
+                          <option key={p.id} value={p.nome_completo}>
+                            {p.nome_completo} {p.disciplinas?.length ? `(${p.disciplinas.join(', ')})` : ''}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Notificação dinâmica de impacto no docente */}
+                      {item.professor_nome.trim() && (
+                        profExistente ? (
+                          <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mt-1.5 flex items-center gap-1">
+                            <Sparkles className="h-3 w-3 shrink-0" />
+                            <span>
+                              Já possui {qtdAtual} aula(s). Com +{item.quantidade_aulas} a mais, passará a ter <strong className="underline font-black">{qtdAtual + item.quantidade_aulas} aulas</strong> no dia.
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1.5">
+                            Novo docente na {modalDiaAberto}: adicionará +{item.quantidade_aulas} aula(s).
+                          </p>
+                        )
+                      )}
+                    </div>
+
+                    {/* Quantidade de Aulas dele por dia */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                          {totalAulasExistentesNoDia > 0
+                            ? `Adicionar a mais dele na ${modalDiaAberto}:`
+                            : `Quantidade de aulas dele na ${modalDiaAberto}:`}
+                        </span>
+                        <span className="text-xs font-black text-school-blue-900 dark:text-school-gold-400">
+                          {totalAulasExistentesNoDia > 0
+                            ? `+${item.quantidade_aulas} aula(s) a mais`
+                            : `${item.quantidade_aulas} aula(s)`}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Stepper */}
+                        <div className="flex items-center border border-slate-200 rounded-xl bg-white dark:border-slate-700 dark:bg-slate-800 overflow-hidden shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleAtualizarLinhaProfessorDia(
+                                item.id,
+                                'quantidade_aulas',
+                                Math.max(1, item.quantidade_aulas - 1)
+                              )
+                            }
+                            className="p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                            title="Diminuir 1 aula"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="w-10 text-center text-xs font-black text-slate-900 dark:text-white">
+                            {item.quantidade_aulas}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleAtualizarLinhaProfessorDia(
+                                item.id,
+                                'quantidade_aulas',
+                                Math.min(8, item.quantidade_aulas + 1)
+                              )
+                            }
+                            className="p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                            title="Aumentar 1 aula"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Botões de Seleção Rápida */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {[1, 2, 3, 4, 5, 6].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={() => handleAtualizarLinhaProfessorDia(item.id, 'quantidade_aulas', num)}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                item.quantidade_aulas === num
+                                  ? 'bg-school-blue-800 text-white shadow-xs dark:bg-school-gold-500 dark:text-slate-950 font-black'
+                                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200'
+                              }`}
+                            >
+                              {totalAulasExistentesNoDia > 0 ? `+${num}` : `${num} aulas`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
 
               {/* Botão para Adicionar Outro Professor neste dia */}
               <button
@@ -930,29 +1041,39 @@ export function ModalEditarGradeTurma({
                 <span>+ Adicionar outro professor na {modalDiaAberto}</span>
               </button>
 
-              {/* Indicador de Validação do Mínimo de 3 Aulas */}
+              {/* Indicador de Validação e Resumo de Aulas */}
               <div
-                className={`p-3 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
-                  totalAulasNoModalDia >= 3
+                className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
+                  (totalAulasExistentesNoDia > 0 || totalAulasNoModalDia >= 3)
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/40 dark:border-emerald-800/70 dark:text-emerald-200'
                     : 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/40 dark:border-amber-800/70 dark:text-amber-200'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  {totalAulasNoModalDia >= 3 ? (
+                <div className="flex items-center gap-2.5">
+                  {(totalAulasExistentesNoDia > 0 || totalAulasNoModalDia >= 3) ? (
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   ) : (
                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   )}
                   <div>
-                    <span className="font-black">
-                      Total selecionado: {totalAulasNoModalDia} {totalAulasNoModalDia === 1 ? 'aula' : 'aulas'}
-                    </span>
-                    <span className="ml-1.5 opacity-90">
-                      {totalAulasNoModalDia >= 3
-                        ? '(Requisito de no mínimo 3 aulas atendido ✓)'
-                        : `(Mínimo de 3 aulas por dia exigido — faltam ${3 - totalAulasNoModalDia})`}
-                    </span>
+                    <div className="font-black text-xs">
+                      {totalAulasExistentesNoDia > 0 ? (
+                        <span>
+                          Adicionando +{totalAulasNoModalDia} aula(s) a mais • Total final no dia: {totalAulasExistentesNoDia + totalAulasNoModalDia} aulas
+                        </span>
+                      ) : (
+                        <span>
+                          Total selecionado: {totalAulasNoModalDia} {totalAulasNoModalDia === 1 ? 'aula' : 'aulas'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] opacity-90 mt-0.5">
+                      {totalAulasExistentesNoDia > 0
+                        ? `As novas aulas serão colocadas a mais das ${totalAulasExistentesNoDia} aulas já existentes ✓`
+                        : totalAulasNoModalDia >= 3
+                        ? 'Requisito de no mínimo 3 aulas atendido ✓'
+                        : `Mínimo de 3 aulas por dia exigido para inaugurar a grade (faltam ${3 - totalAulasNoModalDia})`}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -969,12 +1090,20 @@ export function ModalEditarGradeTurma({
               </button>
               <button
                 type="button"
-                disabled={totalAulasNoModalDia < 3 || itensAulaDia.some((it) => !it.professor_nome.trim())}
+                disabled={
+                  (totalAulasExistentesNoDia === 0 && totalAulasNoModalDia < 3) ||
+                  (totalAulasExistentesNoDia + totalAulasNoModalDia < 3) ||
+                  itensAulaDia.some((it) => !it.professor_nome.trim())
+                }
                 onClick={handleSalvarAulasModalDia}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-school-blue-800 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all dark:bg-school-blue-600"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                <span>Salvar {totalAulasNoModalDia} Aulas na {modalDiaAberto}</span>
+                <span>
+                  {totalAulasExistentesNoDia > 0
+                    ? `Adicionar +${totalAulasNoModalDia} Aula(s) a Mais na ${modalDiaAberto}`
+                    : `Salvar ${totalAulasNoModalDia} Aulas na ${modalDiaAberto}`}
+                </span>
               </button>
             </div>
           </div>

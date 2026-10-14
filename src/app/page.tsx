@@ -1457,7 +1457,8 @@ export default function DashboardPage() {
                   </div>
                 </div>
               );
-            })}
+            })
+          )}
           </div>
 
           {/* Indicadores Consolidados: Total Geral e Turnos com Matriculados */}

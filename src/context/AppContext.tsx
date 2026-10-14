@@ -3621,6 +3621,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateEstudante,
         deleteEstudante,
         addDocumentoToEstudante,
+        refreshEstudantes,
         addTurma,
         updateTurma,
         toggleStatusTurma,

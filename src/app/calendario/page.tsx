@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { EventoEscolar, CalendarioCategoria, RecorrenciaTipo } from '@/lib/types';
 import { PrintHeader } from '@/components/layout/PrintHeader';
+import { BotaoExportarCalendarioPdf } from '@/components/calendario/BotaoExportarCalendarioPdf';
 
 // Paleta de cores rápidas para seleção
 const SWATCHES_PRESET = [

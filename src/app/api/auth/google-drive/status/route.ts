@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { 
   carregarConfiguracaoDrive, 
   salvarConfiguracaoDrive, 
-  getGoogleDriveClient,
-  obterOuCriarPastaDrive 
+  getGoogleDriveClient
 } from '@/lib/google-drive';
 
 export const dynamic = 'force-dynamic';

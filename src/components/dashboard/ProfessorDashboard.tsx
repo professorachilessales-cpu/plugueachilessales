@@ -924,9 +924,21 @@ export function ProfessorDashboard() {
                   Próximos Eventos Escolares
                 </h3>
               </div>
-              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-school-blue-800 dark:bg-blue-950 dark:text-blue-300">
-                Calendário Letivo
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAtualizarEventos}
+                  disabled={recarregandoEventos}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-50"
+                  title="Recarregar eventos do calendário escolar"
+                >
+                  <RefreshCw className={`h-3 w-3 ${recarregandoEventos ? 'animate-spin' : ''}`} />
+                  <span>{recarregandoEventos ? 'Atualizando...' : 'Atualizar'}</span>
+                </button>
+                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-school-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                  Calendário Letivo
+                </span>
+              </div>
             </div>
 
             <div className="mt-4 space-y-2.5 max-h-[380px] overflow-y-auto pr-1">

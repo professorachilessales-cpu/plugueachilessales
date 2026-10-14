@@ -92,13 +92,22 @@ export async function GET(req: NextRequest) {
       aee: toBoolean(row.aee),
     }));
 
-    return NextResponse.json({
-      estudantes,
-      totalRegistros,
-      totalPaginas,
-      paginaAtual: page,
-      limit,
-    });
+    return NextResponse.json(
+      {
+        estudantes,
+        totalRegistros,
+        totalPaginas,
+        paginaAtual: page,
+        limit,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    );
   } catch (error: any) {
     console.error('Erro na rota GET /api/estudantes:', error);
     return NextResponse.json(

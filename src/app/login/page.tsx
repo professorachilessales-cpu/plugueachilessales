@@ -192,8 +192,6 @@ export default function LoginPage() {
     }
   };
 
-  const citacaoAtual = INSPIRING_QUOTES[citacaoIndex];
-
   return (
     <main className="min-h-screen w-full flex flex-col lg:flex-row bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-school-gold-500 selection:text-slate-950 overflow-x-hidden relative">
       

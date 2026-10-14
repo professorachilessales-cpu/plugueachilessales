@@ -540,6 +540,15 @@ export default function CalendarioPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Botão de Exportação do PDF do Mês Corrente */}
+          <BotaoExportarCalendarioPdf
+            eventos={eventos}
+            categorias={categoriasEvento}
+            dataAtual={dataAtual}
+            escolaConfig={escolaConfig}
+            variant="header"
+          />
+
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-school-dark-border dark:bg-school-dark-surface dark:text-slate-200 dark:hover:bg-slate-700"
@@ -768,7 +777,7 @@ export default function CalendarioPage() {
       {visualizacao === 'grade' && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
           {/* Navegador de Mês */}
-          <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-bold capitalize text-slate-900 dark:text-white">
                 {nomeMes}
@@ -778,30 +787,41 @@ export default function CalendarioPage() {
               </span>
             </div>
 
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => mudarMes(-1)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition"
-                title="Mês Anterior"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => {
-                  const agora = new Date();
-                  setDataAtual(new Date(agora.getFullYear(), agora.getMonth(), 1));
-                }}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition"
-              >
-                Hoje / Mês Atual
-              </button>
-              <button
-                onClick={() => mudarMes(1)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition"
-                title="Próximo Mês"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Botão de Exportação do PDF do Mês */}
+              <BotaoExportarCalendarioPdf
+                eventos={eventos}
+                categorias={categoriasEvento}
+                dataAtual={dataAtual}
+                escolaConfig={escolaConfig}
+                variant="toolbar"
+              />
+
+              <div className="flex items-center gap-1 border-l border-slate-200 pl-2 dark:border-slate-700">
+                <button
+                  onClick={() => mudarMes(-1)}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition"
+                  title="Mês Anterior"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => {
+                    const agora = new Date();
+                    setDataAtual(new Date(agora.getFullYear(), agora.getMonth(), 1));
+                  }}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition"
+                >
+                  Hoje / Mês Atual
+                </button>
+                <button
+                  onClick={() => mudarMes(1)}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition"
+                  title="Próximo Mês"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -961,7 +981,24 @@ export default function CalendarioPage() {
 
       {/* Visualização: LISTA CRONOLÓGICA */}
       {visualizacao === 'lista' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-xs dark:border-school-dark-border dark:bg-school-dark-surface print:hidden">
+            <div>
+              <h2 className="text-base font-bold capitalize text-slate-900 dark:text-white">
+                Cronograma do Mês: {nomeMes}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Visualização cronológica de eventos com exportação formatada em PDF
+              </p>
+            </div>
+            <BotaoExportarCalendarioPdf
+              eventos={eventos}
+              categorias={categoriasEvento}
+              dataAtual={dataAtual}
+              escolaConfig={escolaConfig}
+              variant="toolbar"
+            />
+          </div>
           {eventosVisiveis.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-12 text-center dark:border-school-dark-border dark:bg-school-dark-surface">
               <CalendarIcon className="mx-auto h-12 w-12 text-slate-300 dark:text-slate-600" />

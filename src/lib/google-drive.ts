@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 
 export interface GoogleDriveConfigRow {
@@ -461,112 +459,7 @@ export function extrairLetraInicial(nome: string): string {
 }
 
 /**
- * Fallback local no disco (google-drive-credentials.json) para garantia de persistência
- */
-function carregarCredenciaisDriveDoDisco(): GoogleDriveConfigRow | null {
-  try {
-    const filePath = path.join(process.cwd(), 'google-drive-credentials.json');
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(content);
-    }
-  } catch (e) {
-    // Ignora erro de leitura em ambiente restrito
-  }
-  return null;
-}
-
-function salvarCredenciaisDriveNoDisco(config: GoogleDriveConfigRow): void {
-  try {
-    const filePath = path.join(process.cwd(), 'google-drive-credentials.json');
-    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf8');
-  } catch (e) {
-    // Ignora erro de gravação
-  }
-}
-
-/**
- * Busca uma pasta no Google Drive pelo nome e parentId
- */
-export async function buscarPastaNoDrive(
-  drive: GoogleDriveApiClient | any,
-  nomePasta: string,
-  parentId?: string | null
-): Promise<string | null> {
-  const nomeSeguro = nomePasta.replace(/'/g, "\\'");
-  let q = `mimeType = 'application/vnd.google-apps.folder' and name = '${nomeSeguro}' and trashed = false`;
-  if (parentId) {
-    q += ` and '${parentId}' in parents`;
-  }
-
-  const response = await drive.files.list({
-    q,
-    fields: 'files(id, name)',
-    spaces: 'drive',
-    pageSize: 1,
-  });
-
-  if (response.data.files && response.data.files.length > 0) {
-    return response.data.files[0].id!;
-  }
-  return null;
-}
-
-/**
- * Cria ou obtém uma pasta no Google Drive
- */
-export async function obterOuCriarPastaDrive(
-  drive: GoogleDriveApiClient | any,
-  nomePasta: string,
-  parentId?: string | null
-): Promise<string> {
-  const existente = await buscarPastaNoDrive(drive, nomePasta, parentId);
-  if (existente) return existente;
-
-  const requestBody: { name: string; mimeType: string; parents?: string[] } = {
-    name: nomePasta,
-    mimeType: 'application/vnd.google-apps.folder',
-  };
-  if (parentId) {
-    requestBody.parents = [parentId];
-  }
-
-  const res = await drive.files.create({
-    requestBody,
-    fields: 'id, name',
-  });
-
-  return res.data.id!;
-}
-
-/**
- * Garante que a tabela google_drive_config existe no Turso
- */
-async function garantirTabelaConfigDriveTurso(): Promise<void> {
-  if (!checkIsTursoConfigured()) return;
-  try {
-    await executeTursoQuery(`
-      CREATE TABLE IF NOT EXISTS google_drive_config (
-        id TEXT PRIMARY KEY DEFAULT 'default',
-        connected_email TEXT,
-        access_token TEXT,
-        refresh_token TEXT,
-        expiry_date INTEGER,
-        root_folder_id TEXT,
-        root_folder_name TEXT DEFAULT 'FICHA DOS ESTUDANTES',
-        is_connected INTEGER DEFAULT 0,
-        client_id TEXT,
-        client_secret TEXT,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-  } catch (e) {
-    // Tabela já existe ou não foi possível criar
-  }
-}
-
-/**
- * Carrega a configuração do Google Drive salva no Turso (com fallback no disco)
+ * Carrega a configuração do Google Drive salva no Turso (com fallback para variáveis de ambiente)
  */
 export async function carregarConfiguracaoDrive(): Promise<GoogleDriveConfigRow | null> {
   if (checkIsTursoConfigured()) {
@@ -576,22 +469,34 @@ export async function carregarConfiguracaoDrive(): Promise<GoogleDriveConfigRow 
         `SELECT * FROM google_drive_config WHERE id = 'default' LIMIT 1`
       );
       if (res.rows && res.rows.length > 0) {
-        const row = res.rows[0];
-        // Sincroniza cache local em disco
-        salvarCredenciaisDriveNoDisco(row);
-        return row;
+        return res.rows[0];
       }
     } catch (err) {
-      console.warn('Aviso: Falha ao consultar google_drive_config no Turso, usando fallback em disco:', err);
+      console.warn('Aviso: Falha ao consultar google_drive_config no Turso:', err);
     }
   }
 
-  // Fallback para arquivo local em disco
-  return carregarCredenciaisDriveDoDisco();
+  // Fallback seguro para variáveis de ambiente da Vercel / Servidor
+  const envClientId = process.env.GOOGLE_CLIENT_ID;
+  const envClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const envFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
+
+  if (envClientId && envClientSecret) {
+    return {
+      id: 'default',
+      client_id: envClientId,
+      client_secret: envClientSecret,
+      root_folder_id: envFolderId || null,
+      root_folder_name: 'FICHA DOS ESTUDANTES',
+      is_connected: 1,
+    };
+  }
+
+  return null;
 }
 
 /**
- * Salva ou atualiza a configuração do Google Drive no Turso e no disco
+ * Salva ou atualiza a configuração do Google Drive exclusivamente no banco Turso
  */
 export async function salvarConfiguracaoDrive(dados: Partial<GoogleDriveConfigRow>): Promise<void> {
   const atual = await carregarConfiguracaoDrive();
@@ -609,8 +514,7 @@ export async function salvarConfiguracaoDrive(dados: Partial<GoogleDriveConfigRo
     updated_at: new Date().toISOString(),
   };
 
-  // Salva no disco imediatamente
-  salvarCredenciaisDriveNoDisco(merged);
+  // Salva exclusivamente no banco de dados Turso (Zero Local Storage)
 
   // Salva no banco de dados Turso
   if (checkIsTursoConfigured()) {

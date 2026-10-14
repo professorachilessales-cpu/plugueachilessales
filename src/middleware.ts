@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyJwt } from '@/lib/security';
 
 // Rotas restritas exclusivamente à Administração Escolar
 const ROTAS_PAGINAS_RESTRITAS = [
@@ -13,32 +14,41 @@ const ROTAS_API_RESTRITAS = [
   '/api/estudantes',
   '/api/turmas',
   '/api/auditoria',
+  '/api/turso/config',
+  '/api/turso/migrate',
+  '/api/turso/sync',
 ];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // 1. Bloqueio definitivo da rota descontinuada "Usuários & Permissões"
-  // Redireciona imediatamente para o dashboard do usuário logado
   if (pathname === '/configuracoes/usuarios' || pathname.startsWith('/configuracoes/usuarios/')) {
     const userFuncao = req.cookies.get('plugue_funcao_tipo')?.value;
     const destino = userFuncao === 'GERAL' ? '/fotograma' : '/dashboard';
     return NextResponse.redirect(new URL(destino, req.url));
   }
 
-  // Obtém o perfil e papel do usuário a partir dos cookies seguros da sessão
-  const userRole = req.cookies.get('plugue_user_role')?.value;
+  // 2. Extração segura do Token JWT (Header Authorization ou Cookie seguro)
+  let token: string | null = null;
+  const authHeader = req.headers.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else {
+    token = req.cookies.get('plugue_access_token')?.value || 
+            req.cookies.get('plugue_refresh_token')?.value || 
+            null;
+  }
+
+  // 3. Validação Criptográfica do Token JWT (HMAC-SHA256)
+  // Jamais confia em headers enviados pelo cliente (ex: x-user-role) para escalação de privilégios.
+  const payload = token ? verifyJwt(token) : null;
+  const userRole = payload?.role;
   const funcaoTipo = req.cookies.get('plugue_funcao_tipo')?.value;
-  const headerRole = req.headers.get('x-user-role');
 
-  const isAdmin = 
-    userRole === 'admin' || 
-    userRole === 'direcao' ||
-    funcaoTipo === 'ADMINISTRATIVO' || 
-    headerRole === 'admin' ||
-    headerRole === 'direcao';
+  const isAdmin = payload !== null && (userRole === 'admin' || userRole === 'direcao');
 
-  // 2. Proteção de Rotas de API Sensíveis (Responde 403 Forbidden se não for Admin/Direção)
+  // 4. Proteção de Rotas de API Sensíveis (Responde 403 Forbidden se não for Admin autenticado)
   const isRestrictedApi = ROTAS_API_RESTRITAS.some((prefix) =>
     pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
@@ -56,13 +66,12 @@ export function middleware(req: NextRequest) {
     );
   }
 
-  // 3. Proteção de Páginas Restritas (Redirecionamento Rígido)
+  // 5. Proteção de Páginas Restritas (Redirecionamento Rígido)
   const isRestrictedPage = ROTAS_PAGINAS_RESTRITAS.some((prefix) =>
     pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 
   if (isRestrictedPage) {
-    // Administradores e Direção têm permissão total de acesso
     if (isAdmin) {
       return NextResponse.next();
     }
@@ -70,18 +79,19 @@ export function middleware(req: NextRequest) {
     // Se o usuário estiver explicitamente autenticado como docente ou apoio geral, redireciona
     const isExplicitlyUnauthorized = userRole === 'professor' || funcaoTipo === 'GERAL';
     if (isExplicitlyUnauthorized) {
-      // Funcionários de apoio geral vão para o Fotograma, professores para o Dashboard
       const destino = funcaoTipo === 'GERAL' ? '/fotograma' : '/dashboard';
       return NextResponse.redirect(new URL(destino, req.url));
     }
 
-    // Caso não haja cookies na requisição (sessão mantida em localStorage/sessionStorage),
-    // permite a renderização da página para que o RouteGuard valide o acesso reativo no cliente.
+    // Se não houver token ou usuário autenticado, redireciona para login
+    if (!payload) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+
     return NextResponse.next();
   }
 
-  // 4. Bloqueio de dashboard para funcionários Não Administrativos / Apoio (funcao_tipo = 'GERAL')
-  // A tela inicial padrão deve ser diretamente o Fotograma da Turma
+  // 6. Bloqueio de dashboard para funcionários Não Administrativos / Apoio (funcao_tipo = 'GERAL')
   if (funcaoTipo === 'GERAL' && (pathname === '/' || pathname === '/dashboard' || pathname.startsWith('/dashboard/'))) {
     return NextResponse.redirect(new URL('/fotograma', req.url));
   }
@@ -101,6 +111,7 @@ export const config = {
     '/api/turmas/:path*',
     '/api/auditoria/:path*',
     '/api/professores/:path*',
+    '/api/turso/:path*',
     '/dashboard/:path*',
   ],
 };

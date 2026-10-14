@@ -1,53 +1,29 @@
 // Cliente de conexão ao Turso Database (LibSQL HTTP API nativa)
-// Suporta execução direta de queries SQL tanto via Edge/Node.js quanto no browser sem dependências C/C++ binárias.
+// Arquitetura 100% Serverless para Vercel (Edge & Node.js runtimes) sem dependências locais de disco (Zero Local Storage).
 
-import fs from 'fs';
-import path from 'path';
+export const DEFAULT_TURSO_DB_URL = process.env.TURSO_DATABASE_URL || 'libsql://plugueachiles-achilessales.aws-us-west-2.turso.io';
 
-export const DEFAULT_TURSO_DB_URL = 'libsql://plugueachiles-achilessales.aws-us-west-2.turso.io';
-export const DEFAULT_TURSO_AUTH_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJnaWQiOiJiZWJmOGFkYi00NjNkLTQ2NDctYWE3Yi1hY2RiNjA3ZDA2ZjkiLCJpYXQiOjE3OTAxOTI5MjAsImtpZCI6InZXd1FEZ29POHVQc3FFY0lMOVloZzlxSm5SMjlqVWlaSWdQcW41U3AxQk0iLCJyaWQiOiIyOWE0Y2YzNS05M2FhLTRkMmUtOTA2My04NDQ1NmQ1MDNjNGMifQ.4ESQbOOPJw45FGHv9RbhRLtfMT2m72ptAhfVBG6k0utCdDqmCIZN3PpP3tgmrmZ7LtcfgjuexLPpoDcrMTfLAQ';
-
-// Overrides dinâmicos em memória
+// Overrides dinâmicos em memória (apenas runtime, sem acesso a disco)
 let overrideTursoDbUrl: string | null = null;
 let overrideTursoAuthToken: string | null = null;
-
-function carregarCredenciaisDoDisco(): { dbUrl?: string; authToken?: string } | null {
-  try {
-    const filePath = path.join(process.cwd(), 'turso-credentials.json');
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(content);
-    }
-  } catch (e) {
-    // Ignora erros de leitura de arquivo em ambiente restrito
-  }
-  return null;
-}
 
 export function getTursoDbUrl(): string {
   if (overrideTursoDbUrl && overrideTursoDbUrl.trim() !== '') {
     return overrideTursoDbUrl.trim();
   }
-  const doDisco = carregarCredenciaisDoDisco();
-  if (doDisco?.dbUrl && doDisco.dbUrl.trim() !== '') {
-    return doDisco.dbUrl.trim();
-  }
-  return process.env.TURSO_DATABASE_URL || DEFAULT_TURSO_DB_URL;
+  return (process.env.TURSO_DATABASE_URL || DEFAULT_TURSO_DB_URL || '').trim();
 }
 
 export function getTursoAuthToken(): string {
   if (overrideTursoAuthToken && overrideTursoAuthToken.trim() !== '') {
     return overrideTursoAuthToken.trim();
   }
-  const doDisco = carregarCredenciaisDoDisco();
-  if (doDisco?.authToken && doDisco.authToken.trim() !== '') {
-    return doDisco.authToken.trim();
-  }
-  return process.env.TURSO_AUTH_TOKEN || DEFAULT_TURSO_AUTH_TOKEN;
+  return (process.env.TURSO_AUTH_TOKEN || '').trim();
 }
 
 /**
- * Atualiza e persiste as credenciais da Turso (em memória, em turso-credentials.json e em .env.local)
+ * Atualiza credenciais em memória durante o ciclo de vida do processo
+ * (Sem escrita no sistema de arquivos local, compatível com a Vercel)
  */
 export function setTursoCredentials(novaUrl: string, novoToken: string): void {
   const urlLimpa = novaUrl ? novaUrl.trim() : DEFAULT_TURSO_DB_URL;
@@ -58,63 +34,10 @@ export function setTursoCredentials(novaUrl: string, novoToken: string): void {
 
   process.env.TURSO_DATABASE_URL = urlLimpa;
   process.env.TURSO_AUTH_TOKEN = tokenLimpo;
-
-  // 1. Grava no turso-credentials.json
-  try {
-    const credPath = path.join(process.cwd(), 'turso-credentials.json');
-    fs.writeFileSync(
-      credPath,
-      JSON.stringify(
-        {
-          dbUrl: urlLimpa,
-          authToken: tokenLimpo,
-          updated_at: new Date().toISOString(),
-        },
-        null,
-        2
-      ),
-      'utf8'
-    );
-  } catch (err) {
-    console.warn('Aviso: Falha ao gravar turso-credentials.json:', err);
-  }
-
-  // 2. Grava ou atualiza no .env.local
-  try {
-    const envPath = path.join(process.cwd(), '.env.local');
-    let envContent = '';
-    if (fs.existsSync(envPath)) {
-      envContent = fs.readFileSync(envPath, 'utf8');
-    }
-
-    // Atualiza TURSO_DATABASE_URL
-    if (envContent.includes('TURSO_DATABASE_URL=')) {
-      envContent = envContent.replace(
-        /TURSO_DATABASE_URL=.*/g,
-        `TURSO_DATABASE_URL="${urlLimpa}"`
-      );
-    } else {
-      envContent += `\nTURSO_DATABASE_URL="${urlLimpa}"`;
-    }
-
-    // Atualiza TURSO_AUTH_TOKEN
-    if (envContent.includes('TURSO_AUTH_TOKEN=')) {
-      envContent = envContent.replace(
-        /TURSO_AUTH_TOKEN=.*/g,
-        `TURSO_AUTH_TOKEN="${tokenLimpo}"`
-      );
-    } else {
-      envContent += `\nTURSO_AUTH_TOKEN="${tokenLimpo}"`;
-    }
-
-    fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf8');
-  } catch (err) {
-    console.warn('Aviso: Falha ao atualizar .env.local:', err);
-  }
 }
 
 /**
- * Normaliza a URL do Turso para HTTPS para chamadas de API
+ * Normaliza a URL do Turso para HTTPS para chamadas de API HTTP v2
  */
 export function getTursoHttpUrl(dbUrl: string = getTursoDbUrl()): string {
   if (dbUrl.startsWith('libsql://')) {
@@ -126,7 +49,7 @@ export function getTursoHttpUrl(dbUrl: string = getTursoDbUrl()): string {
 export function checkIsTursoConfigured(): boolean {
   const token = getTursoAuthToken();
   const url = getTursoDbUrl();
-  return Boolean(url && token && token.trim() !== '');
+  return Boolean(url && url.trim() !== '' && token && token.trim() !== '');
 }
 
 export const isTursoConfigured = checkIsTursoConfigured();
@@ -137,7 +60,7 @@ export interface TursoQueryResult<T = any> {
   lastInsertRowid?: number | string | null;
 }
 
-function formatTursoArgs(args: (string | number | boolean | null)[] = []) {
+function formatTursoArgs(args: (string | number | boolean | null | undefined)[] = []) {
   return args.map((arg) => {
     if (arg === null || arg === undefined) return { type: 'null' };
     if (typeof arg === 'number') {
@@ -153,11 +76,11 @@ function formatTursoArgs(args: (string | number | boolean | null)[] = []) {
 }
 
 /**
- * Executa uma ou mais queries SQL no banco de dados Turso via protocolo HTTP v2
+ * Executa queries SQL no Turso via protocolo HTTP v2 Pipeline (Prepared Statements)
  */
 export async function executeTursoQuery<T = any>(
   sql: string,
-  args: (string | number | boolean | null)[] = []
+  args: (string | number | boolean | null | undefined)[] = []
 ): Promise<TursoQueryResult<T>> {
   const httpUrl = `${getTursoHttpUrl()}/v2/pipeline`;
   const formattedArgs = formatTursoArgs(args);
@@ -228,7 +151,7 @@ export async function executeTursoQuery<T = any>(
 
 export interface TursoStatement {
   sql: string;
-  args?: (string | number | boolean | null)[];
+  args?: (string | number | boolean | null | undefined)[];
 }
 
 /**
@@ -283,11 +206,9 @@ export async function executeTursoTransaction(statements: TursoStatement[]): Pro
   const data = await response.json();
   const results = data.results || [];
 
-  // Verifica se alguma instrução da transação retornou erro
   for (let i = 0; i < results.length; i++) {
     const res = results[i];
     if (res?.type === 'error') {
-      // Tenta rollback explícito por segurança
       try {
         await executeTursoQuery('ROLLBACK;');
       } catch {}
@@ -297,7 +218,7 @@ export async function executeTursoTransaction(statements: TursoStatement[]): Pro
 }
 
 /**
- * Executa múltiplos comandos de criação/atualização de schema no Turso
+ * Executa múltiplos comandos DDL de schema no Turso
  */
 export async function executeTursoBatch(statements: string[]): Promise<void> {
   const httpUrl = `${getTursoHttpUrl()}/v2/pipeline`;
@@ -343,6 +264,95 @@ export const tursoConfig = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// 🗄️ CACHE DISTRIBUÍDO NO TURSO (ZERO LOCAL STORAGE / ADEQUAÇÃO VERCEL)
+// ---------------------------------------------------------------------------
+let schemaCacheVerificado = false;
+
+export async function garantirSchemaCache(): Promise<void> {
+  if (schemaCacheVerificado || !checkIsTursoConfigured()) return;
+  try {
+    await executeTursoQuery(`
+      CREATE TABLE IF NOT EXISTS app_cache (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    try {
+      await executeTursoQuery(`
+        CREATE INDEX IF NOT EXISTS idx_app_cache_expires_at ON app_cache (expires_at);
+      `);
+    } catch {}
+    schemaCacheVerificado = true;
+  } catch (e) {
+    console.warn('Aviso ao garantir schema app_cache no Turso:', e);
+  }
+}
+
+export async function getTursoCache<T = any>(key: string): Promise<T | null> {
+  if (!checkIsTursoConfigured()) return null;
+  try {
+    await garantirSchemaCache();
+    const nowSec = Math.floor(Date.now() / 1000);
+    const res = await executeTursoQuery<{ value: string; expires_at: number }>(
+      'SELECT value, expires_at FROM app_cache WHERE key = ? LIMIT 1',
+      [key]
+    );
+    if (!res.rows || res.rows.length === 0) return null;
+    const row = res.rows[0];
+    if (row.expires_at < nowSec) {
+      // Expirado - deleta assincronamente
+      executeTursoQuery('DELETE FROM app_cache WHERE key = ?', [key]).catch(() => {});
+      return null;
+    }
+    return JSON.parse(row.value) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function setTursoCache(key: string, value: any, ttlSeconds: number): Promise<void> {
+  if (!checkIsTursoConfigured()) return;
+  try {
+    await garantirSchemaCache();
+    const nowSec = Math.floor(Date.now() / 1000);
+    const expiresAt = nowSec + ttlSeconds;
+    const jsonStr = JSON.stringify(value);
+
+    await executeTursoQuery(
+      `INSERT INTO app_cache (key, value, expires_at, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         expires_at = excluded.expires_at,
+         updated_at = CURRENT_TIMESTAMP`,
+      [key, jsonStr, expiresAt]
+    );
+  } catch (e) {
+    console.warn(`Aviso: falha ao gravar cache no Turso [key=${key}]:`, e);
+  }
+}
+
+export async function deleteTursoCache(key: string): Promise<void> {
+  if (!checkIsTursoConfigured()) return;
+  try {
+    await executeTursoQuery('DELETE FROM app_cache WHERE key = ?', [key]);
+  } catch {}
+}
+
+export async function cleanupExpiredTursoCache(): Promise<void> {
+  if (!checkIsTursoConfigured()) return;
+  try {
+    const nowSec = Math.floor(Date.now() / 1000);
+    await executeTursoQuery('DELETE FROM app_cache WHERE expires_at < ?', [nowSec]);
+  } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// SCHEMAS E MIGRAÇÕES DEFENSIVAS
+// ---------------------------------------------------------------------------
 let schemaAutenticacaoVerificado = false;
 
 export async function garantirSchemaAutenticacaoProfessores(): Promise<void> {
@@ -416,5 +426,3 @@ export async function garantirSchemaAtestadosProfessor(): Promise<void> {
     console.warn('Aviso ao garantir schema atestados_professor:', e);
   }
 }
-
-

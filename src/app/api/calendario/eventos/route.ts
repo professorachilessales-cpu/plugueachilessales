@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import {
   garantirSchemaRecorrenciaEventos,
   validarParametrosRecorrencia,
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     const userRole = req.headers.get('x-user-role') || req.nextUrl.searchParams.get('role');
 
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json(
         { success: true, data: [] },
         { headers: NO_CACHE_HEADERS }

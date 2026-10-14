@@ -32,7 +32,6 @@ import {
 } from '@/lib/types';
 import { 
   initialEscolaConfig, 
-  initialEstudantes, 
   initialProfessores, 
   initialFaltasProfessores, 
   initialCategoriasEvento,
@@ -146,10 +145,11 @@ interface AppContextType {
   addFaltaComReposicao: (dados: { professorId: string; professorNome: string; dataFalta: string; aulasFaltadas: number; justificativa: string; turmaId?: string }) => void;
 
   // Ações Estudantes
-  addEstudante: (estudante: Omit<Estudante, 'id' | 'created_at' | 'documentos'>) => void;
-  updateEstudante: (id: string, updates: Partial<Estudante>) => void;
-  deleteEstudante: (id: string) => void;
+  addEstudante: (estudante: Omit<Estudante, 'id' | 'created_at' | 'documentos'>) => void | Promise<void>;
+  updateEstudante: (id: string, updates: Partial<Estudante>) => void | Promise<void>;
+  deleteEstudante: (id: string) => void | Promise<void>;
   addDocumentoToEstudante: (estudanteId: string, doc: Omit<DocumentoEstudante, 'id' | 'created_at' | 'estudante_id'>) => void;
+  refreshEstudantes: () => Promise<void>;
 
   // Ações Turmas & Controle de Status / Migração
   addTurma: (turma: Omit<Turma, 'id' | 'created_at' | 'grade_horaria'>) => void;
@@ -194,7 +194,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [escolaConfig, setEscolaConfigState] = useState<EscolaConfig>(initialEscolaConfig);
   
   const [turmas, setTurmas] = useState<Turma[]>([]);
-  const [estudantes, setEstudantes] = useState<Estudante[]>(initialEstudantes);
+  const [estudantes, setEstudantes] = useState<Estudante[]>([]);
   const [professores, setProfessores] = useState<Professor[]>(initialProfessores);
   const [faltasProfessores, setFaltasProfessores] = useState<FaltaProfessor[]>(initialFaltasProfessores);
   const [eventos, setEventos] = useState<EventoEscolar[]>([]);
@@ -424,36 +424,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setEscolaConfigState(JSON.parse(savedConfig));
       }
 
-      // Estudantes persistidos (com validação de integridade pós-migração)
-      const savedEstudantes = localStorage.getItem('school_os_estudantes');
-      if (savedEstudantes) {
-        try {
-          const parsedEst: Estudante[] = JSON.parse(savedEstudantes);
-          const hasLegacyDummy = parsedEst.some(e => ['est-1', 'est-2', 'est-3', 'est-4', 'est-5'].includes(e.id));
-          const allLaudadosCorrupted = parsedEst.length > 50 && parsedEst.filter(e => Boolean(e.possui_laudo)).length > 50;
-          if (hasLegacyDummy || parsedEst.length < 50 || allLaudadosCorrupted) {
-            setEstudantes(initialEstudantes);
-            localStorage.setItem('school_os_estudantes', JSON.stringify(initialEstudantes));
-          } else {
-            setEstudantes(parsedEst);
-          }
-        } catch {
-          setEstudantes(initialEstudantes);
-        }
-      } else {
-        setEstudantes(initialEstudantes);
-      }
-
-      // Limpeza definitiva de cache local de turmas (banco de dados Turso é a única fonte da verdade)
+      // Limpeza definitiva de cache local de estudantes (banco de dados Turso é a única fonte da verdade)
       try {
-        localStorage.removeItem('school_os_turmas');
-        localStorage.removeItem('school_os_grade_horaria');
-        localStorage.removeItem('plugue_turmas');
-        localStorage.removeItem('turmas');
-        sessionStorage.removeItem('school_os_turmas');
-        sessionStorage.removeItem('plugue_turmas');
-        localStorage.removeItem('school_os_professores');
+        localStorage.removeItem('school_os_estudantes');
+        localStorage.removeItem('plugue_estudantes');
+        localStorage.removeItem('estudantes');
+        sessionStorage.removeItem('school_os_estudantes');
+        sessionStorage.removeItem('plugue_estudantes');
       } catch {}
+
+      // Turmas persistidas como cache imediato (banco Turso atualizará em seguida)
+      const savedTurmas = localStorage.getItem('school_os_turmas');
+      if (savedTurmas) {
+        try {
+          const parsedTurmas = JSON.parse(savedTurmas);
+          if (Array.isArray(parsedTurmas) && parsedTurmas.length > 0) {
+            setTurmas(parsedTurmas);
+          }
+        } catch {}
+      }
 
       // Professores iniciais enquanto busca do banco
       setProfessores(initialProfessores);
@@ -464,10 +453,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setFaltasProfessores(JSON.parse(savedFaltas));
       }
 
-      // Limpeza de cache volátil de eventos (banco Turso é a única fonte da verdade)
-      try {
-        localStorage.removeItem('school_os_eventos');
-      } catch {}
+      // Eventos escolares persistidos como cache imediato (banco Turso atualizará em seguida)
+      const savedEventos = localStorage.getItem('school_os_eventos');
+      if (savedEventos) {
+        try {
+          const parsedEventos = JSON.parse(savedEventos);
+          if (Array.isArray(parsedEventos) && parsedEventos.length > 0) {
+            setEventos(parsedEventos);
+          }
+        } catch {}
+      }
 
       // Categorias de Eventos persistidas
       const savedCategorias = localStorage.getItem('school_os_calendario_categorias');
@@ -532,6 +527,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsInitialized(true);
     }
+
+    // Carga paralela imediata e rápida das turmas e eventos diretamente das rotas do banco
+    refreshTurmas();
+    refreshEventos();
 
     // Carregar todo o banco de dados diretamente do Turso (estritamente sem cache)
     fetch(`/api/turso/data?_t=${Date.now()}`, {
@@ -659,15 +658,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               };
             });
             setTurmas(cleanTurmas);
+            try {
+              localStorage.setItem('school_os_turmas', JSON.stringify(cleanTurmas));
+            } catch {}
           }
-          if (tEst && tEst.length > 0) {
-            const cleanEst = tEst.map((e: Estudante) => ({
-              ...e,
-              possui_laudo: e.possui_laudo === true || (e as any).possui_laudo === 1 || (e as any).possui_laudo === '1' || String((e as any).possui_laudo).toLowerCase() === 'sim' || String((e as any).possui_laudo).toLowerCase() === 'true',
-              aee: e.aee === true || (e as any).aee === 1 || (e as any).aee === '1' || String((e as any).aee).toLowerCase() === 'sim' || String((e as any).aee).toLowerCase() === 'true',
-            }));
+          if (Array.isArray(tEst)) {
+            const cleanEst = tEst.map((e: Estudante) => {
+              const turmaCorrespondente = (!e.turma_id || String(e.turma_id).trim() === '') && e.turma_nome
+                ? (Array.isArray(tTurmas) ? tTurmas.find((t: Turma) => t.nome?.trim().toLowerCase() === e.turma_nome?.trim().toLowerCase()) : null)
+                : null;
+              return {
+                ...e,
+                turma_id: e.turma_id || turmaCorrespondente?.id || undefined,
+                possui_laudo: e.possui_laudo === true || (e as any).possui_laudo === 1 || (e as any).possui_laudo === '1' || String((e as any).possui_laudo).toLowerCase() === 'sim' || String((e as any).possui_laudo).toLowerCase() === 'true',
+                aee: e.aee === true || (e as any).aee === 1 || (e as any).aee === '1' || String((e as any).aee).toLowerCase() === 'sim' || String((e as any).aee).toLowerCase() === 'true',
+              };
+            });
             setEstudantes(cleanEst);
-            localStorage.setItem('school_os_estudantes', JSON.stringify(cleanEst));
           }
           if (tFaltas && tFaltas.length > 0) {
             setFaltasProfessores(tFaltas);
@@ -675,6 +682,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
           if (Array.isArray(tEventos)) {
             setEventos(tEventos);
+            try {
+              localStorage.setItem('school_os_eventos', JSON.stringify(tEventos));
+            } catch {}
           }
           if (json.data.calendarioCategorias && json.data.calendarioCategorias.length > 0) {
             let parsedCats: CalendarioCategoria[] = json.data.calendarioCategorias;
@@ -825,17 +835,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Persistência quando os estados mudam
-  useEffect(() => {
-    if (!isInitialized) return;
-    try {
-      localStorage.setItem('school_os_estudantes', JSON.stringify(estudantes));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [estudantes, isInitialized]);
-
-  // Turmas e Professores são estritamente relacionais (sem cache em localStorage)
+  // Estudantes, Turmas e Professores são estritamente relacionais (sem cache em localStorage - Turso é a fonte da verdade)
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -1304,7 +1304,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const addEstudante = (novoEstudante: Omit<Estudante, 'id' | 'created_at' | 'documentos'>) => {
+  const refreshEstudantes = async () => {
+    try {
+      const res = await fetch(`/api/turso/data?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data && Array.isArray(json.data.estudantes)) {
+          const tTurmas = json.data.turmas || turmas;
+          const cleanEst = json.data.estudantes.map((e: Estudante) => {
+            const turmaCorrespondente = (!e.turma_id || String(e.turma_id).trim() === '') && e.turma_nome
+              ? (Array.isArray(tTurmas) ? tTurmas.find((t: Turma) => t.nome?.trim().toLowerCase() === e.turma_nome?.trim().toLowerCase()) : null)
+              : null;
+            return {
+              ...e,
+              turma_id: e.turma_id || turmaCorrespondente?.id || undefined,
+              possui_laudo: e.possui_laudo === true || (e as any).possui_laudo === 1 || (e as any).possui_laudo === '1' || String((e as any).possui_laudo).toLowerCase() === 'sim' || String((e as any).possui_laudo).toLowerCase() === 'true',
+              aee: e.aee === true || (e as any).aee === 1 || (e as any).aee === '1' || String((e as any).aee).toLowerCase() === 'sim' || String((e as any).aee).toLowerCase() === 'true',
+            };
+          });
+          setEstudantes(cleanEst);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao recarregar estudantes do banco Turso:', err);
+    }
+  };
+
+  const addEstudante = async (novoEstudante: Omit<Estudante, 'id' | 'created_at' | 'documentos'>) => {
     const turma = turmas.find(t => t.id === novoEstudante.turma_id);
     const estudanteCriado: Estudante = {
       ...novoEstudante,
@@ -1314,10 +1347,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
     };
     setEstudantes((prev) => [estudanteCriado, ...prev]);
-    syncWithTurso('save_estudante', estudanteCriado);
+    await syncWithTurso('save_estudante', estudanteCriado);
+    await refreshEstudantes();
   };
 
-  const updateEstudante = (id: string, updates: Partial<Estudante>) => {
+  const updateEstudante = async (id: string, updates: Partial<Estudante>) => {
     let updatedEst: Estudante | undefined;
     setEstudantes((prev) =>
       prev.map((est) => {
@@ -1334,13 +1368,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
     );
     if (updatedEst) {
-      syncWithTurso('save_estudante', updatedEst);
+      await syncWithTurso('save_estudante', updatedEst);
+      await refreshEstudantes();
     }
   };
 
-  const deleteEstudante = (id: string) => {
+  const deleteEstudante = async (id: string) => {
     setEstudantes((prev) => prev.filter((est) => est.id !== id));
-    syncWithTurso('delete_estudante', { id });
+    await syncWithTurso('delete_estudante', { id });
+    await refreshEstudantes();
   };
 
   const addDocumentoToEstudante = (
@@ -1439,7 +1475,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const updatedEst = prev.map((est) =>
           est.turma_id === id ? { ...est, turma_nome: updates.nome! } : est
         );
-        localStorage.setItem('school_os_estudantes', JSON.stringify(updatedEst));
         return updatedEst;
       });
     }
@@ -1451,46 +1486,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshTurmas = async () => {
     try {
-      const res = await fetch(`/api/turso/data?_t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          Pragma: 'no-cache',
-        },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data && Array.isArray(json.data.turmas)) {
-          const tTurmas = json.data.turmas;
-          const cleanProf = json.data.professores || professores;
-          const tUsers = json.data.users || users;
-          const cleanTurmas = tTurmas.map((t: Turma) => {
-            const rawProfs = t.professores_ids || (t.professor_regente_id ? [t.professor_regente_id] : []);
-            const pIds = rawProfs.filter((pid: string) => {
-              const prof = cleanProf.find((p: any) => p.id === pid);
-              return prof && !isProfessorAdministrativo(prof, tUsers) && !isProfessorApoio(prof);
-            });
-            let regId = t.professor_regente_id;
-            let regNome = t.professor_regente_nome;
-            const regProf = cleanProf.find((p: any) => p.id === regId);
-            if (regProf && (isProfessorAdministrativo(regProf, tUsers) || isProfessorApoio(regProf))) {
-              regId = pIds[0] || undefined;
-              regNome = regId ? cleanProf.find((p: any) => p.id === regId)?.nome_completo : undefined;
-            }
-            const cleanApoio = (t.equipe_apoio_ids || []).filter((pid: string) => {
-              const prof = cleanProf.find((p: any) => p.id === pid);
-              return prof && !isProfessorAdministrativo(prof, tUsers);
-            });
-            return {
-              ...t,
-              professores_ids: pIds,
-              professor_regente_id: regId,
-              professor_regente_nome: regNome,
-              equipe_apoio_ids: cleanApoio,
-            };
-          });
-          setTurmas(cleanTurmas);
+      let tTurmas: Turma[] | null = null;
+      let cleanProf = professores;
+      let tUsers = users;
+
+      // 1. Tenta rota dedicada e rápida /api/turmas
+      try {
+        const resFast = await fetch(`/api/turmas?_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            Pragma: 'no-cache',
+          },
+        });
+        if (resFast.ok) {
+          const jsonFast = await resFast.json();
+          if (jsonFast.success && Array.isArray(jsonFast.data) && jsonFast.data.length > 0) {
+            tTurmas = jsonFast.data;
+          }
         }
+      } catch (errFast) {
+        console.warn('Tentando fallback para /api/turso/data:', errFast);
+      }
+
+      // 2. Fallback para /api/turso/data caso rota dedicada não retorne turmas
+      if (!tTurmas) {
+        const res = await fetch(`/api/turso/data?_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            Pragma: 'no-cache',
+          },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data && Array.isArray(json.data.turmas)) {
+            tTurmas = json.data.turmas;
+            cleanProf = json.data.professores || professores;
+            tUsers = json.data.users || users;
+          }
+        }
+      }
+
+      if (Array.isArray(tTurmas) && tTurmas.length > 0) {
+        const cleanTurmas = tTurmas.map((t: Turma) => {
+          const rawProfs = t.professores_ids || (t.professor_regente_id ? [t.professor_regente_id] : []);
+          const pIds = rawProfs.filter((pid: string) => {
+            const prof = cleanProf.find((p: any) => p.id === pid);
+            return prof && !isProfessorAdministrativo(prof, tUsers) && !isProfessorApoio(prof);
+          });
+          let regId = t.professor_regente_id;
+          let regNome = t.professor_regente_nome;
+          const regProf = cleanProf.find((p: any) => p.id === regId);
+          if (regProf && (isProfessorAdministrativo(regProf, tUsers) || isProfessorApoio(regProf))) {
+            regId = pIds[0] || undefined;
+            regNome = regId ? cleanProf.find((p: any) => p.id === regId)?.nome_completo : undefined;
+          }
+          const cleanApoio = (t.equipe_apoio_ids || []).filter((pid: string) => {
+            const prof = cleanProf.find((p: any) => p.id === pid);
+            return prof && !isProfessorAdministrativo(prof, tUsers);
+          });
+          return {
+            ...t,
+            professores_ids: pIds,
+            professor_regente_id: regId,
+            professor_regente_nome: regNome,
+            equipe_apoio_ids: cleanApoio,
+          };
+        });
+        setTurmas(cleanTurmas);
+        try {
+          localStorage.setItem('school_os_turmas', JSON.stringify(cleanTurmas));
+        } catch {}
       }
     } catch (err) {
       console.error('Erro ao recarregar turmas do banco Turso:', err);
@@ -2004,10 +2071,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          setEventos(json.data);
-        } else if (Array.isArray(json)) {
-          setEventos(json);
+        const lista = json.success && Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : null;
+        if (lista) {
+          setEventos(lista);
+          try {
+            localStorage.setItem('school_os_eventos', JSON.stringify(lista));
+          } catch {}
         }
       }
     } catch (err) {
@@ -3302,9 +3371,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
           return est;
         });
-        try {
-          localStorage.setItem('school_os_estudantes', JSON.stringify(atualizados));
-        } catch {}
         return atualizados;
       });
     }

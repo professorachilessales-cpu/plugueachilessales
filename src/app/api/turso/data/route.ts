@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured, garantirSchemaAutenticacaoProfessores, garantirSchemaAtestadosProfessor } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured, garantirSchemaAutenticacaoProfessores, garantirSchemaAtestadosProfessor } from '@/lib/turso';
 import { garantirTabelasObservacoes } from '@/lib/observacoes-service';
 import { garantirSchemaRecorrenciaEventos } from '@/lib/calendario-service';
 import { isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
@@ -19,7 +19,7 @@ function toBoolean(val: any, defaultIfNull: boolean = false): boolean {
 
 export async function GET() {
   try {
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json(
         { error: 'Turso não está configurado.' },
         { status: 400 }

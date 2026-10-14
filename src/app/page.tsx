@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
   Users,
@@ -31,7 +31,8 @@ import {
   ChevronDown,
   ChevronUp,
   Maximize2,
-  Minimize2
+  Minimize2,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import { AniversariantesSection } from '@/components/dashboard/AniversariantesSection';
@@ -61,8 +62,38 @@ export default function DashboardPage() {
     atestadosProfessor,
     solicitacoesRelatorio,
     relatoriosProfessores,
-    homologarReposicaoAula
+    homologarReposicaoAula,
+    refreshTurmas,
+    refreshEventos
   } = useApp();
+
+  // Estados de recarregamento manual
+  const [recarregandoTurmas, setRecarregandoTurmas] = useState(false);
+  const [recarregandoEventos, setRecarregandoEventos] = useState(false);
+
+  // Sincroniza turmas e eventos do banco ao abrir o dashboard
+  useEffect(() => {
+    refreshTurmas();
+    refreshEventos();
+  }, [refreshTurmas, refreshEventos]);
+
+  const handleAtualizarTurmas = async () => {
+    setRecarregandoTurmas(true);
+    try {
+      await refreshTurmas();
+    } finally {
+      setRecarregandoTurmas(false);
+    }
+  };
+
+  const handleAtualizarEventos = async () => {
+    setRecarregandoEventos(true);
+    try {
+      await refreshEventos();
+    } finally {
+      setRecarregandoEventos(false);
+    }
+  };
 
   // Estados do Bloco de Aniversariantes
   const [abaAniversario, setAbaAniversario] = useState<'hoje' | 'semana' | 'mes'>('hoje');
@@ -204,14 +235,19 @@ export default function DashboardPage() {
   const estudantesAtivos = estudantes.filter(e => e.status_matricula === 'Ativo').length;
   const totalTurmas = turmas.length;
 
-  // Eventos nos próximos 30 dias
+  // Eventos nos próximos 30 dias (comparação segura de datas em formato YYYY-MM-DD)
   const eventosProximos = useMemo(() => {
     const agora = new Date();
+    const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
     const trintaDias = new Date();
     trintaDias.setDate(agora.getDate() + 30);
+    const limiteStr = `${trintaDias.getFullYear()}-${String(trintaDias.getMonth() + 1).padStart(2, '0')}-${String(trintaDias.getDate()).padStart(2, '0')}`;
+
     return eventos.filter(ev => {
-      const dataEv = new Date(ev.data_inicio);
-      return dataEv >= agora && dataEv <= trintaDias;
+      const inicio = ev.data_inicio ? (ev.data_inicio.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio) : '';
+      const fim = (ev.data_fim || ev.data_inicio) ? ((ev.data_fim || ev.data_inicio).includes('T') ? (ev.data_fim || ev.data_inicio).split('T')[0] : (ev.data_fim || ev.data_inicio)) : '';
+      if (!inicio && !fim) return false;
+      return (fim >= hojeStr && inicio <= limiteStr);
     });
   }, [eventos]);
 
@@ -256,8 +292,24 @@ export default function DashboardPage() {
   // 2. Gráfico 1: Estudantes por Turma e por Turno agrupados por Grupo da Turma (com totais por Grupo)
   const dadosPorGrupoETurma = useMemo(() => {
     const contagem = { manha: 0, tarde: 0, noite: 0 };
+
+    const inferirGrupo = (nome?: string) => {
+      if (!nome) return 'Outros';
+      const n = nome.toLowerCase();
+      if (n.includes('6º') || n.includes('6°') || n.includes('6o') || n.includes('6 ano') || n.includes('6º ano')) return '6º anos';
+      if (n.includes('7º') || n.includes('7°') || n.includes('7o') || n.includes('7 ano') || n.includes('7º ano')) return '7º anos';
+      if (n.includes('8º') || n.includes('8°') || n.includes('8o') || n.includes('8 ano') || n.includes('8º ano')) return '8º anos';
+      if (n.includes('9º') || n.includes('9°') || n.includes('9o') || n.includes('9 ano') || n.includes('9º ano')) return '9º anos';
+      if (n.includes('pré') || n.includes('pre')) return 'Pré-escolar';
+      if (n.includes('creche')) return 'Creche';
+      return 'Outros';
+    };
+
     const porTurma = turmas.map(t => {
-      const alunosDaTurma = estudantes.filter(e => e.turma_id === t.id);
+      const alunosDaTurma = estudantes.filter(e => 
+        (e.turma_id && e.turma_id === t.id) ||
+        (e.turma_nome && t.nome && e.turma_nome.trim().toLowerCase() === t.nome.trim().toLowerCase())
+      );
       const qtdAlunos = alunosDaTurma.length;
       const cap = Number(t.capacidade) || 0;
       const vagasRestantes = Math.max(0, cap - qtdAlunos);
@@ -267,7 +319,7 @@ export default function DashboardPage() {
       return {
         id: t.id,
         nome: t.nome,
-        grupo: t.grupo || 'Outros',
+        grupo: t.grupo || inferirGrupo(t.nome),
         turno: t.turno,
         capacidade: cap,
         alunos: qtdAlunos,
@@ -420,7 +472,7 @@ export default function DashboardPage() {
     return estudantes.filter(e => checarPossuiLaudo(e) || checarAee(e)).length;
   }, [estudantes]);
 
-  // Próximos Eventos Escolares (da data atual em diante, respeitando a visibilidade docente)
+  // Próximos Eventos Escolares (todos os eventos do banco, com prioridade para futuros/em andamento)
   const dezProximosEventos = useMemo(() => {
     const agora = new Date();
     const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
@@ -448,7 +500,20 @@ export default function DashboardPage() {
         return timeA - timeB;
       });
 
-    return futuros.slice(0, 10);
+    const passados = visiveis
+      .filter((ev) => {
+        const fim = ev.data_fim || ev.data_inicio;
+        if (!fim) return true;
+        const fimStr = fim.includes('T') ? fim.split('T')[0] : fim;
+        return fimStr < hojeStr;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : (a.data_inicio || '') + 'T00:00:00').getTime() || 0;
+        const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : (b.data_inicio || '') + 'T00:00:00').getTime() || 0;
+        return timeB - timeA; // Mais recentes primeiro
+      });
+
+    return [...futuros, ...passados].slice(0, 10);
   }, [eventos, categoriasEvento, role]);
 
   // Estado do Modal de Envio de WhatsApp para Inclusão
@@ -1249,8 +1314,18 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            {/* Legenda de Turnos */}
-            <div className="flex items-center gap-3 text-xs">
+            {/* Ações e Legenda de Turnos */}
+            <div className="flex items-center gap-3 text-xs flex-wrap">
+              <button
+                type="button"
+                onClick={handleAtualizarTurmas}
+                disabled={recarregandoTurmas}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-50"
+                title="Recarregar turmas e capacidades diretamente do banco de dados"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 ${recarregandoTurmas ? 'animate-spin' : ''}`} />
+                <span>{recarregandoTurmas ? 'Atualizando...' : 'Atualizar'}</span>
+              </button>
               <span className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
                 <span className="h-2.5 w-2.5 rounded-full bg-school-blue-600" /> Manhã
               </span>
@@ -1265,7 +1340,27 @@ export default function DashboardPage() {
 
           {/* Grupos de Turmas com seus Totais - Com rolagem vertical interna proporcional */}
           <div className="mt-4 space-y-4 flex-1 overflow-y-auto pr-1">
-            {dadosPorGrupoETurma.grupos.map((grupo) => {
+            {dadosPorGrupoETurma.grupos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center flex-1">
+                <BookOpen className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  Nenhuma turma carregada
+                </p>
+                <p className="text-xs text-slate-500 mb-4 max-w-xs">
+                  Carregue as turmas e capacidades registradas no banco de dados Turso.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleAtualizarTurmas}
+                  disabled={recarregandoTurmas}
+                  className="inline-flex items-center gap-2 rounded-xl bg-school-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 active:scale-95 transition-all"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${recarregandoTurmas ? 'animate-spin' : ''}`} />
+                  <span>{recarregandoTurmas ? 'Consultando banco...' : 'Carregar Turmas do Banco'}</span>
+                </button>
+              </div>
+            ) : (
+              dadosPorGrupoETurma.grupos.map((grupo) => {
               return (
                 <div
                   key={grupo.nomeGrupo}

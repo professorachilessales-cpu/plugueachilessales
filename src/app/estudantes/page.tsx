@@ -34,6 +34,7 @@ import {
   Bookmark,
   Camera,
   Download,
+  RefreshCw,
   MessageSquare,
   Folder,
   ChevronLeft,

@@ -2232,7 +2232,17 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleAtualizarEventos}
+              disabled={recarregandoEventos}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-white/80 px-2.5 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-slate-800 dark:text-purple-300 dark:hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-50"
+              title="Recarregar eventos diretamente do banco de dados"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 text-purple-600 dark:text-purple-400 ${recarregandoEventos ? 'animate-spin' : ''}`} />
+              <span>{recarregandoEventos ? 'Atualizando...' : 'Atualizar'}</span>
+            </button>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-black text-purple-900 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-200/80 dark:border-purple-800/80 shadow-xs">
               <span className="h-2 w-2 rounded-full bg-purple-600 animate-ping" />
               {dezProximosEventos.length} evento(s) na agenda
@@ -2253,12 +2263,21 @@ export default function DashboardPage() {
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
               Nenhum evento registrado
             </p>
-            <p className="text-xs text-slate-500">
-              Os eventos escolares futuros cadastrados aparecerão aqui em ordem cronológica.
+            <p className="text-xs text-slate-500 mb-4 max-w-xs">
+              Carregue os eventos escolares cadastrados no banco de dados Turso.
             </p>
+            <button
+              type="button"
+              onClick={handleAtualizarEventos}
+              disabled={recarregandoEventos}
+              className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-purple-700 active:scale-95 transition-all"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${recarregandoEventos ? 'animate-spin' : ''}`} />
+              <span>{recarregandoEventos ? 'Consultando banco...' : 'Carregar Eventos do Banco'}</span>
+            </button>
           </div>
         ) : (
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {dezProximosEventos.map((ev) => {
               const catObj = categoriasEvento.find(
                 (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
@@ -2268,6 +2287,11 @@ export default function DashboardPage() {
 
               const iniStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
               const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T') ? (ev.data_fim || ev.data_inicio).split('T')[0] : (ev.data_fim || ev.data_inicio);
+
+              const agora = new Date();
+              const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+              const ehPassado = fimStr && fimStr < hojeStr;
+              const ehHoje = iniStr && fimStr && iniStr <= hojeStr && fimStr >= hojeStr;
 
               let textoData = '';
               let dataFormatada = '';
@@ -2299,12 +2323,18 @@ export default function DashboardPage() {
               return (
                 <div
                   key={ev.id}
-                  className="isometric-card flex flex-col justify-between rounded-xl border border-purple-100/90 bg-white/95 p-4 dark:border-slate-800 dark:bg-slate-900/60 hover:border-purple-300 dark:hover:border-purple-700 transition-all border-t-2 border-t-white/90 dark:border-t-purple-900/40"
+                  className={`isometric-card flex flex-col justify-between rounded-xl border bg-white/95 p-4 transition-all border-t-2 ${
+                    ehHoje
+                      ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/20 border-t-emerald-500 ring-2 ring-emerald-500/20'
+                      : ehPassado
+                        ? 'border-slate-200 dark:border-slate-800/80 opacity-80 hover:opacity-100 border-t-slate-300 dark:border-t-slate-700'
+                        : 'border-purple-100/90 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-700 border-t-white/90 dark:border-t-purple-900/40'
+                  }`}
                 >
                   <div>
                     <div className="flex items-center justify-between gap-1.5 mb-2.5">
                       <span
-                        className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold truncate max-w-[120px]"
+                        className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold truncate max-w-[110px]"
                         style={{
                           backgroundColor: `${corCat}18`,
                           color: corCat,
@@ -2313,9 +2343,19 @@ export default function DashboardPage() {
                       >
                         {nomeCat}
                       </span>
-                      <span className="text-[10px] font-mono font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded">
-                        {textoData}
-                      </span>
+                      {ehHoje ? (
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-1.5 py-0.5 rounded animate-pulse">
+                          Hoje
+                        </span>
+                      ) : ehPassado ? (
+                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                          {textoData}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded">
+                          {textoData}
+                        </span>
+                      )}
                     </div>
 
                     <h4 className="font-bold text-xs text-slate-900 dark:text-white line-clamp-2" title={ev.titulo}>

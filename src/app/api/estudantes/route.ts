@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const turmaId = (searchParams.get('turma_id') || searchParams.get('turma') || '').trim();
     const aee = searchParams.get('aee') || 'todos';
 
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json(
         { 
           error: 'Turso não está configurado.',

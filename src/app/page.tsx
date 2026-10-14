@@ -2244,10 +2244,10 @@ export default function DashboardPage() {
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <Calendar className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-2" />
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              Nenhum evento registrado
+              Nenhum evento futuro registrado
             </p>
             <p className="text-xs text-slate-500 mb-4 max-w-xs">
-              Carregue os eventos escolares cadastrados no banco de dados Turso.
+              Os próximos eventos escolares (de hoje em diante) cadastrados no banco aparecerão aqui em ordem cronológica.
             </p>
             <button
               type="button"
@@ -2273,7 +2273,6 @@ export default function DashboardPage() {
 
               const agora = new Date();
               const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
-              const ehPassado = fimStr && fimStr < hojeStr;
               const ehHoje = iniStr && fimStr && iniStr <= hojeStr && fimStr >= hojeStr;
 
               let textoData = '';
@@ -2309,9 +2308,7 @@ export default function DashboardPage() {
                   className={`isometric-card flex flex-col justify-between rounded-xl border bg-white/95 p-4 transition-all border-t-2 ${
                     ehHoje
                       ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/20 border-t-emerald-500 ring-2 ring-emerald-500/20'
-                      : ehPassado
-                        ? 'border-slate-200 dark:border-slate-800/80 opacity-80 hover:opacity-100 border-t-slate-300 dark:border-t-slate-700'
-                        : 'border-purple-100/90 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-700 border-t-white/90 dark:border-t-purple-900/40'
+                      : 'border-purple-100/90 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-700 border-t-white/90 dark:border-t-purple-900/40'
                   }`}
                 >
                   <div>
@@ -2329,10 +2326,6 @@ export default function DashboardPage() {
                       {ehHoje ? (
                         <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-1.5 py-0.5 rounded animate-pulse">
                           Hoje
-                        </span>
-                      ) : ehPassado ? (
-                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                          {textoData}
                         </span>
                       ) : (
                         <span className="text-[10px] font-mono font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded">

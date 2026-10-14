@@ -563,18 +563,16 @@ export async function gerarCalendarioMensalPdf({
     const tableColumns = [
       { header: 'Data', dataKey: 'data' },
       { header: 'Dia da Semana', dataKey: 'diaSemana' },
-      { header: 'Horário', dataKey: 'horario' },
-      { header: 'Título do Evento & Categoria', dataKey: 'eventoCategoria' },
-      { header: 'Local', dataKey: 'local' },
+      { header: 'Título do Evento', dataKey: 'titulo' },
+      { header: 'Categoria', dataKey: 'categoria' },
       { header: 'Descrição', dataKey: 'descricao' },
     ];
 
     const tableRows = eventosFiltrados.map((ev) => ({
       data: ev.dataFormatada,
       diaSemana: ev.diaSemanaFormatado,
-      horario: ev.horarioFormatado,
-      eventoCategoria: `${ev.titulo}\n[${ev.categoriaNome}]`,
-      local: ev.local,
+      titulo: ev.titulo,
+      categoria: ev.categoriaNome,
       descricao: ev.descricao,
       categoriaCor: ev.categoriaCor,
     }));
@@ -621,31 +619,29 @@ export async function gerarCalendarioMensalPdf({
         },
         columnStyles: {
           data: {
-            cellWidth: 26,
+            cellWidth: 28,
             halign: 'center',
             fontStyle: 'bold',
             textColor: [30, 58, 138],
           },
           diaSemana: {
-            cellWidth: 24,
+            cellWidth: 26,
             halign: 'center',
             textColor: [71, 85, 105],
           },
-          horario: {
-            cellWidth: 22,
-            halign: 'center',
-            textColor: [71, 85, 105],
-          },
-          eventoCategoria: {
-            cellWidth: 46,
+          titulo: {
+            cellWidth: 48,
             fontStyle: 'bold',
+            textColor: [15, 23, 42],
           },
-          local: {
-            cellWidth: 24,
-            textColor: [71, 85, 105],
+          categoria: {
+            cellWidth: 34,
+            halign: 'center',
+            fontStyle: 'bold',
+            textColor: [30, 58, 138],
           },
           descricao: {
-            cellWidth: 'auto', // Ocupa o restante (aprox 40mm)
+            cellWidth: 'auto', // Ocupa o restante (aprox 46mm)
             textColor: [51, 65, 85],
           },
         },

@@ -14,10 +14,8 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
-  RefreshCw,
   Sun,
   Moon,
-  Quote as QuoteIcon,
   KeyRound,
   Loader2,
   X

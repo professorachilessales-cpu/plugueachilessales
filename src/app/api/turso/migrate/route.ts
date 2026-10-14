@@ -1,29 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeTursoBatch, isTursoConfigured } from '@/lib/turso';
-import fs from 'fs';
-import path from 'path';
+import { TURSO_CANONICAL_SCHEMA_SQL } from '@/lib/turso-schema-sql';
+import { verifyJwt } from '@/lib/security';
+
+export const dynamic = 'force-dynamic';
+
+function verificarAdmin(req: NextRequest): boolean {
+  let token: string | null = null;
+  const authHeader = req.headers.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else {
+    token = req.cookies.get('plugue_access_token')?.value || 
+            req.cookies.get('plugue_refresh_token')?.value || 
+            null;
+  }
+  if (!token) return false;
+  const payload = verifyJwt(token);
+  return Boolean(payload && (payload.role === 'admin' || payload.role === 'direcao'));
+}
 
 export async function POST(req: NextRequest) {
   try {
+    if (!verificarAdmin(req)) {
+      return NextResponse.json(
+        { error: '403 Forbidden: Acesso restrito a administradores.' },
+        { status: 403 }
+      );
+    }
+
     if (!isTursoConfigured) {
       return NextResponse.json(
-        { error: 'Turso não está configurado. Adicione TURSO_AUTH_TOKEN no .env.local.' },
+        { error: 'Turso não está configurado. Configure TURSO_DATABASE_URL e TURSO_AUTH_TOKEN.' },
         { status: 400 }
       );
     }
 
-    const schemaPath = path.join(process.cwd(), 'turso-schema.sql');
-    if (!fs.existsSync(schemaPath)) {
-      return NextResponse.json(
-        { error: 'Arquivo turso-schema.sql não encontrado.' },
-        { status: 404 }
-      );
-    }
-
-    const sqlContent = fs.readFileSync(schemaPath, 'utf8');
-    
-    // Divide os comandos SQL por ponto e vírgula
-    const statements = sqlContent
+    // Divide os comandos SQL por ponto e vírgula de forma serverless nativa
+    const statements = TURSO_CANONICAL_SCHEMA_SQL
       .split(';')
       .map((s) => s.trim())
       .filter((s) => s.length > 0 && !s.startsWith('--'));
@@ -32,12 +46,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Tabelas criadas com sucesso no Turso!',
+      message: 'Esquema de banco de dados sincronizado com sucesso no Turso!',
       totalStatements: statements.length,
     });
   } catch (error: any) {
+    console.error('Erro ao sincronizar tabelas com Turso:', error);
     return NextResponse.json(
-      { error: error.message || 'Erro ao sincronizar tabelas com Turso.' },
+      { error: 'Erro interno ao sincronizar tabelas com o banco de dados.' },
       { status: 500 }
     );
   }

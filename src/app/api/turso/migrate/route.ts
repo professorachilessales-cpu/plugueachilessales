@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoBatch, isTursoConfigured } from '@/lib/turso';
+import { executeTursoBatch, checkIsTursoConfigured } from '@/lib/turso';
 import { TURSO_CANONICAL_SCHEMA_SQL } from '@/lib/turso-schema-sql';
 import { verifyJwt } from '@/lib/security';
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json(
         { error: 'Turso não está configurado. Configure TURSO_DATABASE_URL e TURSO_AUTH_TOKEN.' },
         { status: 400 }

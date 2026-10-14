@@ -34,6 +34,8 @@ export function setTursoCredentials(novaUrl: string, novoToken: string): void {
 
   process.env.TURSO_DATABASE_URL = urlLimpa;
   process.env.TURSO_AUTH_TOKEN = tokenLimpo;
+
+  isTursoConfigured = checkIsTursoConfigured();
 }
 
 /**
@@ -46,13 +48,18 @@ export function getTursoHttpUrl(dbUrl: string = getTursoDbUrl()): string {
   return dbUrl;
 }
 
+export let isTursoConfigured = false;
+
 export function checkIsTursoConfigured(): boolean {
   const token = getTursoAuthToken();
   const url = getTursoDbUrl();
-  return Boolean(url && url.trim() !== '' && token && token.trim() !== '');
+  const configured = Boolean(url && url.trim() !== '' && token && token.trim() !== '');
+  isTursoConfigured = configured;
+  return configured;
 }
 
-export const isTursoConfigured = checkIsTursoConfigured();
+// Inicialização inicial
+isTursoConfigured = checkIsTursoConfigured();
 
 export interface TursoQueryResult<T = any> {
   rows: T[];

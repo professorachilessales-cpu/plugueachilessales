@@ -1,13 +1,18 @@
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured, tursoConfig } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured, tursoConfig, getTursoDbUrl } from '@/lib/turso';
 
 export async function GET() {
   try {
-    if (!isTursoConfigured) {
+    const isConfigured = checkIsTursoConfigured();
+    if (!isConfigured) {
       return NextResponse.json({
         configured: false,
+        connected: false,
         message: 'TURSO_AUTH_TOKEN não definido nas variáveis de ambiente (.env.local)',
-        dbUrl: tursoConfig.dbUrl,
+        dbUrl: getTursoDbUrl(),
       });
     }
 
@@ -34,7 +39,7 @@ export async function GET() {
   } catch (error: any) {
     return NextResponse.json(
       {
-        configured: isTursoConfigured,
+        configured: checkIsTursoConfigured(),
         connected: false,
         error: error.message || 'Falha ao conectar no Turso',
         dbUrl: tursoConfig.dbUrl,

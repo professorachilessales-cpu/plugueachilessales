@@ -51,6 +51,7 @@ dev.db
 
 # 6. Variáveis de Ambiente e Credenciais Sensíveis
 .env
+.env.local
 .env*.local
 .env.production
 .env.staging

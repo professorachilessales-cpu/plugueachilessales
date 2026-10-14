@@ -1,11 +1,13 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { removerObservacaoComAuditoria } from '@/lib/observacoes-service';
 import { garantirSchemaRecorrenciaEventos, toBooleanStrict, validarParametrosRecorrencia } from '@/lib/calendario-service';
 
 export async function POST(req: NextRequest) {
   try {
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json({ error: 'Turso não está configurado' }, { status: 400 });
     }
 

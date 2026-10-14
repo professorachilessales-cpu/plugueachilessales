@@ -29,6 +29,7 @@ import {
   Save
 } from 'lucide-react';
 import { Estudante, Turma } from '@/lib/types';
+import { FotoEstudanteField } from '@/components/estudantes/FotoEstudanteField';
 
 type TemplateKey = 'falta' | 'reuniao' | 'tarefa' | 'elogio' | 'livre';
 
@@ -210,7 +211,7 @@ export default function FotogramaPage() {
   const [textoPersonalizado, setTextoPersonalizado] = useState('');
   const [telefoneDestino, setTelefoneDestino] = useState<string>('');
 
-  // Modal Edição de Estudante (apenas Admin)
+  // Modal Edição de Estudante
   const [modalEditEstudanteAberto, setModalEditEstudanteAberto] = useState(false);
   const [estudanteEditando, setEstudanteEditando] = useState<Estudante | null>(null);
   const [formEdit, setFormEdit] = useState({
@@ -228,6 +229,7 @@ export default function FotogramaPage() {
     aee: false,
     laudo_descricao: '',
     observacoes: '',
+    foto_url: '',
   });
 
   // Modelos com suporte a customizações de Configurações
@@ -313,9 +315,27 @@ export default function FotogramaPage() {
     setModalWhatsAppAberto(false);
   };
 
-  // Abrir Ficha de Edição de Estudante (leva à página de estudantes com formulário completo aberto)
+  // Abrir Modal de Edição de Estudante
   const handleAbrirEdicaoEstudante = (aluno: Estudante) => {
-    router.push(`/estudantes?editar=${aluno.id}`);
+    setEstudanteEditando(aluno);
+    setFormEdit({
+      nome_completo: aluno.nome_completo || '',
+      cpf: aluno.cpf || '',
+      rg_numero: aluno.rg_numero || '',
+      data_nascimento: aluno.data_nascimento || '',
+      nome_responsavel: aluno.nome_responsavel || aluno.filiacao_materna || '',
+      telefone_responsavel: aluno.telefone_responsavel || '',
+      telefone_2: aluno.telefone_2 || '',
+      telefone_3: aluno.telefone_3 || '',
+      telefone_4: aluno.telefone_4 || '',
+      endereco: aluno.endereco || '',
+      possui_laudo: Boolean(aluno.possui_laudo),
+      aee: Boolean(aluno.aee),
+      laudo_descricao: aluno.laudo_descricao || '',
+      observacoes: aluno.observacoes || '',
+      foto_url: aluno.foto_url || '',
+    });
+    setModalEditEstudanteAberto(true);
   };
 
   const handleSalvarEdicao = (e: React.FormEvent) => {
@@ -337,6 +357,7 @@ export default function FotogramaPage() {
       aee: formEdit.aee,
       laudo_descricao: formEdit.laudo_descricao.toUpperCase(),
       observacoes: formEdit.observacoes.toUpperCase(),
+      foto_url: formEdit.foto_url,
     });
 
     setModalEditEstudanteAberto(false);
@@ -536,19 +557,17 @@ export default function FotogramaPage() {
                     )}
                   </div>
 
-                  {/* Ações (WhatsApp + Alterar Dados no Perfil Admin) */}
+                  {/* Ações (Editar Estudante + WhatsApp) */}
                   <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 print:hidden">
-                    {/* Botão de Alterar Dados (Perfil Administração) */}
-                    {role === 'admin' && (
-                      <button
-                        onClick={() => handleAbrirEdicaoEstudante(aluno)}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-all"
-                        title="Alterar dados cadastrais deste estudante"
-                      >
-                        <Edit3 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
-                        <span>Alterar Dados</span>
-                      </button>
-                    )}
+                    {/* Botão de Editar Estudante */}
+                    <button
+                      onClick={() => handleAbrirEdicaoEstudante(aluno)}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-school-blue-50 hover:text-school-blue-700 hover:border-school-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700/80 dark:hover:text-school-gold-400 dark:hover:border-slate-600 transition-all shadow-sm"
+                      title="Editar dados cadastrais deste estudante"
+                    >
+                      <Edit3 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                      <span>Editar</span>
+                    </button>
 
                     {/* Disparador Inteligente de WhatsApp (Apenas Administração / Não exibido para Professor) */}
                     {role !== 'professor' && (
@@ -710,7 +729,7 @@ export default function FotogramaPage() {
         </div>
       )}
 
-      {/* MODAL 2: Alterar Dados do Estudante (Perfil Administração) */}
+      {/* MODAL 2: Editar Estudante */}
       {modalEditEstudanteAberto && estudanteEditando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-school-dark-surface max-h-[92vh] overflow-y-auto">
@@ -718,21 +737,52 @@ export default function FotogramaPage() {
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Edit3 className="h-5 w-5 text-school-blue-600 dark:text-school-gold-400" />
-                  Alterar Dados do Estudante
+                  Editar Estudante
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Edição rápida das informações cadastrais e contatos
+                  Edição rápida das informações cadastrais, foto e contatos
                 </p>
               </div>
-              <button
-                onClick={() => setModalEditEstudanteAberto(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {role !== 'professor' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalEditEstudanteAberto(false);
+                      router.push(`/estudantes?editar=${estudanteEditando.id}`);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-all shadow-sm"
+                    title="Abrir ficha cadastral completa com relatórios e documentos"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
+                    <span className="hidden sm:inline">Ficha Completa</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setModalEditEstudanteAberto(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleSalvarEdicao} className="mt-4 space-y-4 text-xs">
+              {/* Foto 3x4 do Estudante */}
+              <div className="flex justify-center pb-2">
+                <FotoEstudanteField
+                  fotoUrl={formEdit.foto_url}
+                  nomeEstudante={formEdit.nome_completo || estudanteEditando.nome_completo}
+                  cpfEstudante={formEdit.cpf}
+                  matriculaEstudante={(estudanteEditando as any).matricula}
+                  estudanteId={estudanteEditando.id}
+                  onChangeFotoUrl={(novaUrl) => setFormEdit((prev) => ({ ...prev, foto_url: novaUrl }))}
+                  onFotoSalvaNoDrive={(dados) => {
+                    setFormEdit((prev) => ({ ...prev, foto_url: dados.foto_url }));
+                    updateEstudante(estudanteEditando.id, { foto_url: dados.foto_url });
+                  }}
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
                   <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 uppercase">

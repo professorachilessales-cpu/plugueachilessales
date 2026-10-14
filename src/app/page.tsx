@@ -409,6 +409,11 @@ export default function DashboardPage() {
     return estudantes.filter(checarAee).length;
   }, [estudantes]);
 
+  // Total de estudantes em investigação (elegíveis para AEE, porém sem laudo médico)
+  const totalEmInvestigacao = useMemo(() => {
+    return estudantes.filter(e => checarAee(e) && !checarPossuiLaudo(e)).length;
+  }, [estudantes]);
+
   // Total Geral Atendido: exclusivamente estudantes categorizados como Laudados e/ou AEE:
   // (possui_laudo = true OR possui_laudo = 1) OR (aee = true OR aee = 1)
   const totalLaudadosEElegiveis = useMemo(() => {
@@ -862,7 +867,7 @@ export default function DashboardPage() {
           </div>
           <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1 flex-wrap">
             <span>
-              <strong className="text-rose-600 dark:text-rose-400">{totalLaudados} Laudados</strong> • <strong className="text-purple-600 dark:text-purple-400">{totalElegiveisAee} em AEE</strong>
+              <strong className="text-rose-600 dark:text-rose-400">{totalLaudados} Laudados</strong> • <strong className="text-purple-600 dark:text-purple-400">{totalEmInvestigacao} em investigação</strong>
             </span>
             <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
               ({totalLaudadosEElegiveis} atendidos)

@@ -854,7 +854,7 @@ export function ModalEditarGradeTurma({
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     {totalAulasExistentesNoDia > 0
                       ? `Este dia já possui ${totalAulasExistentesNoDia} aula(s). As aulas selecionadas serão colocadas a mais das cadastradas!`
-                      : `Escolha o professor e a quantidade de aulas na ${modalDiaAberto}.`}
+                      : `Escolha o docente e a quantidade de aulas na ${modalDiaAberto}.`}
                   </p>
                 </div>
               </div>
@@ -867,7 +867,7 @@ export function ModalEditarGradeTurma({
               </button>
             </div>
 
-            {/* Conteúdo dos Professores e Quantidades */}
+            {/* Conteúdo dos Docentes e Quantidades */}
             <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
               {/* Bloco de Aulas Já Cadastradas no Dia */}
               {aulasExistentesNoDiaAberto.length > 0 && (
@@ -921,14 +921,14 @@ export function ModalEditarGradeTurma({
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                         <GraduationCap className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
-                        <span>{itensAulaDia.length > 1 ? `Professor ${index + 1}` : 'Professor'}</span>
+                        <span>{itensAulaDia.length > 1 ? `Docente ${index + 1}` : 'Docente'}</span>
                       </label>
                       {itensAulaDia.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleRemoverLinhaProfessorDia(item.id)}
                           className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 flex items-center gap-1 font-semibold"
-                          title="Remover este professor"
+                          title="Remover este docente"
                         >
                           <Trash2 className="h-3 w-3" />
                           <span>Remover</span>
@@ -936,14 +936,14 @@ export function ModalEditarGradeTurma({
                       )}
                     </div>
 
-                    {/* Seleção do Professor */}
+                    {/* Seleção do Docente */}
                     <div>
                       <select
                         value={item.professor_nome}
                         onChange={(e) => handleAtualizarLinhaProfessorDia(item.id, 'professor_nome', e.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 focus:border-school-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                       >
-                        <option value="">Selecione o professor...</option>
+                        <option value="">Selecione o docente...</option>
                         {listaDocentesDisponiveis.map((p) => {
                           const jaCadastrado = aulasExistentesNoDiaAberto.find(
                             (a) => a.professor_nome.trim().toLowerCase() === p.nome_completo.trim().toLowerCase()
@@ -1092,14 +1092,14 @@ export function ModalEditarGradeTurma({
                 );
               })}
 
-              {/* Botão para Adicionar Outro Professor neste dia */}
+              {/* Botão para Adicionar Outro Docente neste dia */}
               <button
                 type="button"
                 onClick={handleAdicionarLinhaProfessorDia}
                 className="w-full py-2 px-3 rounded-xl border border-dashed border-slate-300 hover:border-school-blue-400 bg-white/50 hover:bg-school-blue-50/50 text-slate-700 hover:text-school-blue-900 dark:border-slate-700 dark:bg-slate-800/40 dark:hover:border-school-blue-600 dark:text-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>+ Adicionar outro professor na {modalDiaAberto}</span>
+                <span>+ Adicionar outro docente na {modalDiaAberto}</span>
               </button>
 
               {/* Indicador de Resumo de Aulas */}

@@ -1,51 +1,88 @@
-# dependencies
+# ==========================================================
+# PLUGUE - ARQUITETURA SERVERLESS & TURSO (GITIGNORE RIGOROSO)
+# ==========================================================
+
+# 1. Dependências e Módulos
 /node_modules
+node_modules/
+node_modules_old/
+package/
 /.pnp
 .pnp.js
 .yarn/cache
 
-# testing
-/coverage
-
-# next.js
+# 2. Builds, Compilação e Caches
 /.next/
+.next/
 /out/
-
-# production
 /build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
-.env
-
-# vercel
-.vercel
-
-# typescript
+/dist
+/.cache
+.cache/
+/.vercel
+.vercel/
 *.tsbuildinfo
 next-env.d.ts
 
-# backups & temp archives
+# 3. Testes e Cobertura
+/coverage
+/.pytest_cache
+__pycache__/
+
+# 4. Logs e Diagnósticos
+*.log
+*.log.*
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 5. Bancos de Dados Locais (Proibidos em Serverless Vercel)
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
+local.db
+dev.db
+*.sqlite-journal
+*.sqlite-wal
+
+# 6. Variáveis de Ambiente e Credenciais Sensíveis
+.env
+.env*.local
+.env.production
+.env.staging
+.env.development
+!.env.example
+*.pem
+*.key
+*.cert
+*-credentials.json
+*credentials*.json
+google-drive-credentials.json
+turso-credentials.json
+service-account*.json
+
+# 7. Backups, Arquivos Temporários e Dumps
 *.tgz
+*.tar
+*.gz
+*.zip
 *.bak
+*.old
+*.tmp
+*.swp
+*~
 _tmp_*
-node_modules_old/
-package/
 backup_*.json
 synced_*.json
-*.sqlite
-*.db
-turso-credentials.json
-google-drive-credentials.json
+
+# 8. Arquivos de Sistema Operacional e IDE
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
 .vscode/
-
-
+.idea/

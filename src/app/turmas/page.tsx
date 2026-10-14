@@ -2194,7 +2194,7 @@ export default function TurmasPage() {
                     Adicionar Aula na Grade
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    Escolha o professor e a quantidade (mínimo de 3 aulas por dia)
+                    Escolha o docente e a quantidade (mínimo de 3 aulas por dia)
                   </p>
                 </div>
                 <button

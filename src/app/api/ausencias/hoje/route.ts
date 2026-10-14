@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Erro na API /api/ausencias/hoje:', error);
     return NextResponse.json(
-      { error: 'Erro ao consultar ausências vigentes hoje', details: error.message },
+      { error: 'Erro interno ao consultar ausências vigentes hoje.' },
       { status: 500 }
     );
   }

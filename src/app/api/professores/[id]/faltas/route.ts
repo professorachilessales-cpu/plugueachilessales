@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { verifyJwt } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +16,30 @@ export async function GET(
       return NextResponse.json({ error: 'ID do professor não informado' }, { status: 400 });
     }
 
+    // 1. Verificação de Autenticação e Prevenção de IDOR (Broken Object Level Authorization)
+    let token: string | null = null;
+    const authHeader = request.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7).trim();
+    } else {
+      token = request.cookies.get('plugue_access_token')?.value || 
+              request.cookies.get('plugue_refresh_token')?.value || 
+              null;
+    }
+
+    const payload = token ? verifyJwt(token) : null;
+    const isAdmin = payload !== null && (payload.role === 'admin' || payload.role === 'direcao');
+
+    // Se for docente comum, ele só tem permissão para visualizar as suas próprias faltas
+    if (payload && !isAdmin && payload.userId !== professorId) {
+      return NextResponse.json(
+        { error: '403 Forbidden: Acesso não autorizado aos registros funcionais de outro colaborador.' },
+        { status: 403 }
+      );
+    }
+
     if (!isTursoConfigured) {
-      return NextResponse.json({ error: 'Turso Database não configurado' }, { status: 500 });
+      return NextResponse.json({ error: 'Banco de dados Turso não configurado' }, { status: 500 });
     }
 
     const query = `
@@ -86,7 +109,7 @@ export async function GET(
   } catch (error: any) {
     console.error('Erro ao buscar faltas_professores por professor_id:', error);
     return NextResponse.json(
-      { error: 'Erro interno ao consultar faltas do professor', details: error.message },
+      { error: 'Erro interno ao consultar faltas do professor.' },
       { status: 500 }
     );
   }

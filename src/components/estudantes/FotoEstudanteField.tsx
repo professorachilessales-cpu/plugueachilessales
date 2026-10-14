@@ -74,6 +74,7 @@ export function FotoEstudanteField({
 
   // Estados de feedback de upload e sincronização
   const [uploadando, setUploadando] = useState<boolean>(false);
+  const [processandoFoto, setProcessandoFoto] = useState<boolean>(false);
   const [sincronizando, setSincronizando] = useState<boolean>(false);
   const [carregandoPasta, setCarregandoPasta] = useState<boolean>(false);
   const [arquivosPastaEstudante, setArquivosPastaEstudante] = useState<any[]>([]);
@@ -109,23 +110,103 @@ export function FotoEstudanteField({
     }
   };
 
-  // Conversão de arquivo local selecionado com preview imediato (createObjectURL) e abertura do corte
-  const processarArquivoSelecionado = (file: File) => {
+  /**
+   * Otimiza e redimensiona fotos (especialmente de smartphones que capturam em 12MP a 50MP)
+   * antes de alocar na memória ou repassar ao modal de recorte.
+   * Evita Out-Of-Memory (OOM) no navegador móvel e impede que a aba reinicie/deslogue.
+   */
+  const redimensionarImagemParaRecorte = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!file || !file.type.startsWith('image/')) {
+        reject(new Error('Arquivo de imagem inválido.'));
+        return;
+      }
+
+      const tempUrl = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = () => {
+        URL.revokeObjectURL(tempUrl);
+        try {
+          const MAX_DIM = 1600;
+          let { naturalWidth: width, naturalHeight: height } = img;
+
+          if (!width || !height) {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = () => reject(new Error('Falha ao ler dados da imagem'));
+            reader.readAsDataURL(file);
+            return;
+          }
+
+          // Se a foto já estiver com dimensões contidas e leve (< 1MB), não precisa reprocessar
+          if (width <= MAX_DIM && height <= MAX_DIM && file.size < 1024 * 1024) {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = () => reject(new Error('Falha ao ler dados da imagem'));
+            reader.readAsDataURL(file);
+            return;
+          }
+
+          // Redimensiona mantendo a proporção original
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = () => reject(new Error('Falha no contexto gráfico do navegador'));
+            reader.readAsDataURL(file);
+            return;
+          }
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Gera dataURL comprimido JPEG com alta qualidade (88%)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+          resolve(dataUrl);
+        } catch (err) {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = () => reject(err);
+          reader.readAsDataURL(file);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(tempUrl);
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = () => reject(new Error('Falha ao carregar a imagem selecionada.'));
+        reader.readAsDataURL(file);
+      };
+
+      img.src = tempUrl;
+    });
+  };
+
+  // Conversão de arquivo local selecionado com pré-otimização e abertura do corte
+  const processarArquivoSelecionado = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setMensagemErro('Selecione um arquivo de imagem válido (JPG, PNG, WEBP).');
       return;
     }
 
-    // 1. Limpeza de memória do objeto temporário anterior se existente
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
-
-    // 2. Leitura imediata via URL.createObjectURL para feedback visual instantâneo na tela
-    const localUrl = URL.createObjectURL(file);
-    objectUrlRef.current = localUrl;
-    setPreviewUrl(localUrl);
+    setProcessandoFoto(true);
     setMensagemErro(null);
     setMensagemSucesso(null);
 
@@ -133,15 +214,24 @@ export function FotoEstudanteField({
     setModalDesktopAberto(false);
     setActionSheetMobileAberto(false);
 
-    // 3. Lê via FileReader para carregar no modal interativo de recorte/enquadramento 3x4
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const resultado = e.target?.result as string;
-      if (resultado) {
-        setImagemParaRecorte(resultado);
+    try {
+      // 1. Limpeza de memória do objeto temporário anterior se existente
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
       }
-    };
-    reader.readAsDataURL(file);
+
+      // 2. Otimiza e redimensiona a imagem da câmera/arquivo evitando estouro de memória no mobile
+      const imagemOtimizada = await redimensionarImagemParaRecorte(file);
+
+      setPreviewUrl(imagemOtimizada);
+      setImagemParaRecorte(imagemOtimizada);
+    } catch (err: any) {
+      console.error('Erro ao processar imagem:', err);
+      setMensagemErro('Não foi possível carregar a foto tirada pela câmera. Tente novamente.');
+    } finally {
+      setProcessandoFoto(false);
+    }
   };
 
   // 1. Ação: Enviar do Computador (Desktop)
@@ -411,7 +501,7 @@ export function FotoEstudanteField({
         type="file"
         ref={fileInputCameraRef}
         accept="image/*"
-        capture="user"
+        capture="environment"
         className="hidden"
         onChange={(e) => {
           if (e.target.files?.[0]) processarArquivoSelecionado(e.target.files[0]);
@@ -443,6 +533,14 @@ export function FotoEstudanteField({
                   Foto 3x4
                 </span>
                 <span className="text-[9px] text-slate-400 mt-0.5">Clique para adicionar</span>
+              </div>
+            )}
+
+            {/* Indicador de processamento local da foto tirada pela câmera */}
+            {processandoFoto && (
+              <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-[1px] flex flex-col items-center justify-center text-white p-2 z-10 animate-in fade-in duration-150">
+                <Loader2 className="h-6 w-6 animate-spin text-school-gold-400 mb-1" />
+                <span className="text-[9px] font-bold text-center">Processando foto...</span>
               </div>
             )}
 

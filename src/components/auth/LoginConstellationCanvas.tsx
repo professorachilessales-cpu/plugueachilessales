@@ -41,7 +41,7 @@ export default function LoginConstellationCanvas({ theme = 'dark' }: LoginConste
     let height = 0;
 
     // Redução de movimento por acessibilidade
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false;
 
     // Mouse tracking relativo ao canvas
     const mouse = {

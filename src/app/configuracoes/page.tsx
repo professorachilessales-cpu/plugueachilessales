@@ -130,7 +130,8 @@ export default function ConfiguracoesPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.dbUrl) setTursoDbUrl(data.dbUrl);
-        if (data.authToken) setTursoAuthToken(data.authToken);
+        if (data.maskedToken) setTursoAuthToken(data.maskedToken);
+        else if (data.authToken) setTursoAuthToken(data.authToken);
         if (data.defaultDbUrl) setTursoPadraoUrl(data.defaultDbUrl);
       })
       .catch(() => {});

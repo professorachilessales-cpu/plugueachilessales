@@ -177,8 +177,7 @@ export async function POST(req: NextRequest) {
       console.error('Erro ao salvar observação pedagógica no Turso:', queryErr);
       return NextResponse.json(
         { 
-          error: 'Erro ao gravar observação no banco de dados.', 
-          details: queryErr?.message || String(queryErr) 
+          error: 'Erro ao gravar observação no banco de dados.'
         },
         { status: 500 }
       );

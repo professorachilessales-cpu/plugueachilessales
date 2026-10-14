@@ -157,6 +157,9 @@ export default function LoginPage() {
           sessionStorage.setItem('plugue_auth_user', JSON.stringify(fullUser));
           sessionStorage.setItem('plugue_session_user', JSON.stringify(fullUser));
           sessionStorage.setItem('plugue_session_active', 'true');
+          localStorage.setItem('plugue_auth_user', JSON.stringify(fullUser));
+          localStorage.setItem('plugue_session_user', JSON.stringify(fullUser));
+          localStorage.setItem('plugue_session_active', 'true');
           localStorage.setItem('school_os_current_user_id', fullUser.id);
           localStorage.setItem('school_os_role', fullUser.role);
         } catch {}

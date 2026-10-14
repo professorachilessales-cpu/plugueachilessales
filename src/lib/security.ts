@@ -1,7 +1,8 @@
 import crypto from 'crypto';
+import { getTursoCache, setTursoCache, deleteTursoCache } from '@/lib/turso';
 
 // ---------------------------------------------------------------------------
-// 9. MECANISMOS ANTI-INVASÃO, CRIPTOGRAFIA & SESSÕES (HARDENING)
+// MECANISMOS ANTI-INVASÃO, CRIPTOGRAFIA & SESSÕES (OWASP HARDENING)
 // ---------------------------------------------------------------------------
 
 const JWT_SECRET = process.env.JWT_SECRET || 'plugue-super-secret-jwt-key-2026-production-school-os';
@@ -166,13 +167,13 @@ export function verifyJwt(token: string): JwtPayload | null {
       return null; // Expirado
     }
     return payload;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
 
 // ---------------------------------------------------------------------------
-// RATE LIMITING ANTI-BRUTE FORCE (5 TENTATIVAS POR IP)
+// RATE LIMITING ANTI-BRUTE FORCE DISTRIBUÍDO NO TURSO (ADEQUAÇÃO SERVERLESS)
 // ---------------------------------------------------------------------------
 interface RateLimitRecord {
   attempts: number;
@@ -183,9 +184,24 @@ const memoryRateLimitStore: Map<string, RateLimitRecord> = new Map();
 const MAX_FAILED_ATTEMPTS = 5;
 const BLOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutos de bloqueio
 
-export function checkRateLimit(ip: string): { allowed: boolean; remainingAttempts: number; retryAfterSeconds?: number } {
-  const record = memoryRateLimitStore.get(ip);
+function getRateLimitCacheKey(ip: string): string {
+  return `rate_limit_login_${ip.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
+
+export async function checkRateLimit(ip: string): Promise<{ allowed: boolean; remainingAttempts: number; retryAfterSeconds?: number }> {
   const now = Date.now();
+  const cacheKey = getRateLimitCacheKey(ip);
+
+  // 1. Tenta carregar do Turso Cache
+  let record: RateLimitRecord | null = null;
+  try {
+    record = await getTursoCache<RateLimitRecord>(cacheKey);
+  } catch {}
+
+  // 2. Fallback para memória local
+  if (!record) {
+    record = memoryRateLimitStore.get(ip) || null;
+  }
 
   if (!record) {
     return { allowed: true, remainingAttempts: MAX_FAILED_ATTEMPTS };
@@ -196,9 +212,10 @@ export function checkRateLimit(ip: string): { allowed: boolean; remainingAttempt
     return { allowed: false, remainingAttempts: 0, retryAfterSeconds };
   }
 
-  // Se o período de bloqueio passou, reseta
+  // Se o período de bloqueio expirou, limpa
   if (record.blockedUntil && record.blockedUntil <= now) {
     memoryRateLimitStore.delete(ip);
+    deleteTursoCache(cacheKey).catch(() => {});
     return { allowed: true, remainingAttempts: MAX_FAILED_ATTEMPTS };
   }
 
@@ -206,9 +223,18 @@ export function checkRateLimit(ip: string): { allowed: boolean; remainingAttempt
   return { allowed: remaining > 0, remainingAttempts: remaining };
 }
 
-export function registerFailedLogin(ip: string): { remainingAttempts: number; isBlocked: boolean; retryAfterSeconds?: number } {
+export async function registerFailedLogin(ip: string): Promise<{ remainingAttempts: number; isBlocked: boolean; retryAfterSeconds?: number }> {
   const now = Date.now();
-  let record = memoryRateLimitStore.get(ip);
+  const cacheKey = getRateLimitCacheKey(ip);
+
+  let record: RateLimitRecord | null = null;
+  try {
+    record = await getTursoCache<RateLimitRecord>(cacheKey);
+  } catch {}
+
+  if (!record) {
+    record = memoryRateLimitStore.get(ip) || null;
+  }
 
   if (!record || (record.blockedUntil && record.blockedUntil <= now)) {
     record = { attempts: 1 };
@@ -216,18 +242,33 @@ export function registerFailedLogin(ip: string): { remainingAttempts: number; is
     record.attempts += 1;
   }
 
+  let isBlocked = false;
+  let retryAfterSeconds: number | undefined = undefined;
+
   if (record.attempts >= MAX_FAILED_ATTEMPTS) {
     record.blockedUntil = now + BLOCK_DURATION_MS;
-    memoryRateLimitStore.set(ip, record);
-    return { remainingAttempts: 0, isBlocked: true, retryAfterSeconds: Math.ceil(BLOCK_DURATION_MS / 1000) };
+    isBlocked = true;
+    retryAfterSeconds = Math.ceil(BLOCK_DURATION_MS / 1000);
   }
 
+  // Atualiza memória local
   memoryRateLimitStore.set(ip, record);
-  return { remainingAttempts: MAX_FAILED_ATTEMPTS - record.attempts, isBlocked: false };
+
+  // Persiste no Turso Cache com TTL de 15 minutos (900s)
+  setTursoCache(cacheKey, record, 900).catch(() => {});
+
+  const remaining = Math.max(0, MAX_FAILED_ATTEMPTS - record.attempts);
+  return {
+    remainingAttempts: remaining,
+    isBlocked,
+    retryAfterSeconds,
+  };
 }
 
-export function resetFailedLogin(ip: string): void {
+export async function resetFailedLogin(ip: string): Promise<void> {
+  const cacheKey = getRateLimitCacheKey(ip);
   memoryRateLimitStore.delete(ip);
+  deleteTursoCache(cacheKey).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -236,20 +277,21 @@ export function resetFailedLogin(ip: string): void {
 export function sanitizeString(input: unknown): string {
   if (typeof input !== 'string') return '';
   return input
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove <script>
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove tags script
     .replace(/<[^>]+>/g, '') // Remove tags HTML diretas
     .replace(/[;`]/g, '') // Previne caracteres de injeção em comandos
+    .replace(/'/g, "''") // Escapa aspas simples
     .trim();
 }
 
 export function sanitizeTextarea(input: unknown): string {
   if (typeof input !== 'string') return '';
-  // Preserva quebras de linha e pontuação, mas elimina tags HTML e eventos script
   return input
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/javascript:/gi, '')
     .replace(/onerror\s*=/gi, '')
     .replace(/onload\s*=/gi, '')
+    .replace(/onclick\s*=/gi, '')
     .trim();
 }
 
@@ -260,8 +302,8 @@ export function normalizarNomeParaDrive(texto: string): string {
   if (!texto) return 'sem_nome';
   return texto
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // remove acentos
-    .replace(/[^a-zA-Z0-9_\s-]/g, '') // remove símbolos
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_\s-]/g, '')
     .trim()
     .replace(/\s+/g, '_')
     .toLowerCase();

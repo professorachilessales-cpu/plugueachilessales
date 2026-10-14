@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
 
-    // 1. Verificação de Rate Limit (Anti Brute-Force)
-    const rateCheck = checkRateLimit(ip);
+    // 1. Verificação de Rate Limit (Anti Brute-Force Distribuído no Turso)
+    const rateCheck = await checkRateLimit(ip);
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { 
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!colaborador) {
-      const fail = registerFailedLogin(ip);
+      const fail = await registerFailedLogin(ip);
       const remainingMsg = fail.isBlocked
         ? `Limite de 5 tentativas excedido. IP bloqueado por 15 minutos.`
         : `Tentativa inválida. Restam ${fail.remainingAttempts} tentativas antes do bloqueio do IP.`;
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!passwordValid) {
-      const fail = registerFailedLogin(ip);
+      const fail = await registerFailedLogin(ip);
       const remainingMsg = fail.isBlocked
         ? `Limite de 5 tentativas excedido. IP bloqueado por 15 minutos.`
         : `Senha incorreta. Restam ${fail.remainingAttempts} tentativas antes do bloqueio.`;
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Sucesso: Resetar contador de falhas do IP
-    resetFailedLogin(ip);
+    await resetFailedLogin(ip);
 
     // 6. Atualizar último login na tabela professores
     if (isTursoConfigured && colaborador.id) {

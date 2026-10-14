@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const SHEET_ID = '16KqUf0cMwNhNKJsK2KM0mMk2qhDozBNIAEuWSs-EBF4';
-const DEFAULT_TURSO_DB_URL = 'libsql://plugueachiles-achilessales.aws-us-west-2.turso.io';
-const DEFAULT_TURSO_AUTH_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJnaWQiOiJiZWJmOGFkYi00NjNkLTQ2NDctYWE3Yi1hY2RiNjA3ZDA2ZjkiLCJpYXQiOjE3OTAxOTI5MjAsImtpZCI6InZXd1FEZ29POHVQc3FFY0lMOVloZzlxSm5SMjlqVWlaSWdQcW41U3AxQk0iLCJyaWQiOiIyOWE0Y2YzNS05M2FhLTRkMmUtOTA2My04NDQ1NmQ1MDNjNGMifQ.4ESQbOOPJw45FGHv9RbhRLtfMT2m72ptAhfVBG6k0utCdDqmCIZN3PpP3tgmrmZ7LtcfgjuexLPpoDcrMTfLAQ';
+const TURSO_DB_URL = process.env.TURSO_DATABASE_URL || 'libsql://plugueachiles-achilessales.aws-us-west-2.turso.io';
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN || '';
 
-const httpUrl = DEFAULT_TURSO_DB_URL.replace('libsql://', 'https://') + '/v2/pipeline';
+const httpUrl = TURSO_DB_URL.replace('libsql://', 'https://') + '/v2/pipeline';
 
 export async function executeTursoQuery(sql, args = []) {
   const formattedArgs = args.map((arg) => {

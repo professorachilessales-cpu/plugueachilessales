@@ -257,11 +257,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       try {
         sessionStorage.setItem('plugue_auth_user', JSON.stringify(user));
+        sessionStorage.setItem('plugue_session_active', 'true');
+        localStorage.setItem('plugue_auth_user', JSON.stringify(user));
+        localStorage.setItem('plugue_session_active', 'true');
       } catch {}
       syncAuthCookies(user.role, user.funcao_tipo);
     } else {
       try {
         sessionStorage.removeItem('plugue_auth_user');
+        sessionStorage.removeItem('plugue_session_active');
+        localStorage.removeItem('plugue_auth_user');
+        localStorage.removeItem('plugue_session_active');
       } catch {}
     }
   };
@@ -314,12 +320,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // -------------------------------------------------------------
       // Autenticação & Sessão:
-      // Regra: "Toda vez que iniciar o sistema tem que solicitar o login"
-      // Verifica se existe sessão ativa em sessionStorage
+      // Verifica se existe sessão ativa em sessionStorage ou localStorage.
+      // (Em navegadores mobile, ao abrir a câmera nativa o SO frequentemente
+      // suspende ou descarta o sessionStorage; o localStorage garante a persistência)
       // -------------------------------------------------------------
-      const isSessionActive = sessionStorage.getItem('plugue_session_active');
-      const sessionUserJson = sessionStorage.getItem('plugue_session_user');
-      const authUserJson = sessionStorage.getItem('plugue_auth_user');
+      let isSessionActive = sessionStorage.getItem('plugue_session_active');
+      let sessionUserJson = sessionStorage.getItem('plugue_session_user');
+      let authUserJson = sessionStorage.getItem('plugue_auth_user');
+
+      // Restauração transparente a partir de localStorage caso sessionStorage tenha sido esvaziado
+      if (!authUserJson) {
+        authUserJson = localStorage.getItem('plugue_auth_user');
+        if (authUserJson) {
+          try {
+            sessionStorage.setItem('plugue_auth_user', authUserJson);
+          } catch {}
+        }
+      }
+
+      if (!sessionUserJson) {
+        sessionUserJson = localStorage.getItem('plugue_session_user') || authUserJson;
+        if (sessionUserJson) {
+          try {
+            sessionStorage.setItem('plugue_session_user', sessionUserJson);
+          } catch {}
+        }
+      }
+
+      if (isSessionActive !== 'true') {
+        const localActive = localStorage.getItem('plugue_session_active');
+        if (localActive === 'true' || authUserJson) {
+          isSessionActive = 'true';
+          try {
+            sessionStorage.setItem('plugue_session_active', 'true');
+          } catch {}
+        }
+      }
 
       if (authUserJson) {
         try {
@@ -539,7 +575,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             // Preserva a sessão e os dados do usuário que efetuou login
             let activeUser: SystemUser | null = null;
             try {
-              const sessionUserStr = sessionStorage.getItem('plugue_auth_user') || sessionStorage.getItem('plugue_session_user');
+              const sessionUserStr =
+                sessionStorage.getItem('plugue_auth_user') ||
+                sessionStorage.getItem('plugue_session_user') ||
+                localStorage.getItem('plugue_auth_user') ||
+                localStorage.getItem('plugue_session_user');
               if (sessionUserStr) {
                 activeUser = JSON.parse(sessionUserStr);
               }
@@ -569,6 +609,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 try {
                   sessionStorage.setItem('plugue_auth_user', JSON.stringify(sanitizedFound));
                   sessionStorage.setItem('plugue_session_user', JSON.stringify(sanitizedFound));
+                  sessionStorage.setItem('plugue_session_active', 'true');
+                  localStorage.setItem('plugue_auth_user', JSON.stringify(sanitizedFound));
+                  localStorage.setItem('plugue_session_user', JSON.stringify(sanitizedFound));
+                  localStorage.setItem('plugue_session_active', 'true');
                 } catch {}
               }
             } else if (!activeUser) {
@@ -946,9 +990,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       if (!authenticatedUser) {
         sessionStorage.setItem('plugue_auth_user', JSON.stringify(user));
+        localStorage.setItem('plugue_auth_user', JSON.stringify(user));
       }
       sessionStorage.setItem('plugue_session_active', 'true');
       sessionStorage.setItem('plugue_session_user', JSON.stringify(user));
+      localStorage.setItem('plugue_session_active', 'true');
+      localStorage.setItem('plugue_session_user', JSON.stringify(user));
       localStorage.setItem('school_os_current_user_id', user.id);
       localStorage.setItem('school_os_role', user.role);
     } catch (e) {
@@ -976,6 +1023,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sessionStorage.removeItem('plugue_session_user');
       sessionStorage.removeItem('plugue_auth_user');
       sessionStorage.removeItem('plugue_simulated_prof');
+      localStorage.removeItem('plugue_session_active');
+      localStorage.removeItem('plugue_session_user');
+      localStorage.removeItem('plugue_auth_user');
       localStorage.removeItem('school_os_current_user_id');
       localStorage.removeItem('plugue_lembrar_usuario');
     } catch (e) {

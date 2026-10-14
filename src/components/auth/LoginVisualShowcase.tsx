@@ -8,8 +8,7 @@ import {
   GraduationCap, 
   Zap, 
   ShieldCheck, 
-  Sparkles,
-  Layers
+  Sparkles
 } from 'lucide-react';
 import LoginConstellationCanvas from './LoginConstellationCanvas';
 

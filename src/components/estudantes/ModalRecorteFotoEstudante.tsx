@@ -67,11 +67,13 @@ export function ModalRecorteFotoEstudante({
 
   // Carregar e validar a imagem
   useEffect(() => {
+    let ativo = true;
     setCarregandoImagem(true);
     setErroImagem(null);
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
+      if (!ativo) return;
       imageElementRef.current = img;
       setDimensoesImagem({ width: img.naturalWidth, height: img.naturalHeight });
       setCarregandoImagem(false);
@@ -81,10 +83,17 @@ export function ModalRecorteFotoEstudante({
       setRotacao(0);
     };
     img.onerror = () => {
+      if (!ativo) return;
       setCarregandoImagem(false);
       setErroImagem('Não foi possível carregar a imagem. Verifique o formato do arquivo.');
     };
     img.src = imagemSrc;
+
+    return () => {
+      ativo = false;
+      img.onload = null;
+      img.onerror = null;
+    };
   }, [imagemSrc]);
 
   // Controles de Rotação

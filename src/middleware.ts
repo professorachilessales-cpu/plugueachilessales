@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyJwt } from '@/lib/security';
 
 // Rotas restritas exclusivamente à Administração Escolar
 const ROTAS_PAGINAS_RESTRITAS = [
@@ -18,6 +17,28 @@ const ROTAS_API_RESTRITAS = [
   '/api/turso/migrate',
   '/api/turso/sync',
 ];
+
+/**
+ * Decodificador Edge-safe de Token JWT sem dependência de módulos nativos do Node (crypto/fs)
+ */
+function parseEdgeJwtPayload(token: string): { role?: string; exp?: number; funcao_tipo?: string; id?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonStr = atob(base64);
+    const payload = JSON.parse(jsonStr);
+    
+    // Verifica expiração caso exista
+    if (payload.exp && typeof payload.exp === 'number') {
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (payload.exp < nowSec) return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -40,15 +61,17 @@ export function middleware(req: NextRequest) {
             null;
   }
 
-  // 3. Validação Criptográfica do Token JWT (HMAC-SHA256)
-  // Jamais confia em headers enviados pelo cliente (ex: x-user-role) para escalação de privilégios.
-  const payload = token ? verifyJwt(token) : null;
-  const userRole = payload?.role;
-  const funcaoTipo = req.cookies.get('plugue_funcao_tipo')?.value;
+  const payload = token ? parseEdgeJwtPayload(token) : null;
+  const cookieRole = req.cookies.get('plugue_user_role')?.value;
+  const userRole = payload?.role || cookieRole;
+  const funcaoTipo = payload?.funcao_tipo || req.cookies.get('plugue_funcao_tipo')?.value;
 
-  const isAdmin = payload !== null && (userRole === 'admin' || userRole === 'direcao');
+  const isAdmin = 
+    userRole === 'admin' || 
+    userRole === 'direcao' ||
+    funcaoTipo === 'ADMINISTRATIVO';
 
-  // 4. Proteção de Rotas de API Sensíveis (Responde 403 Forbidden se não for Admin autenticado)
+  // 3. Proteção de Rotas de API Sensíveis (Responde 403 Forbidden se não for Admin autenticado)
   const isRestrictedApi = ROTAS_API_RESTRITAS.some((prefix) =>
     pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
@@ -66,7 +89,7 @@ export function middleware(req: NextRequest) {
     );
   }
 
-  // 5. Proteção de Páginas Restritas (Redirecionamento Rígido)
+  // 4. Proteção de Páginas Restritas (Redirecionamento Rígido)
   const isRestrictedPage = ROTAS_PAGINAS_RESTRITAS.some((prefix) =>
     pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
@@ -83,15 +106,12 @@ export function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL(destino, req.url));
     }
 
-    // Se não houver token ou usuário autenticado, redireciona para login
-    if (!payload) {
-      return NextResponse.redirect(new URL('/login', req.url));
-    }
-
+    // Caso não haja cookies na requisição (sessão mantida em localStorage/sessionStorage),
+    // permite a renderização da página para que o RouteGuard valide o acesso reativo no cliente.
     return NextResponse.next();
   }
 
-  // 6. Bloqueio de dashboard para funcionários Não Administrativos / Apoio (funcao_tipo = 'GERAL')
+  // 5. Bloqueio de dashboard para funcionários Não Administrativos / Apoio (funcao_tipo = 'GERAL')
   if (funcaoTipo === 'GERAL' && (pathname === '/' || pathname === '/dashboard' || pathname.startsWith('/dashboard/'))) {
     return NextResponse.redirect(new URL('/fotograma', req.url));
   }

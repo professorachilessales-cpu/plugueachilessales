@@ -78,8 +78,25 @@ export default function EstudantesPage() {
     addEstudante, 
     updateEstudante, 
     deleteEstudante, 
-    addDocumentoToEstudante 
+    addDocumentoToEstudante,
+    refreshEstudantes,
   } = useApp();
+
+  const [atualizandoBanco, setAtualizandoBanco] = useState(false);
+
+  // Garante busca direta e fresca do banco de dados (zero cache) ao abrir a tela de Gestão de Estudantes
+  useEffect(() => {
+    refreshEstudantes();
+  }, [refreshEstudantes]);
+
+  const handleRecarregarBanco = async () => {
+    try {
+      setAtualizandoBanco(true);
+      await refreshEstudantes();
+    } finally {
+      setAtualizandoBanco(false);
+    }
+  };
 
   // Professores marcados como Apoio Escolar / AEE
   const professoresApoio = useMemo(() => {
@@ -686,12 +703,18 @@ export default function EstudantesPage() {
             <Users className="h-7 w-7 text-school-blue-600 dark:text-school-gold-400" />
             Gestão de Estudantes
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Cadastros civis completos, RG, SUS, Bolsa Família, cotas, múltiplos contatos e AEE
-          </p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={handleRecarregarBanco}
+            disabled={atualizandoBanco}
+            title="Recarregar dados diretamente do banco de dados (sem cache)"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 text-slate-500 dark:text-slate-400 ${atualizandoBanco ? 'animate-spin' : ''}`} />
+            <span>{atualizandoBanco ? 'Sincronizando...' : 'Atualizar Banco'}</span>
+          </button>
           <button
             onClick={exportarParaGoogleContacts}
             title="Exportar para o Google"

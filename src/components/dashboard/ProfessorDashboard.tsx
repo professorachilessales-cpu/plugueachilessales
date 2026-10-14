@@ -22,7 +22,8 @@ import {
   HeartHandshake,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { ModalRedacaoParecerIA } from '@/components/relatorios/ModalRedacaoParecerIA';
 import { ModalRegistrarReposicao } from '@/components/professores/ModalRegistrarReposicao';
@@ -45,8 +46,24 @@ export function ProfessorDashboard() {
     reposicoesAulas, 
     faltasProfessores,
     atestadosProfessor,
-    deleteAtestadoProfessor 
+    deleteAtestadoProfessor,
+    refreshEventos
   } = useApp();
+
+  const [recarregandoEventos, setRecarregandoEventos] = useState(false);
+
+  useEffect(() => {
+    refreshEventos();
+  }, [refreshEventos]);
+
+  const handleAtualizarEventos = async () => {
+    setRecarregandoEventos(true);
+    try {
+      await refreshEventos();
+    } finally {
+      setRecarregandoEventos(false);
+    }
+  };
 
   const usuarioLogado = authenticatedUser || currentUser;
 
@@ -303,18 +320,21 @@ export function ProfessorDashboard() {
     }
   };
 
-  // 4. PRÓXIMOS EVENTOS ESCOLARES (da data atual em diante, apenas categorias visíveis para docentes)
+  // 4. PRÓXIMOS EVENTOS ESCOLARES (todos os eventos do banco, com prioridade para futuros/em andamento)
   const proximos10Eventos = useMemo(() => {
     const agora = new Date();
     const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
 
-    return [...eventos]
-      .filter((ev) => {
-        const cat = categoriasEvento.find(
-          (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
-        );
-        if (cat && cat.visivel_docentes === false) return false;
+    const visiveis = [...eventos].filter((ev) => {
+      const cat = categoriasEvento.find(
+        (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
+      );
+      if (cat && cat.visivel_docentes === false) return false;
+      return true;
+    });
 
+    const futuros = visiveis
+      .filter((ev) => {
         const fim = ev.data_fim || ev.data_inicio;
         if (!fim) return false;
         const fimStr = fim.includes('T') ? fim.split('T')[0] : fim;
@@ -324,8 +344,22 @@ export function ProfessorDashboard() {
         const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : (a.data_inicio || '') + 'T00:00:00').getTime() || 0;
         const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : (b.data_inicio || '') + 'T00:00:00').getTime() || 0;
         return timeA - timeB;
+      });
+
+    const passados = visiveis
+      .filter((ev) => {
+        const fim = ev.data_fim || ev.data_inicio;
+        if (!fim) return true;
+        const fimStr = fim.includes('T') ? fim.split('T')[0] : fim;
+        return fimStr < hojeStr;
       })
-      .slice(0, 10);
+      .sort((a, b) => {
+        const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : (a.data_inicio || '') + 'T00:00:00').getTime() || 0;
+        const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : (b.data_inicio || '') + 'T00:00:00').getTime() || 0;
+        return timeB - timeA; // Mais recentes primeiro
+      });
+
+    return [...futuros, ...passados].slice(0, 10);
   }, [eventos, categoriasEvento]);
 
   // 5. ANIVERSARIANTES DO MÊS (Estudantes das turmas do professor e escola)

@@ -913,11 +913,11 @@ export default function EstudantesPage() {
 
                       {/* Indicadores AEE & Apoio */}
                       <td className="px-4 py-3.5">
-                        {est.aee || est.possui_laudo ? (
+                        {est.possui_laudo ? (
                           <div className="space-y-1">
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                               <ShieldAlert className="h-3 w-3" />
-                              AEE / LAUDO
+                              Com Laudo
                             </span>
                             {est.apoio_nome ? (
                               <div className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 truncate max-w-[130px]" title={`Apoio: ${est.apoio_nome}`}>
@@ -925,6 +925,22 @@ export default function EstudantesPage() {
                               </div>
                             ) : (
                               <div className="text-[10px] text-red-600 dark:text-red-400 font-bold">
+                                Sem apoio
+                              </div>
+                            )}
+                          </div>
+                        ) : (est.aee || est.laudo_descricao || est.apoio_id || est.apoio_nome) ? (
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                              <AlertCircle className="h-3 w-3" />
+                              Em investigação
+                            </span>
+                            {est.apoio_nome ? (
+                              <div className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 truncate max-w-[130px]" title={`Apoio: ${est.apoio_nome}`}>
+                                Apoio: {est.apoio_nome}
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-amber-700 dark:text-amber-400 font-bold">
                                 Sem apoio
                               </div>
                             )}
@@ -2213,7 +2229,7 @@ export default function EstudantesPage() {
                     </h5>
                     <div className="space-y-1 print:space-y-0 text-xs print:text-[8px]">
                       <div className="flex items-center gap-3">
-                        <div><span className="text-slate-600 dark:text-slate-300 print:text-slate-700 font-medium">Laudo:</span> <strong className="text-slate-900 dark:text-white uppercase print:text-black">{estudanteSelecionado.possui_laudo ? 'SIM' : 'NÃO'}</strong></div>
+                        <div><span className="text-slate-600 dark:text-slate-300 print:text-slate-700 font-medium">Laudo:</span> <strong className="text-slate-900 dark:text-white uppercase print:text-black">{estudanteSelecionado.possui_laudo ? 'COM LAUDO' : (estudanteSelecionado.aee ? 'EM INVESTIGAÇÃO' : 'NÃO')}</strong></div>
                         <div><span className="text-slate-600 dark:text-slate-300 print:text-slate-700 font-medium">Elegível AEE:</span> <strong className="text-slate-900 dark:text-white uppercase print:text-black">{estudanteSelecionado.aee ? 'SIM' : 'NÃO'}</strong></div>
                       </div>
                       <div>

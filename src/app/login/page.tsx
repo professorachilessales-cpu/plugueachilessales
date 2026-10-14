@@ -23,55 +23,7 @@ import {
   X
 } from 'lucide-react';
 import { formatarCPF, validarCPF } from '@/lib/validations';
-
-interface InspiringQuote {
-  quote: string;
-  author: string;
-  role: string;
-}
-
-const INSPIRING_QUOTES: InspiringQuote[] = [
-  {
-    quote: "A educação é a arma mais poderosa que você pode usar para mudar o mundo.",
-    author: "Nelson Mandela",
-    role: "Líder Humanitário & Prêmio Nobel da Paz"
-  },
-  {
-    quote: "Se a educação sozinha não transforma a sociedade, sem ela tampouco a sociedade muda.",
-    author: "Paulo Freire",
-    role: "Patrono da Educação Brasileira"
-  },
-  {
-    quote: "Investir em conhecimento rende sempre os melhores juros.",
-    author: "Benjamin Franklin",
-    role: "Cientista e Polímata"
-  },
-  {
-    quote: "A educação tem raízes amargas, mas os seus frutos são doces.",
-    author: "Aristóteles",
-    role: "Filósofo da Grécia Antiga"
-  },
-  {
-    quote: "O principal objetivo da educação é criar indivíduos capazes de fazer coisas novas, e não simplesmente repetir o que outras gerações fizeram.",
-    author: "Jean Piaget",
-    role: "Epistemólogo e Psicólogo do Desenvolvimento"
-  },
-  {
-    quote: "Feliz aquele que transfere o que sabe e aprende o que ensina.",
-    author: "Cora Coralina",
-    role: "Poetisa e Contista Brasileira"
-  },
-  {
-    quote: "Ensinar é um exercício de imortalidade. De alguma forma continuamos a viver naqueles cujos olhos aprenderam a ver o mundo pela magia da nossa palavra.",
-    author: "Rubem Alves",
-    role: "Educador, Escritor e Psicanalista"
-  },
-  {
-    quote: "A educação não é uma preparação para a vida; a educação é a própria vida.",
-    author: "John Dewey",
-    role: "Filósofo e Reformador Pedagógico"
-  }
-];
+import LoginVisualShowcase from '@/components/auth/LoginVisualShowcase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -88,18 +40,8 @@ export default function LoginPage() {
   const [tentativasFalhas, setTentativasFalhas] = useState(0);
   const [bloqueadoSegundos, setBloqueadoSegundos] = useState<number | null>(null);
 
-  // Citações dinâmicas inspiradoras
-  const [citacaoIndex, setCitacaoIndex] = useState(0);
-  const [fadeCitacao, setFadeCitacao] = useState(true);
-
   // Modal institucional "Esqueci minha senha"
   const [modalEsqueciSenha, setModalEsqueciSenha] = useState(false);
-
-  // Inicializa uma citação aleatória ao montar o componente
-  useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * INSPIRING_QUOTES.length);
-    setCitacaoIndex(randomIndex);
-  }, []);
 
   // Timer para bloqueio temporário por rate limiting
   useEffect(() => {
@@ -117,15 +59,6 @@ export default function LoginPage() {
 
     return () => clearInterval(timer);
   }, [bloqueadoSegundos]);
-
-  // Transição suave para próxima citação
-  const trocarCitacao = () => {
-    setFadeCitacao(false);
-    setTimeout(() => {
-      setCitacaoIndex((prev) => (prev + 1) % INSPIRING_QUOTES.length);
-      setFadeCitacao(true);
-    }, 220);
-  };
 
   // Validação em tempo real do CPF (máscara completa de 14 caracteres)
   const statusCpf = useMemo(() => {
@@ -264,118 +197,12 @@ export default function LoginPage() {
     <main className="min-h-screen w-full flex flex-col lg:flex-row bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-school-gold-500 selection:text-slate-950 overflow-x-hidden relative">
       
       {/* ========================================================================= */}
-      {/* 1. PAINEL VISUAL / DESTAQUE (SPLIT SCREEN - APENAS DESKTOP)              */}
+      {/* 1. PAINEL VISUAL / DESTAQUE COM ANIMAÇÕES DE IMPACTO (APENAS COMPUTADOR) */}
       {/* ========================================================================= */}
-      <section 
-        className="hidden lg:flex relative lg:w-[52%] xl:w-[55%] flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-white/10 bg-gradient-to-br from-slate-100 dark:from-slate-950 via-blue-50 dark:via-school-blue-950 to-slate-200 dark:to-slate-900"
-        aria-label="Painel institucional e visual da plataforma"
-      >
-        {/* Glows de ambientação e luz volumétrica */}
-        <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-school-gold-500/15 blur-[120px] pointer-events-none" />
-        <div className="absolute top-1/2 -right-24 h-96 w-96 rounded-full bg-school-blue-500/20 blur-[130px] pointer-events-none" />
-        <div className="absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-amber-500/10 blur-[110px] pointer-events-none" />
-
-        {/* Textura de malha isométrica sutil */}
-        <div 
-          className="absolute inset-0 opacity-[0.035] pointer-events-none bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px]" 
-          aria-hidden="true"
-        />
-
-        {/* Topo do Bloco Visual: Identidade e Nome da Escola */}
-        <div className="relative z-10 space-y-4">
-          <div className="flex items-center gap-3.5">
-            {/* Logo da Aplicação */}
-            <div className="relative h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-school-gold-400/40 p-1.5 shadow-xl shadow-school-gold-500/10 flex items-center justify-center backdrop-blur-md group hover:border-school-gold-400 transition-all">
-              <Image 
-                src="/logo-plugue.png" 
-                alt="Logo PLUGUE" 
-                width={48} 
-                height={48} 
-                className="object-contain drop-shadow-md rounded-xl"
-                priority
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-                  PLUGUE
-                </span>
-              </div>
-              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Plataforma Unificada de Gestão Educacional
-              </p>
-            </div>
-          </div>
-
-          {/* Nome da Escola com Tipografia Imponente e Profissional */}
-          <div className="pt-2">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-slate-900 dark:text-white text-balance leading-tight drop-shadow-sm">
-              {escolaConfig?.nome_escola || 'Escola Técnica Estadual Professor Achiles Sales'}
-            </h1>
-          </div>
-        </div>
-
-        {/* Centro Visual: Composição Educacional */}
-        <div className="relative z-10 my-6 sm:my-8 lg:my-6 flex items-center justify-center">
-          <div className="relative w-full max-w-lg rounded-3xl p-2 sm:p-3 bg-gradient-to-b from-white/15 via-white/5 to-transparent border border-slate-200 dark:border-white/15 shadow-2xl backdrop-blur-xl group">
-            {/* Imagem com iluminação e cantos arredondados */}
-            <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full overflow-hidden rounded-2xl bg-white/90 dark:bg-slate-900/90 shadow-inner">
-              <Image 
-                src="/login-isometric-3d.jpg" 
-                alt="Composição Educacional e Tecnológica PLUGUE" 
-                fill 
-                className="object-cover object-center transform transition-transform duration-700 ease-out group-hover:scale-105"
-                priority
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-
-        {/* Rodapé do Painel Visual: Citações Inspiradoras Dinâmicas */}
-        <div className="relative z-10 pt-2">
-          <div className="relative rounded-2xl bg-white/70 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 p-4 sm:p-5 backdrop-blur-xl shadow-lg">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 text-school-gold-700 dark:text-school-gold-400 text-xs font-bold uppercase tracking-wider">
-                <QuoteIcon className="h-4 w-4 shrink-0 fill-school-gold-400/20" />
-                <span>Citação Inspiradora</span>
-              </div>
-
-              {/* Botão de Alternar Citação com Fade */}
-              <button
-                type="button"
-                onClick={trocarCitacao}
-                title="Sortear outra citação inspiradora"
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 active:scale-95 transition-all"
-                aria-label="Sortear outra frase de impacto sobre educação"
-              >
-                <RefreshCw className="h-3 w-3" />
-                <span className="hidden sm:inline">Nova Frase</span>
-              </button>
-            </div>
-
-            {/* Texto da Citação com Transição Suave (Fade) */}
-            <div 
-              className={`mt-2.5 transition-all duration-300 transform ${
-                fadeCitacao ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-              }`}
-            >
-              <blockquote className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 italic font-medium leading-relaxed">
-                &ldquo;{citacaoAtual.quote}&rdquo;
-              </blockquote>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-school-gold-700 dark:text-school-gold-300">
-                  — {citacaoAtual.author}
-                </span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
-                  ({citacaoAtual.role})
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <LoginVisualShowcase 
+        nomeEscola={escolaConfig?.nome_escola} 
+        theme={theme} 
+      />
 
       {/* ========================================================================= */}
       {/* 2. PAINEL DE FORMULÁRIO DE AUTENTICAÇÃO E SEGURANÇA                       */}
@@ -444,8 +271,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Card Moderno com Acabamento Clean e Glassmorphism */}
-        <div className="relative w-full max-w-md rounded-3xl border border-slate-200 dark:border-white/15 bg-white/90 dark:bg-slate-900/80 p-6 sm:p-8 backdrop-blur-2xl shadow-2xl space-y-6">
+        {/* Card Moderno com Acabamento Clean, Glassmorphism e Animação de Entrada */}
+        <div className="relative w-full max-w-md rounded-3xl border border-slate-200 dark:border-white/15 bg-white/90 dark:bg-slate-900/80 p-6 sm:p-8 backdrop-blur-2xl shadow-2xl space-y-6 lg:animate-entrance-hero">
           
           {/* Cabeçalho do Card */}
           <div className="space-y-1.5">

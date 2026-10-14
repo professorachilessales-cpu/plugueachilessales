@@ -472,23 +472,20 @@ export default function DashboardPage() {
     return estudantes.filter(e => checarPossuiLaudo(e) || checarAee(e)).length;
   }, [estudantes]);
 
-  // Próximos Eventos Escolares (todos os eventos do banco, com prioridade para futuros/em andamento)
+  // Próximos Eventos Escolares (eventos de hoje em diante, ordenados cronologicamente e limitados a 10)
   const dezProximosEventos = useMemo(() => {
     const agora = new Date();
     const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
 
-    const visiveis = eventos.filter((ev) => {
-      if (role === 'professor') {
-        const cat = categoriasEvento.find(
-          (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
-        );
-        if (cat && cat.visivel_docentes === false) return false;
-      }
-      return true;
-    });
-
-    const futuros = visiveis
+    return eventos
       .filter((ev) => {
+        if (role === 'professor') {
+          const cat = categoriasEvento.find(
+            (c) => c.id === ev.categoria || c.nome.toLowerCase() === (ev.categoria || '').toLowerCase()
+          );
+          if (cat && cat.visivel_docentes === false) return false;
+        }
+
         const fim = ev.data_fim || ev.data_inicio;
         if (!fim) return false;
         const fimStr = fim.includes('T') ? fim.split('T')[0] : fim;
@@ -498,22 +495,8 @@ export default function DashboardPage() {
         const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : (a.data_inicio || '') + 'T00:00:00').getTime() || 0;
         const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : (b.data_inicio || '') + 'T00:00:00').getTime() || 0;
         return timeA - timeB;
-      });
-
-    const passados = visiveis
-      .filter((ev) => {
-        const fim = ev.data_fim || ev.data_inicio;
-        if (!fim) return true;
-        const fimStr = fim.includes('T') ? fim.split('T')[0] : fim;
-        return fimStr < hojeStr;
       })
-      .sort((a, b) => {
-        const timeA = new Date(a.data_inicio?.includes('T') ? a.data_inicio : (a.data_inicio || '') + 'T00:00:00').getTime() || 0;
-        const timeB = new Date(b.data_inicio?.includes('T') ? b.data_inicio : (b.data_inicio || '') + 'T00:00:00').getTime() || 0;
-        return timeB - timeA; // Mais recentes primeiro
-      });
-
-    return [...futuros, ...passados].slice(0, 10);
+      .slice(0, 10);
   }, [eventos, categoriasEvento, role]);
 
   // Estado do Modal de Envio de WhatsApp para Inclusão

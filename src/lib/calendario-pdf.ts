@@ -14,6 +14,7 @@ export interface EventoFormatadoPdf {
   local: string;
   descricao: string;
   chaveOrdenacao: string;
+  diasDoMes: number[];
 }
 
 export interface GerarPdfCalendarioOpcoes {
@@ -22,6 +23,7 @@ export interface GerarPdfCalendarioOpcoes {
   ano: number;
   mes: number; // 0 = Janeiro, 9 = Outubro, etc. (índice 0-11 padrão Date)
   escolaConfig: EscolaConfig;
+  categoriaFiltroNome?: string;
 }
 
 const DIAS_SEMANA_COMPLETO = [
@@ -58,6 +60,24 @@ const MESES_NOMES = [
   'Novembro',
   'Dezembro',
 ];
+
+/**
+ * Converte cor hexadecimal (#RRGGBB ou #RGB) para tupla RGB [r, g, b]
+ */
+function hexToRgb(hex: string): [number, number, number] {
+  if (!hex || !hex.startsWith('#')) return [37, 99, 235];
+  const h = hex.replace('#', '');
+  if (h.length === 3) {
+    const r = parseInt(h[0] + h[0], 16) || 0;
+    const g = parseInt(h[1] + h[1], 16) || 0;
+    const b = parseInt(h[2] + h[2], 16) || 0;
+    return [r, g, b];
+  }
+  const r = parseInt(h.substring(0, 2), 16) || 0;
+  const g = parseInt(h.substring(2, 4), 16) || 0;
+  const b = parseInt(h.substring(4, 6), 16) || 0;
+  return [r, g, b];
+}
 
 /**
  * Resolve informações de categoria com retrocompatibilidade
@@ -104,6 +124,10 @@ export function resolverCategoriaInfo(
     aniversário: 'cat-aniversarios',
     aniversarios: 'cat-aniversarios',
     aniversários: 'cat-aniversarios',
+    aniverssario: 'cat-aniversarios',
+    aniverssário: 'cat-aniversarios',
+    aniverssarios: 'cat-aniversarios',
+    aniverssários: 'cat-aniversarios',
     gestao: 'cat-gestao',
     gestão: 'cat-gestao',
   };
@@ -113,14 +137,11 @@ export function resolverCategoriaInfo(
     if (canonical) return canonical;
   }
 
-  // Se o termo for explicitamente gestão ou aniversários, marcar como não visível por padrão
-  const ehPrivado = termo.includes('gest') || termo.includes('anivers');
-
   return {
     id: catIdOrName,
     nome: catIdOrName,
     cor_hex: '#2563EB',
-    visivel_docentes: !ehPrivado,
+    visivel_docentes: true,
     sistema_protegida: false,
   };
 }
@@ -189,8 +210,8 @@ export function eventoOcorreNaData(
 
 /**
  * 2. Regras de Negócio & Filtragem:
- * - Filtra eventos do mês visível
- * - Exclui eventos não visíveis no perfil dos docentes (visivel_docentes === false)
+ * - Filtra eventos que ocorrem no mês solicitado
+ * - Mapeia os dias de ocorrência dentro do mês (diasDoMes)
  * - Ordena estritamente em ordem cronológica crescente (por data e horário)
  */
 export function filtrarEOrdenarEventosMes(
@@ -201,32 +222,21 @@ export function filtrarEOrdenarEventosMes(
 ): EventoFormatadoPdf[] {
   const diasNoMes = new Date(ano, mes + 1, 0).getDate();
   const mesFormatado = String(mes + 1).padStart(2, '0');
-  const inicioMesStr = `${ano}-${mesFormatado}-01`;
-  const fimMesStr = `${ano}-${mesFormatado}-${String(diasNoMes).padStart(2, '0')}`;
 
   const eventosNoMes: EventoFormatadoPdf[] = [];
 
   for (const ev of eventos) {
-    // 1. REGRA DE VISIBILIDADE:
-    // Exclui do relatório eventos com flag de "NÃO Visível no perfil dos docentes"
     const catInfo = resolverCategoriaInfo(ev.categoria, categorias);
-    const visivelDocentes =
-      (ev as any).visivel_docentes !== false &&
-      catInfo.visivel_docentes !== false &&
-      catInfo.id !== 'cat-aniversarios' &&
-      catInfo.nome.toLowerCase() !== 'aniversários';
 
-    if (!visivelDocentes) {
-      continue; // Ignora eventos exclusivos da gestão / ocultos para docentes
-    }
-
-    // 2. VERIFICA SE O EVENTO OCORRE NESTE MÊS:
+    // Mapeia todos os dias deste mês em que o evento ocorre
+    const diasDoMes: number[] = [];
     let primeiraDataOcorrenciaNoMes: string | null = null;
     let ultimaDataOcorrenciaNoMes: string | null = null;
 
     for (let dia = 1; dia <= diasNoMes; dia++) {
       const dataString = `${ano}-${mesFormatado}-${String(dia).padStart(2, '0')}`;
       if (eventoOcorreNaData(ev, dataString, dia, mes + 1, ano)) {
+        diasDoMes.push(dia);
         if (!primeiraDataOcorrenciaNoMes) {
           primeiraDataOcorrenciaNoMes = dataString;
         }
@@ -235,17 +245,16 @@ export function filtrarEOrdenarEventosMes(
     }
 
     // Se o evento não ocorre em nenhum dia deste mês, ignora
-    if (!primeiraDataOcorrenciaNoMes || !ultimaDataOcorrenciaNoMes) {
+    if (diasDoMes.length === 0 || !primeiraDataOcorrenciaNoMes || !ultimaDataOcorrenciaNoMes) {
       continue;
     }
 
-    // 3. FORMATAÇÃO DAS DATAS E INTERVALOS:
+    // FORMATAÇÃO DAS DATAS E INTERVALOS:
     const iniStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
     const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T')
       ? (ev.data_fim || ev.data_inicio).split('T')[0]
       : (ev.data_fim || ev.data_inicio);
 
-    // Datas originais ou projetadas (se recorrente)
     let dataIniEfetiva = iniStr;
     let dataFimEfetiva = fimStr;
 
@@ -317,14 +326,15 @@ export function filtrarEOrdenarEventosMes(
       titulo: ev.titulo,
       categoriaId: catInfo.id,
       categoriaNome: catInfo.nome,
-      categoriaCor: catInfo.cor_hex || '#2563EB',
+      categoriaCor: ev.cor || catInfo.cor_hex || '#2563EB',
       local,
       descricao,
       chaveOrdenacao,
+      diasDoMes,
     });
   }
 
-  // 3. ORDENAÇÃO ESTRITAMENTE CRONOLÓGICA CRESCENTE:
+  // Ordenação estritamente cronológica crescente
   eventosNoMes.sort((a, b) => a.chaveOrdenacao.localeCompare(b.chaveOrdenacao));
 
   return eventosNoMes;
@@ -399,15 +409,23 @@ async function inicializarJsPdfEAutoTable(): Promise<{ jsPDF: any; autoTable: an
 }
 
 /**
- * Converte imagem (logo) em Base64 Data URL no navegador para inclusão no PDF
+ * Converte imagem (logo) em Base64 Data URL no navegador com timeout de segurança
  */
 async function carregarImagemBase64(url: string): Promise<string | null> {
   if (!url || typeof window === 'undefined') return null;
 
   return new Promise((resolve) => {
+    let timer: any = null;
     const img = new Image();
     img.crossOrigin = 'Anonymous';
+
+    // Timeout de segurança (1500ms) para não travar geração do PDF se a imagem não carregar
+    timer = setTimeout(() => {
+      resolve(null);
+    }, 1500);
+
     img.onload = () => {
+      if (timer) clearTimeout(timer);
       try {
         const canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth || img.width;
@@ -421,14 +439,50 @@ async function carregarImagemBase64(url: string): Promise<string | null> {
         resolve(null);
       }
     };
-    img.onerror = () => resolve(null);
+    img.onerror = () => {
+      if (timer) clearTimeout(timer);
+      resolve(null);
+    };
     img.src = url;
   });
 }
 
 /**
- * 3. Estrutura & Layout do PDF & Montagem do Documento
- * Gera e dispara o download do arquivo PDF A4 formatado e otimizado para impressão.
+ * Desenha o rodapé institucional em qualquer página do documento
+ */
+function desenharRodape(
+  doc: any,
+  pageWidth: number,
+  pageHeight: number,
+  marginX: number,
+  pageNum: number,
+  totalPages: number,
+  dataHoraEmissao: string,
+  nomeEscola: string
+) {
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, pageHeight - 12, pageWidth - marginX, pageHeight - 12);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184); // slate-400
+
+  const rodapeEsquerdo = `${nomeEscola}  •  Calendário Escolar Oficial  •  Emissão: ${dataHoraEmissao}`;
+  doc.text(rodapeEsquerdo, marginX, pageHeight - 7);
+
+  const rodapeDireito = `Página ${pageNum} de ${totalPages}`;
+  doc.text(rodapeDireito, pageWidth - marginX, pageHeight - 7, { align: 'right' });
+}
+
+/**
+ * Estrutura & Layout do PDF & Montagem do Documento
+ * Gera e dispara o download do arquivo PDF A4 formatado e otimizado para impressão:
+ * 1. Cabeçalho Institucional Timbrado Completo
+ * 2. Banner de Mês e Ano em Destaque
+ * 3. Grade Mensal Visual Completa (7 colunas Dom-Sáb, dias destacados e pílulas de eventos)
+ * 4. Tabela Cronológica Detalhada de Todos os Eventos (autoTable com paginação inteligente)
+ * 5. Rodapé com Numeração de Páginas e Assinatura Digital
  */
 export async function gerarCalendarioMensalPdf({
   eventos,
@@ -436,11 +490,12 @@ export async function gerarCalendarioMensalPdf({
   ano,
   mes,
   escolaConfig,
+  categoriaFiltroNome,
 }: GerarPdfCalendarioOpcoes): Promise<{ success: boolean; filename?: string; totalEventos?: number; error?: string }> {
   try {
     const { jsPDF } = await inicializarJsPdfEAutoTable();
 
-    // 1. Filtragem e ordenação conforme regras de negócio
+    // 1. Filtragem e ordenação cronológica
     const eventosFiltrados = filtrarEOrdenarEventosMes(eventos, categorias, ano, mes);
     const nomeMesExtenso = MESES_NOMES[mes] || 'Mês';
     const nomeMesCapitalizado = nomeMesExtenso.charAt(0).toUpperCase() + nomeMesExtenso.slice(1);
@@ -455,6 +510,7 @@ export async function gerarCalendarioMensalPdf({
     const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
     const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
     const marginX = 14;
+    const contentWidth = pageWidth - marginX * 2; // 182mm
 
     const dataHoraEmissao = new Date().toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -464,44 +520,42 @@ export async function gerarCalendarioMensalPdf({
       minute: '2-digit',
     });
 
-    // 3. Cabeçalho Institucional Timbrado
-    let cursorY = 14;
+    const nomeEscola = (escolaConfig.nome_escola || 'PLUGUE - GESTÃO ESCOLAR INTEGRADA').toUpperCase();
 
-    // Tentativa de carregar logotipo da escola
+    // 3. Cabeçalho Institucional Timbrado
+    let cursorY = 12;
+
     const logoBase64 = await carregarImagemBase64(escolaConfig.logo_url || '/logo-plugue.png');
 
     if (logoBase64) {
       try {
         doc.addImage(logoBase64, 'PNG', marginX, cursorY, 20, 20, undefined, 'FAST');
       } catch (errLogo) {
-        // Fallback gráfico se a imagem falhar
-        doc.setFillColor(30, 58, 138);
+        doc.setFillColor(30, 58, 138); // blue-900
         doc.roundedRect(marginX, cursorY, 20, 20, 2, 2, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text('PLUG', marginX + 3.5, cursorY + 12);
+        doc.setFontSize(9);
+        doc.text('PLUGUE', marginX + 3.2, cursorY + 11.5);
       }
     } else {
-      // Brasão / Ícone institucional decorativo
-      doc.setFillColor(30, 58, 138); // Azul profundo #1E3A8A
+      doc.setFillColor(30, 58, 138); // blue-900
       doc.roundedRect(marginX, cursorY, 20, 20, 2, 2, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('ESCOLA', marginX + 2.5, cursorY + 12);
+      doc.setFontSize(9);
+      doc.text('ESCOLA', marginX + 3.2, cursorY + 11.5);
     }
 
     // Identificação textual da escola ao lado do logotipo
     const textoX = marginX + 24;
     doc.setTextColor(15, 23, 42); // slate-900
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    const nomeEscola = (escolaConfig.nome_escola || 'PLUGUE - GESTÃO ESCOLAR INTEGRADA').toUpperCase();
+    doc.setFontSize(12);
     doc.text(nomeEscola, textoX, cursorY + 5);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105); // slate-600
 
     const inepText = escolaConfig.codigo_inep ? `INEP: ${escolaConfig.codigo_inep}` : '';
@@ -514,30 +568,28 @@ export async function gerarCalendarioMensalPdf({
     const endText = escolaConfig.endereco || 'Endereço da Instituição de Ensino';
     const telText = escolaConfig.telefone ? `Tel: ${escolaConfig.telefone}` : '';
     const linhaContato = [endText, telText].filter(Boolean).join('  •  ');
-    doc.text(linhaContato, textoX, cursorY + 14);
+    doc.text(linhaContato, textoX, cursorY + 13.5);
 
     // Metadados discretos à direita no cabeçalho
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setTextColor(100, 116, 139);
     doc.text('SISTEMA DE GESTÃO ESCOLAR', pageWidth - marginX, cursorY + 5, { align: 'right' });
     doc.text(`Ano Letivo: ${escolaConfig.ano_letivo_ativo || ano}`, pageWidth - marginX, cursorY + 9.5, { align: 'right' });
-    doc.text(`Emissão: ${dataHoraEmissao}`, pageWidth - marginX, cursorY + 14, { align: 'right' });
+    doc.text(`Emissão: ${dataHoraEmissao}`, pageWidth - marginX, cursorY + 13.5, { align: 'right' });
 
-    cursorY += 24;
+    cursorY += 21;
 
     // Linha divisória sutil
     doc.setDrawColor(203, 213, 225); // slate-300
-    doc.setLineWidth(0.4);
+    doc.setLineWidth(0.3);
     doc.line(marginX, cursorY, pageWidth - marginX, cursorY);
-
-    cursorY += 5;
+    cursorY += 4;
 
     // 4. Banner com Título Principal em Destaque
-    // "Eventos Escolares - Outubro de 2026"
-    const bannerHeight = 16;
+    const bannerHeight = 13;
     doc.setFillColor(239, 246, 255); // blue-50 (#EFF6FF)
     doc.setDrawColor(191, 219, 254); // blue-200 (#BFDBFE)
-    doc.roundedRect(marginX, cursorY, pageWidth - (marginX * 2), bannerHeight, 2, 2, 'FD');
+    doc.roundedRect(marginX, cursorY, contentWidth, bannerHeight, 2, 2, 'FD');
 
     // Barra de acento lateral esquerda azul royal
     doc.setFillColor(37, 99, 235); // blue-600
@@ -546,20 +598,152 @@ export async function gerarCalendarioMensalPdf({
     // Título Principal
     doc.setTextColor(30, 58, 138); // blue-900
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    const tituloRelatorio = `Eventos Escolares - ${nomeMesCapitalizado} de ${ano}`;
-    doc.text(tituloRelatorio, marginX + 6, cursorY + 6.5);
+    doc.setFontSize(12);
+    const tituloPrincipal = categoriaFiltroNome
+      ? `Calendário Escolar - ${nomeMesCapitalizado} de ${ano} (${categoriaFiltroNome})`
+      : `Calendário Escolar - ${nomeMesCapitalizado} de ${ano}`;
+    doc.text(tituloPrincipal, marginX + 6, cursorY + 5.5);
 
     // Subtítulo e Resumo
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105);
-    const subinfo = `Visualização Oficial do Calendário Mensal  •  Total de eventos listados: ${eventosFiltrados.length} evento(s)  •  Visível aos Docentes`;
-    doc.text(subinfo, marginX + 6, cursorY + 11.5);
+    const subinfo = `Visualização Oficial do Calendário Mensal  •  Total de eventos listados: ${eventosFiltrados.length} evento(s)`;
+    doc.text(subinfo, marginX + 6, cursorY + 10);
 
-    cursorY += bannerHeight + 6;
+    cursorY += bannerHeight + 4;
 
-    // 5. Montagem do Corpo do Relatório com Tabela Limpa (autoTable)
+    // 5. GRADE VISUAL MENSAL DO CALENDÁRIO (7 Colunas: Domingo a Sábado)
+    const primeiroDiaSemana = new Date(ano, mes, 1).getDay(); // 0 = Domingo
+    const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+    const colWidth = contentWidth / 7; // 26mm
+    const headerRowHeight = 5.5;
+    const dayRowHeight = 9.5;
+
+    // Cabeçalho dos dias da semana
+    doc.setFillColor(241, 245, 249); // slate-100
+    doc.rect(marginX, cursorY, contentWidth, headerRowHeight, 'F');
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.2);
+    doc.rect(marginX, cursorY, contentWidth, headerRowHeight, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+
+    for (let c = 0; c < 7; c++) {
+      const x = marginX + c * colWidth;
+      if (c === 0) doc.setTextColor(225, 29, 72); // Dom = red
+      else if (c === 6) doc.setTextColor(100, 116, 139); // Sáb = slate
+      else doc.setTextColor(30, 58, 138); // Seg-Sex = blue
+
+      doc.text(DIAS_SEMANA_ABREV[c], x + colWidth / 2, cursorY + 3.8, { align: 'center' });
+
+      if (c > 0) {
+        doc.line(x, cursorY, x, cursorY + headerRowHeight);
+      }
+    }
+
+    cursorY += headerRowHeight;
+
+    // Mapa de eventos por dia (1..diasNoMes)
+    const eventosPorDia = new Map<number, EventoFormatadoPdf[]>();
+    for (const ev of eventosFiltrados) {
+      const dias = ev.diasDoMes || [];
+      for (const d of dias) {
+        if (!eventosPorDia.has(d)) eventosPorDia.set(d, []);
+        eventosPorDia.get(d)!.push(ev);
+      }
+    }
+
+    // Renderização das células da grade
+    let gridRow = 0;
+    let gridCol = primeiroDiaSemana;
+    const startGridY = cursorY;
+
+    // Preenche células vazias antes do dia 1
+    for (let empty = 0; empty < primeiroDiaSemana; empty++) {
+      const cellX = marginX + empty * colWidth;
+      const cellY = startGridY + gridRow * dayRowHeight;
+      doc.setFillColor(248, 250, 252);
+      doc.rect(cellX, cellY, colWidth, dayRowHeight, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(cellX, cellY, colWidth, dayRowHeight, 'S');
+    }
+
+    // Preenche dias 1..diasNoMes
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+      const cellX = marginX + gridCol * colWidth;
+      const cellY = startGridY + gridRow * dayRowHeight;
+      const isWeekend = gridCol === 0 || gridCol === 6;
+      const evsNoDia = eventosPorDia.get(dia) || [];
+
+      // Fundo da célula
+      if (evsNoDia.length > 0) {
+        doc.setFillColor(254, 243, 199); // yellow-100 suave para dias com eventos
+      } else if (isWeekend) {
+        doc.setFillColor(248, 250, 252); // slate-50
+      } else {
+        doc.setFillColor(255, 255, 255);
+      }
+      doc.rect(cellX, cellY, colWidth, dayRowHeight, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(cellX, cellY, colWidth, dayRowHeight, 'S');
+
+      // Número do dia
+      doc.setFont('helvetica', evsNoDia.length > 0 ? 'bold' : 'normal');
+      doc.setFontSize(7.5);
+      if (gridCol === 0) doc.setTextColor(225, 29, 72);
+      else if (gridCol === 6) doc.setTextColor(100, 116, 139);
+      else doc.setTextColor(15, 23, 42);
+
+      doc.text(String(dia), cellX + 1.8, cellY + 3.5);
+
+      // Pílulas indicadoras de eventos dentro do dia
+      if (evsNoDia.length > 0) {
+        const ev = evsNoDia[0];
+        const [r, g, bl] = hexToRgb(ev.categoriaCor);
+        const badgeY = cellY + 4.3;
+        doc.setFillColor(r, g, bl);
+        doc.roundedRect(cellX + 1.5, badgeY, colWidth - 3, 4, 0.8, 0.8, 'F');
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(5.5);
+        let tit = ev.titulo;
+        if (tit.length > 15) tit = tit.substring(0, 14) + '…';
+        doc.text(tit, cellX + colWidth / 2, badgeY + 2.8, { align: 'center' });
+
+        if (evsNoDia.length > 1) {
+          doc.setFontSize(5);
+          doc.setTextColor(100, 116, 139);
+          doc.text(`+${evsNoDia.length - 1}`, cellX + colWidth - 2, cellY + 3.5, { align: 'right' });
+        }
+      }
+
+      gridCol++;
+      if (gridCol === 7) {
+        gridCol = 0;
+        gridRow++;
+      }
+    }
+
+    // Preenche células vazias ao final da última semana
+    if (gridCol > 0) {
+      while (gridCol < 7) {
+        const cellX = marginX + gridCol * colWidth;
+        const cellY = startGridY + gridRow * dayRowHeight;
+        doc.setFillColor(248, 250, 252);
+        doc.rect(cellX, cellY, colWidth, dayRowHeight, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(cellX, cellY, colWidth, dayRowHeight, 'S');
+        gridCol++;
+      }
+      gridRow++;
+    }
+
+    cursorY = startGridY + gridRow * dayRowHeight + 5;
+
+    // 6. TABELA DETALHADA DE CRONOGRAMA DE EVENTOS
     const tableColumns = [
       { header: 'Data', dataKey: 'data' },
       { header: 'Dia da Semana', dataKey: 'diaSemana' },
@@ -578,30 +762,35 @@ export async function gerarCalendarioMensalPdf({
     }));
 
     if (tableRows.length === 0) {
-      // Mensagem amigável caso não haja eventos visíveis
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(10);
+      // Caixa elegante e harmoniosa quando o mês não possui eventos registrados
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(marginX, cursorY, contentWidth, 18, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
       doc.text(
-        'Nenhum evento com visibilidade para o perfil docente está agendado para este mês.',
+        'Não há eventos letivos ou recessos registrados para este mês no calendário escolar.',
         pageWidth / 2,
-        cursorY + 15,
+        cursorY + 10.5,
         { align: 'center' }
       );
+      cursorY += 24;
     } else {
       (doc as any).autoTable({
         startY: cursorY,
-        margin: { left: marginX, right: marginX, bottom: 20 },
+        margin: { top: 16, bottom: 18, left: marginX, right: marginX },
         columns: tableColumns,
         body: tableRows,
         theme: 'grid',
         styles: {
           font: 'helvetica',
-          fontSize: 8.5,
+          fontSize: 8,
           textColor: [15, 23, 42], // slate-900
           lineColor: [226, 232, 240], // slate-200
           lineWidth: 0.2,
-          cellPadding: { top: 3, bottom: 3, left: 2.5, right: 2.5 },
+          cellPadding: { top: 2.5, bottom: 2.5, left: 2.5, right: 2.5 },
           overflow: 'linebreak',
           valign: 'top',
         },
@@ -609,65 +798,53 @@ export async function gerarCalendarioMensalPdf({
           fillColor: [30, 58, 138], // Azul royal profundo (#1E3A8A)
           textColor: [255, 255, 255],
           fontStyle: 'bold',
-          fontSize: 8.5,
+          fontSize: 8,
           halign: 'center',
           valign: 'middle',
-          minCellHeight: 8,
+          minCellHeight: 7,
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252], // slate-50 (#F8FAFC)
         },
         columnStyles: {
           data: {
-            cellWidth: 28,
+            cellWidth: 26,
             halign: 'center',
             fontStyle: 'bold',
             textColor: [30, 58, 138],
           },
           diaSemana: {
-            cellWidth: 26,
+            cellWidth: 24,
             halign: 'center',
             textColor: [71, 85, 105],
           },
           titulo: {
-            cellWidth: 48,
+            cellWidth: 46,
             fontStyle: 'bold',
             textColor: [15, 23, 42],
           },
           categoria: {
-            cellWidth: 34,
+            cellWidth: 32,
             halign: 'center',
             fontStyle: 'bold',
             textColor: [30, 58, 138],
           },
           descricao: {
-            cellWidth: 'auto', // Ocupa o restante (aprox 46mm)
+            cellWidth: 'auto',
             textColor: [51, 65, 85],
           },
-        },
-        didDrawPage: (data: any) => {
-          // Rodapé em todas as páginas
-          const totalPages = doc.internal.getNumberOfPages();
-          const currentPage = data.pageNumber;
-
-          doc.setDrawColor(226, 232, 240);
-          doc.setLineWidth(0.3);
-          doc.line(marginX, pageHeight - 12, pageWidth - marginX, pageHeight - 12);
-
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7.5);
-          doc.setTextColor(148, 163, 184); // slate-400
-
-          const rodapeEsquerdo = `${escolaConfig.nome_escola || 'PLUGUE'}  •  Calendário Escolar Oficial  •  Emissão: ${dataHoraEmissao}`;
-          doc.text(rodapeEsquerdo, marginX, pageHeight - 7);
-
-          const rodapeDireito = `Página ${currentPage} de ${totalPages}`;
-          doc.text(rodapeDireito, pageWidth - marginX, pageHeight - 7, { align: 'right' });
         },
       });
     }
 
-    // 6. Download / Salvar Arquivo
+    // 7. Rodapé em todas as páginas geradas
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      desenharRodape(doc, pageWidth, pageHeight, marginX, i, totalPages, dataHoraEmissao, nomeEscola);
+    }
+
+    // 8. Download / Salvar Arquivo
     const nomeArquivo = `Eventos_Escolares_${nomeMesCapitalizado}_${ano}.pdf`;
     doc.save(nomeArquivo);
 

@@ -89,6 +89,8 @@ export async function GET(req: NextRequest) {
         hiddenCats.add('cat-aniversarios');
         hiddenCats.add('aniversários');
         hiddenCats.add('aniversarios');
+        hiddenCats.add('aniverssarios');
+        hiddenCats.add('aniverssários');
 
         eventos = eventos.filter((ev) => {
           const cat = ev.categoria?.toLowerCase() || '';

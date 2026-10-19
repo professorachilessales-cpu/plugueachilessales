@@ -883,12 +883,19 @@ table tbody tr:hover {
     print-color-adjust: exact !important;
   }
 
-  /* Ocultar elementos desnecessários na impressão */
+  /* Ocultar elementos desnecessários na impressão (exceto badges de eventos no calendário) */
   header,
   aside,
-  button,
+  button:not(.evento-calendario-badge):not(.print-visible),
   .print\:hidden {
     display: none !important;
+  }
+
+  .print-visible,
+  .evento-calendario-badge {
+    display: flex !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .print\:block {

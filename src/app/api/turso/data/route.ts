@@ -150,13 +150,31 @@ export async function GET() {
           ? row.professor_regente_id
           : (validProfs.length > 0 ? validProfs[0] : null);
 
+        let parsedApoio: string[] = [];
+        if (row.equipe_apoio_ids) {
+          try {
+            parsedApoio = typeof row.equipe_apoio_ids === 'string' ? JSON.parse(row.equipe_apoio_ids) : row.equipe_apoio_ids;
+          } catch {
+            parsedApoio = [];
+          }
+        }
+
+        let parsedGrade: any[] = [];
+        if (row.grade_horaria) {
+          try {
+            parsedGrade = typeof row.grade_horaria === 'string' ? JSON.parse(row.grade_horaria) : row.grade_horaria;
+          } catch {
+            parsedGrade = [];
+          }
+        }
+
         return {
           ...row,
           ativa: toBoolean(row.ativa, true) ? 1 : 0,
           professores_ids: validProfs,
           professor_regente_id: regenteValido,
-          equipe_apoio_ids: row.equipe_apoio_ids ? (typeof row.equipe_apoio_ids === 'string' ? JSON.parse(row.equipe_apoio_ids) : row.equipe_apoio_ids) : [],
-          grade_horaria: row.grade_horaria ? (typeof row.grade_horaria === 'string' ? JSON.parse(row.grade_horaria) : row.grade_horaria) : [],
+          equipe_apoio_ids: Array.isArray(parsedApoio) ? parsedApoio : [],
+          grade_horaria: Array.isArray(parsedGrade) ? parsedGrade : [],
         };
       });
     } catch (e) {

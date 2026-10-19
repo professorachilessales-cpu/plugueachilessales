@@ -274,6 +274,88 @@ function SecaoEquipeTurmaForm({
   );
 }
 
+function SkeletonTurmasGrid() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+      {Array.from({ length: 8 }).map((_, idx) => (
+        <div
+          key={idx}
+          className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-school-dark-border dark:bg-school-dark-surface shadow-xs space-y-3.5"
+        >
+          <div className="flex items-start justify-between">
+            <div className="space-y-1.5">
+              <div className="h-4 w-16 rounded-md bg-slate-200 dark:bg-slate-700" />
+              <div className="h-5 w-28 rounded-md bg-slate-200 dark:bg-slate-700" />
+            </div>
+            <div className="h-6 w-14 rounded-full bg-slate-100 dark:bg-slate-800" />
+          </div>
+
+          <div className="space-y-1 pt-1">
+            <div className="flex justify-between">
+              <div className="h-3 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-3 w-10 rounded bg-slate-200 dark:bg-slate-700" />
+            </div>
+            <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800" />
+          </div>
+
+          <div className="space-y-1.5 pt-1">
+            <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-7 w-full rounded-lg bg-slate-100 dark:bg-slate-800" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="h-8 rounded-xl bg-slate-200 dark:bg-slate-700" />
+            <div className="h-8 rounded-xl bg-slate-200 dark:bg-slate-700" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonGradeHoraria() {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface animate-pulse space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+        <div className="space-y-2">
+          <div className="h-5 w-64 rounded-md bg-slate-200 dark:bg-slate-700" />
+          <div className="h-3.5 w-80 rounded-md bg-slate-100 dark:bg-slate-800" />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-28 rounded-xl bg-slate-200 dark:bg-slate-700" />
+          <div className="h-8 w-36 rounded-xl bg-slate-200 dark:bg-slate-700" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="h-24 rounded-xl bg-slate-100 dark:bg-slate-800" />
+        <div className="h-24 rounded-xl bg-slate-100 dark:bg-slate-800" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'].map((dia) => (
+          <div
+            key={dia}
+            className="flex flex-col rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/50 space-y-3"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 dark:border-slate-700">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+                {dia}
+              </span>
+              <div className="h-4 w-10 rounded-full bg-slate-200 dark:bg-slate-700" />
+            </div>
+
+            <div className="space-y-2.5">
+              <div className="h-16 rounded-xl bg-slate-200/70 dark:bg-slate-800" />
+              <div className="h-16 rounded-xl bg-slate-200/50 dark:bg-slate-800/60" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TurmasPage() {
   const { 
     turmas, 
@@ -285,23 +367,50 @@ export default function TurmasPage() {
     toggleStatusTurma, 
     migrarEstudantes, 
     refreshTurmas,
+    carregandoTurmas,
     role 
   } = useApp();
 
   const [turmaSelecionada, setTurmaSelecionada] = useState<Turma | null>(null);
   const [recarregandoBanco, setRecarregandoBanco] = useState(false);
+  const [carregandoInicial, setCarregandoInicial] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
 
-  // Limpeza de qualquer cache de turmas no navegador ao acessar a página
-  React.useEffect(() => {
+  const carregandoDados = carregandoInicial || carregandoTurmas || recarregandoBanco;
+
+  // Política de Busca Direta (Bypass de Cache):
+  // 1. Limpa qualquer dado residual no LocalStorage e SessionStorage
+  // 2. Dispara busca de dados frescos direto do banco com headers anti-cache
+  const carregarGradeDiretoDoBanco = React.useCallback(async () => {
+    setRecarregandoBanco(true);
+    setErroCarregamento(null);
     try {
-      localStorage.removeItem('school_os_turmas');
-      localStorage.removeItem('school_os_grade_horaria');
-      localStorage.removeItem('plugue_turmas');
-      localStorage.removeItem('turmas');
-      sessionStorage.removeItem('school_os_turmas');
-      sessionStorage.removeItem('plugue_turmas');
-    } catch {}
-  }, []);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('school_os_turmas');
+        localStorage.removeItem('school_os_grade_horaria');
+        localStorage.removeItem('plugue_turmas');
+        localStorage.removeItem('turmas');
+        sessionStorage.removeItem('school_os_turmas');
+        sessionStorage.removeItem('plugue_turmas');
+      }
+
+      const res = await refreshTurmas();
+      if (res && res.success === false && res.error) {
+        setErroCarregamento(res.error);
+      }
+    } catch (e: any) {
+      console.error('Falha ao sincronizar dados com o banco:', e);
+      setErroCarregamento(e?.message || 'Falha na comunicação com o banco de dados.');
+    } finally {
+      setRecarregandoBanco(false);
+      setCarregandoInicial(false);
+    }
+  }, [refreshTurmas]);
+
+  // Carga automática na montagem da tela
+  React.useEffect(() => {
+    carregarGradeDiretoDoBanco();
+  }, [carregarGradeDiretoDoBanco]);
 
   // Sincroniza a turma selecionada caso a lista de turmas seja carregada assincronamente do banco
   React.useEffect(() => {
@@ -715,44 +824,20 @@ export default function TurmasPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            disabled={recarregandoBanco}
-            onClick={async () => {
-              setRecarregandoBanco(true);
-              try {
-                localStorage.removeItem('school_os_turmas');
-                localStorage.removeItem('school_os_grade_horaria');
-                localStorage.removeItem('plugue_turmas');
-                localStorage.removeItem('turmas');
-                sessionStorage.removeItem('school_os_turmas');
-                sessionStorage.removeItem('plugue_turmas');
-                await refreshTurmas();
-                setFeedbackMsg({
-                  tipo: 'sucesso',
-                  texto: 'Turmas e grade horária sincronizadas diretamente do banco de dados (sem cache)!',
-                });
-                setTimeout(() => setFeedbackMsg(null), 4000);
-              } catch (e) {
-                console.error(e);
-                setFeedbackMsg({
-                  tipo: 'erro',
-                  texto: 'Erro ao conectar ao banco de dados para sincronizar turmas.',
-                });
-                setTimeout(() => setFeedbackMsg(null), 4000);
-              } finally {
-                setRecarregandoBanco(false);
-              }
-            }}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
+            disabled={carregandoDados}
+            onClick={carregarGradeDiretoDoBanco}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-50 cursor-pointer"
             title="Limpar qualquer cache local e recarregar os dados diretamente do banco de dados"
           >
-            <RefreshCw className={`h-4 w-4 text-school-blue-600 dark:text-school-gold-400 ${recarregandoBanco ? 'animate-spin' : ''}`} />
-            <span>{recarregandoBanco ? 'Sincronizando...' : 'Atualizar do Banco'}</span>
+            <RefreshCw className={`h-4 w-4 text-school-blue-600 dark:text-school-gold-400 ${carregandoDados ? 'animate-spin' : ''}`} />
+            <span>{carregandoDados ? 'Sincronizando...' : 'Atualizar do Banco'}</span>
           </button>
 
           {(role === 'admin' || role === 'direcao') && (
             <button
+              disabled={carregandoDados}
               onClick={() => setModalNovaTurmaAberto(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/25 hover:bg-school-blue-700 transition-all dark:bg-school-blue-600"
+              className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-school-blue-800/25 hover:bg-school-blue-700 transition-all dark:bg-school-blue-600 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>Cadastrar Nova Turma</span>
@@ -760,6 +845,51 @@ export default function TurmasPage() {
           )}
         </div>
       </div>
+
+      {/* Banner Informativo com ícone de sincronização durante busca direta ao banco */}
+      {carregandoDados && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50/90 p-4 text-xs font-semibold text-school-blue-900 shadow-xs dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <RefreshCw className="h-5 w-5 animate-spin text-school-blue-600 dark:text-school-gold-400 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-slate-900 dark:text-white">
+                Sincronizando turmas e grade horária diretamente com o banco de dados...
+              </p>
+              <p className="text-[11px] text-school-blue-700 dark:text-school-blue-300 mt-0.5">
+                Bypass de cache HTTP e local ativo. Buscando dados frescos e em tempo real.
+              </p>
+            </div>
+          </div>
+          <span className="hidden sm:inline-flex rounded-full bg-school-blue-100 px-2.5 py-1 text-[10px] font-bold text-school-blue-800 dark:bg-school-blue-900 dark:text-school-blue-200">
+            Tempo Real
+          </span>
+        </div>
+      )}
+
+      {/* Banner de Resiliência: Erro ou Falha de Conexão com botão 'Recarregar grade' */}
+      {erroCarregamento && !carregandoDados && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-xs text-rose-900 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200 shadow-xs animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-rose-950 dark:text-rose-100">
+                Não foi possível sincronizar as turmas com o banco de dados
+              </p>
+              <p className="text-[11px] text-rose-800 dark:text-rose-300 mt-0.5">
+                {erroCarregamento}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={carregarGradeDiretoDoBanco}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-all shrink-0 cursor-pointer"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Recarregar grade</span>
+          </button>
+        </div>
+      )}
 
       {/* Banner de Feedback de Ações (Auditoria / Migração / Status) */}
       {feedbackMsg && (
@@ -803,11 +933,12 @@ export default function TurmasPage() {
       )}
 
       {/* Barra de Filtro por Grupos de Turmas */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+      <div className={`flex items-center gap-1.5 overflow-x-auto pb-1 text-xs transition-opacity ${carregandoDados ? 'opacity-50 pointer-events-none' : ''}`}>
         <span className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 whitespace-nowrap mr-1">
           Grupos:
         </span>
         <button
+          disabled={carregandoDados}
           onClick={() => setFiltroGrupo('todos')}
           className={`rounded-xl px-3 py-1.5 font-bold transition-all whitespace-nowrap ${
             filtroGrupo === 'todos'
@@ -822,6 +953,7 @@ export default function TurmasPage() {
           return (
             <button
               key={g}
+              disabled={carregandoDados}
               onClick={() => setFiltroGrupo(g)}
               className={`rounded-xl px-3 py-1.5 font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
                 filtroGrupo === g
@@ -841,15 +973,25 @@ export default function TurmasPage() {
       </div>
 
       {/* Grid de Turmas Ativas com Controle de Lotação & Status */}
-      {turmas.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-xs text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-school-blue-600 dark:text-school-gold-400 mb-3" />
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
-            Carregando turmas diretamente do banco de dados...
+      {carregandoDados ? (
+        <SkeletonTurmasGrid />
+      ) : turmas.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-dashed border-slate-200 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 text-center space-y-3">
+          <BookOpen className="h-10 w-10 text-slate-400" />
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+            Nenhuma turma cadastrada no banco de dados.
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
-            Limpando caches locais e sincronizando registros oficiais em tempo real do banco de dados Turso.
+          <p className="text-xs text-slate-400 max-w-sm">
+            O banco de dados não retornou turmas ativas ou a sincronização precisa ser refeita.
           </p>
+          <button
+            type="button"
+            onClick={carregarGradeDiretoDoBanco}
+            className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-school-blue-700 transition-all cursor-pointer dark:bg-school-blue-600"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Recarregar grade</span>
+          </button>
         </div>
       ) : turmas.filter((t) => filtroGrupo === 'todos' || t.grupo === filtroGrupo).length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-dashed border-slate-200 bg-white/50 dark:border-slate-800 dark:bg-slate-900/50 text-center">
@@ -874,8 +1016,10 @@ export default function TurmasPage() {
           return (
             <div
               key={turma.id}
-              onClick={() => setTurmaSelecionada(turma)}
-              className={`cursor-pointer rounded-2xl border p-5 transition-all duration-200 ${
+              onClick={() => !carregandoDados && setTurmaSelecionada(turma)}
+              className={`rounded-2xl border p-5 transition-all duration-200 ${
+                carregandoDados ? 'pointer-events-none opacity-60 cursor-not-allowed' : 'cursor-pointer'
+              } ${
                 isSelected
                   ? 'border-school-blue-600 bg-blue-50/50 shadow-md ring-2 ring-school-blue-600/30 dark:border-school-gold-400 dark:bg-slate-800/90'
                   : isAtiva
@@ -1078,11 +1222,12 @@ export default function TurmasPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
+                    disabled={carregandoDados}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAbrirEditarTurma(turma);
                     }}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/90 hover:bg-blue-100 px-2.5 py-2 text-xs font-bold text-school-blue-900 hover:text-school-blue-950 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs group cursor-pointer"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/90 hover:bg-blue-100 px-2.5 py-2 text-xs font-bold text-school-blue-900 hover:text-school-blue-950 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs group cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                     title="Editar dados da turma (nome, turno, capacidade, sala, professores e status)"
                   >
                     <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400 shrink-0 group-hover:scale-110 transition-transform" />
@@ -1091,11 +1236,12 @@ export default function TurmasPage() {
 
                   <button
                     type="button"
+                    disabled={carregandoDados}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAbrirEditarGrade(turma);
                     }}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/90 hover:bg-amber-100 px-2.5 py-2 text-xs font-bold text-amber-900 hover:text-amber-950 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-900/60 transition-all shadow-2xs group cursor-pointer"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/90 hover:bg-amber-100 px-2.5 py-2 text-xs font-bold text-amber-900 hover:text-amber-950 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-900/60 transition-all shadow-2xs group cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                     title="Editar a grade horária semanal de aulas desta turma"
                   >
                     <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
@@ -1118,12 +1264,12 @@ export default function TurmasPage() {
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
-                    disabled={gerandoDocx === `${turma.id}-assinatura`}
+                    disabled={carregandoDados || gerandoDocx === `${turma.id}-assinatura`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleExportarDocx(turma, 'assinatura');
                     }}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 px-2 py-1.5 text-[11px] font-bold text-school-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs group disabled:opacity-60"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 px-2 py-1.5 text-[11px] font-bold text-school-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/60 transition-all shadow-2xs group disabled:opacity-50 disabled:pointer-events-none"
                     title="Imprimir listagem com estudantes em ordem alfabética, destaque AEE (*) e espaço ampliado para assinatura (DOCX)"
                   >
                     {gerandoDocx === `${turma.id}-assinatura` ? (
@@ -1136,12 +1282,12 @@ export default function TurmasPage() {
 
                   <button
                     type="button"
-                    disabled={gerandoDocx === `${turma.id}-cadastro`}
+                    disabled={carregandoDados || gerandoDocx === `${turma.id}-cadastro`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleExportarDocx(turma, 'cadastro');
                     }}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 hover:bg-purple-100 px-2 py-1.5 text-[11px] font-bold text-purple-900 dark:border-purple-900/60 dark:bg-purple-950/40 dark:text-purple-200 dark:hover:bg-purple-900/60 transition-all shadow-2xs group disabled:opacity-60"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 hover:bg-purple-100 px-2 py-1.5 text-[11px] font-bold text-purple-900 dark:border-purple-900/60 dark:bg-purple-950/40 dark:text-purple-200 dark:hover:bg-purple-900/60 transition-all shadow-2xs group disabled:opacity-50 disabled:pointer-events-none"
                     title="Imprimir listagem com estudantes em ordem alfabética, data de nascimento, se AEE ou não e CPF (DOCX)"
                   >
                     {gerandoDocx === `${turma.id}-cadastro` ? (
@@ -1160,7 +1306,9 @@ export default function TurmasPage() {
       )}
 
       {/* Módulo de Grade Horária e Links Virtuais da Turma Selecionada */}
-      {turmaSelecionada && (
+      {carregandoDados ? (
+        <SkeletonGradeHoraria />
+      ) : turmaSelecionada ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
             <div>
@@ -1240,8 +1388,9 @@ export default function TurmasPage() {
               {(role === 'admin' || role === 'direcao') && (
                 <>
                   <button
+                    disabled={carregandoDados}
                     onClick={() => handleAbrirEditarTurma(turmaSelecionada)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-1.5 text-xs font-bold text-school-blue-900 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200 transition-all shadow-2xs"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-1.5 text-xs font-bold text-school-blue-900 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200 transition-all shadow-2xs disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                     title="Editar informações cadastrais desta turma"
                   >
                     <Edit2 className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
@@ -1249,8 +1398,9 @@ export default function TurmasPage() {
                   </button>
 
                   <button
+                    disabled={carregandoDados}
                     onClick={() => handleAbrirEditarGrade(turmaSelecionada)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 transition-all shadow-2xs"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 transition-all shadow-2xs disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                     title="Editar a grade horária semanal de aulas desta turma"
                   >
                     <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
@@ -1258,6 +1408,7 @@ export default function TurmasPage() {
                   </button>
 
                   <button
+                    disabled={carregandoDados}
                     onClick={() => {
                       setFormHorario({
                         dia_semana: 'Segunda',
@@ -1266,7 +1417,7 @@ export default function TurmasPage() {
                       });
                       setModalNovoHorarioAberto(true);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5 text-school-blue-600 dark:text-school-gold-400" />
                     <span>Adicionar Aula na Grade</span>
@@ -1449,6 +1600,7 @@ export default function TurmasPage() {
                     {(role === 'admin' || role === 'direcao') && (
                       <button
                         type="button"
+                        disabled={carregandoDados}
                         onClick={() => {
                           setFormHorario({
                             dia_semana: dia,
@@ -1457,7 +1609,7 @@ export default function TurmasPage() {
                           });
                           setModalNovoHorarioAberto(true);
                         }}
-                        className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-school-blue-600 dark:hover:bg-slate-800 dark:hover:text-school-gold-400 transition-colors"
+                        className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-school-blue-600 dark:hover:bg-slate-800 dark:hover:text-school-gold-400 transition-colors disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                         title={`Adicionar aula na ${dia} (mínimo 3)`}
                       >
                         <Plus className="h-3.5 w-3.5" />
@@ -1501,8 +1653,9 @@ export default function TurmasPage() {
                               {(role === 'admin' || role === 'direcao') && (
                                 <button
                                   type="button"
+                                  disabled={carregandoDados}
                                   onClick={() => handleRemoverHorario(aula.id)}
-                                  className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                                  className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                                   title={`Remover aula de ${aula.professor_nome}`}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -1519,7 +1672,7 @@ export default function TurmasPage() {
             })}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* MODAL 1: Nova Turma */}
       {modalNovaTurmaAberto && (

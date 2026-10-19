@@ -76,10 +76,10 @@ export function middleware(req: NextRequest) {
     pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 
-  // Tratamento especial para /api/professores (permite apenas consulta das próprias faltas do docente)
-  const isApiProfessoresGeral = pathname.startsWith('/api/professores') && !pathname.includes('/faltas');
+  // Leitura da lista de turmas (GET /api/turmas) é permitida para montagem de grades e painéis escolares
+  const isLeituraTurmas = (pathname === '/api/turmas' || pathname.startsWith('/api/turmas?')) && req.method === 'GET';
 
-  if ((isRestrictedApi || isApiProfessoresGeral) && !isAdmin) {
+  if ((isRestrictedApi || isApiProfessoresGeral) && !isAdmin && !isLeituraTurmas) {
     return NextResponse.json(
       { 
         error: '403 Forbidden: Módulo restrito e de uso exclusivo da Administração Escolar.',

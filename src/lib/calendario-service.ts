@@ -167,3 +167,72 @@ export function toBooleanStrict(val: any, defaultVal = false): boolean {
   if (val === false || val === 0 || val === '0' || val === 'false') return false;
   return Boolean(val);
 }
+
+/**
+ * Extrai o primeiro e segundo nome de uma pessoa.
+ * Se o segundo termo for uma preposição comum ("de", "da", "do", "dos", "das", "d'"),
+ * agrega a preposição e o termo seguinte para formar um nome composto natural
+ * (ex.: "Alexandre de Jesus", "Maria do Socorro").
+ */
+export function extrairPrimeiroESegundoNome(nomeCompleto?: string | null): string {
+  if (!nomeCompleto) return 'Funcionário';
+  const partes = nomeCompleto.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return 'Funcionário';
+  if (partes.length === 1) return partes[0];
+
+  const preposicoes = new Set(['de', 'da', 'do', 'dos', 'das', "d'"]);
+  if (preposicoes.has(partes[1].toLowerCase()) && partes.length >= 3) {
+    return `${partes[0]} ${partes[1]} ${partes[2]}`;
+  }
+
+  return `${partes[0]} ${partes[1]}`;
+}
+
+/**
+ * Analisa e extrai ano, mês e dia de uma data de nascimento com tolerância a múltiplos formatos.
+ * Aceita ISO (YYYY-MM-DD...), brasileiro (DD/MM/YYYY ou DD-MM-YYYY) e variações.
+ */
+export function parseDataNascimento(dataStr?: string | null): { dia: number; mes: number; ano: number } | null {
+  if (!dataStr || typeof dataStr !== 'string') return null;
+  const str = dataStr.trim();
+  if (!str) return null;
+
+  let ano = 0;
+  let mes = 0;
+  let dia = 0;
+
+  if (str.includes('T')) {
+    const [datePart] = str.split('T');
+    const parts = datePart.split('-').map(Number);
+    ano = parts[0];
+    mes = parts[1];
+    dia = parts[2];
+  } else if (str.includes('-')) {
+    const parts = str.split('-').map(Number);
+    if (parts[0] > 1000) {
+      ano = parts[0];
+      mes = parts[1];
+      dia = parts[2];
+    } else {
+      dia = parts[0];
+      mes = parts[1];
+      ano = parts[2];
+    }
+  } else if (str.includes('/')) {
+    const parts = str.split('/').map(Number);
+    if (parts[2] > 1000) {
+      dia = parts[0];
+      mes = parts[1];
+      ano = parts[2];
+    } else {
+      ano = parts[0];
+      mes = parts[1];
+      dia = parts[2];
+    }
+  }
+
+  if (!ano || !mes || !dia || isNaN(ano) || isNaN(mes) || isNaN(dia)) return null;
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+
+  return { dia, mes, ano };
+}

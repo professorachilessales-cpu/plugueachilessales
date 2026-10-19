@@ -34,6 +34,7 @@ import {
   initialEscolaConfig, 
   initialProfessores, 
   initialFaltasProfessores, 
+  initialTurmas,
   initialCategoriasEvento,
   initialActivityLogs,
   initialUsers,
@@ -47,6 +48,7 @@ import {
   initialReposicoesAulas
 } from '@/lib/mock-data';
 import { obterProfessoresDocentesDaTurma, isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
+import { extrairPrimeiroESegundoNome, parseDataNascimento } from '@/lib/calendario-service';
 
 interface AppContextType {
   theme: 'light' | 'dark';
@@ -156,7 +158,8 @@ interface AppContextType {
   updateTurma: (id: string, updates: Partial<Turma>) => void;
   toggleStatusTurma: (turmaId: string, novaAtiva: boolean) => Promise<void>;
   migrarEstudantes: (estudantesIds: string[], turmaOrigemId: string, turmaDestinoId: string) => Promise<void>;
-  refreshTurmas: () => Promise<void>;
+  refreshTurmas: () => Promise<void | { success: boolean; count?: number; error?: string }>;
+  carregandoTurmas: boolean;
 
   // Ações Auditoria
   addActivityLog: (log: Omit<ActivityLog, 'id' | 'created_at'>) => Promise<ActivityLog>;
@@ -165,6 +168,8 @@ interface AppContextType {
   // Ações Professores & Faltas
   addProfessor: (prof: Omit<Professor, 'id' | 'created_at'>) => void;
   updateProfessor: (id: string, updates: Partial<Professor>) => void;
+  deleteProfessor: (id: string) => Promise<void>;
+  refreshProfessores: () => Promise<void>;
   toggleProfessorApoio: (id: string) => void;
   toggleProfessorAdministrativo: (id: string) => void;
   addFaltaProfessor: (falta: Omit<FaltaProfessor, 'id' | 'created_at'>) => void;
@@ -184,6 +189,16 @@ interface AppContextType {
   addCategoriaEvento: (cat: Omit<CalendarioCategoria, 'id'>) => Promise<{ success: boolean; error?: string }>;
   updateCategoriaEvento: (id: string, cat: Partial<CalendarioCategoria>) => Promise<{ success: boolean; error?: string }>;
   deleteCategoriaEvento: (id: string) => Promise<{ success: boolean; error?: string }>;
+  sincronizarFuncionariosCalendario: () => Promise<{
+    success: boolean;
+    totalProfessores?: number;
+    cadastrados?: number;
+    alterados?: number;
+    inalterados?: number;
+    semDataNascimento?: number;
+    detalhes?: any[];
+    error?: string;
+  }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -193,7 +208,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<UserRole>('admin');
   const [escolaConfig, setEscolaConfigState] = useState<EscolaConfig>(initialEscolaConfig);
   
-  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [turmas, setTurmas] = useState<Turma[]>(initialTurmas);
+  const [carregandoTurmas, setCarregandoTurmas] = useState<boolean>(false);
   const [estudantes, setEstudantes] = useState<Estudante[]>([]);
   const [professores, setProfessores] = useState<Professor[]>(initialProfessores);
   const [faltasProfessores, setFaltasProfessores] = useState<FaltaProfessor[]>(initialFaltasProfessores);
@@ -1485,18 +1501,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshTurmas = async () => {
+    setCarregandoTurmas(true);
     try {
       let tTurmas: Turma[] | null = null;
       let cleanProf = professores;
       let tUsers = users;
 
-      // 1. Tenta rota dedicada e rápida /api/turmas
+      // 1. Tenta rota dedicada e rápida /api/turmas com bypass estrito de cache
       try {
         const resFast = await fetch(`/api/turmas?_t=${Date.now()}`, {
           cache: 'no-store',
           headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
-            Pragma: 'no-cache',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
           },
         });
         if (resFast.ok) {
@@ -1514,8 +1532,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch(`/api/turso/data?_t=${Date.now()}`, {
           cache: 'no-store',
           headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
-            Pragma: 'no-cache',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
           },
         });
         if (res.ok) {
@@ -1558,9 +1577,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           localStorage.setItem('school_os_turmas', JSON.stringify(cleanTurmas));
         } catch {}
+        return { success: true, count: cleanTurmas.length };
       }
-    } catch (err) {
+      return { success: false, error: 'Nenhuma turma retornada do banco.' };
+    } catch (err: any) {
       console.error('Erro ao recarregar turmas do banco Turso:', err);
+      return { success: false, error: err?.message || 'Falha ao conectar com o banco de dados.' };
+    } finally {
+      setCarregandoTurmas(false);
     }
   };
 
@@ -1763,6 +1787,126 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
+  };
+
+  const refreshProfessores = async () => {
+    try {
+      const res = await fetch(`/api/professores?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const {
+            professores: freshProfessores,
+            faltasProfessores: freshFaltas,
+            reposicoesAulas: freshReposicoes,
+            atestadosProfessor: freshAtestados,
+            turmas: freshTurmas,
+          } = json.data;
+
+          if (Array.isArray(freshProfessores)) {
+            setProfessores(freshProfessores);
+          }
+          if (Array.isArray(freshFaltas)) {
+            setFaltasProfessores(freshFaltas);
+            try {
+              localStorage.setItem('school_os_faltas', JSON.stringify(freshFaltas));
+            } catch {}
+          }
+          if (Array.isArray(freshReposicoes)) {
+            setReposicoesAulas(freshReposicoes);
+          }
+          if (Array.isArray(freshAtestados)) {
+            setAtestadosProfessor(freshAtestados);
+          }
+          if (Array.isArray(freshTurmas) && freshTurmas.length > 0) {
+            setTurmas(freshTurmas);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao recarregar professores diretamente da API:', err);
+      throw err;
+    }
+  };
+
+  const deleteProfessor = async (id: string) => {
+    const prof = professores.find((p) => p.id === id);
+    if (!prof) return;
+
+    // 1. Remove do estado de professores
+    setProfessores((prev) => prev.filter((p) => p.id !== id));
+
+    // 2. Limpa vínculos nas turmas
+    setTurmas((prevTurmas) => {
+      let anyTurmaChanged = false;
+      const updatedTurmas = prevTurmas.map((t) => {
+        const rawProfs = t.professores_ids || [];
+        const rawApoio = t.equipe_apoio_ids || [];
+        const hasInRegencia = rawProfs.includes(id) || t.professor_regente_id === id;
+        const hasInApoio = rawApoio.includes(id);
+
+        if (hasInRegencia || hasInApoio) {
+          anyTurmaChanged = true;
+          const newProfs = rawProfs.filter((pid) => pid !== id);
+          const newApoio = rawApoio.filter((pid) => pid !== id);
+          let newRegId = t.professor_regente_id;
+          let newRegNome = t.professor_regente_nome;
+          if (newRegId === id) {
+            newRegId = newProfs[0] || undefined;
+            newRegNome = newRegId ? professores.find((p) => p.id === newRegId)?.nome_completo : undefined;
+          }
+          const modTurma = {
+            ...t,
+            professores_ids: newProfs,
+            professor_regente_id: newRegId,
+            professor_regente_nome: newRegNome,
+            equipe_apoio_ids: newApoio,
+          };
+          syncWithTurso('save_turma', modTurma);
+          return modTurma;
+        }
+        return t;
+      });
+      return anyTurmaChanged ? updatedTurmas : prevTurmas;
+    });
+
+    // 3. Remove ausências, atestados e reposições do professor
+    setFaltasProfessores((prev) => prev.filter((f) => f.professor_id !== id));
+    setAtestadosProfessor((prev) => prev.filter((a) => a.professor_id !== id));
+    setReposicoesAulas((prev) => prev.filter((r) => r.professor_id !== id));
+
+    // 4. Remove credencial em users (se não for admin)
+    setUsers((prevUsers) => {
+      const cleanCpf = prof.cpf?.replace(/\D/g, '');
+      const updated = prevUsers.filter((u) => {
+        if (u.role === 'admin') return true;
+        if (cleanCpf && u.cpf?.replace(/\D/g, '') === cleanCpf) return false;
+        return true;
+      });
+      localStorage.setItem('school_os_users', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 5. Auditoria de exclusão
+    try {
+      await addActivityLog({
+        user_id: currentUser?.id || 'sistema',
+        user_name: currentUser?.name || 'Administrador',
+        user_role: currentUser?.role || 'admin',
+        action: 'EXCLUSAO_COLABORADOR',
+        details: `Exclusão definitiva do colaborador inativado ${prof.nome_completo} (Matrícula: ${prof.matricula}, Tipo: ${prof.tipo_profissional || 'docente'}).`,
+      });
+    } catch {}
+
+    // 6. Sincroniza com Turso
+    await syncWithTurso('delete_professor', { id });
   };
 
   const addFaltaProfessor = (novaFalta: Omit<FaltaProfessor, 'id' | 'created_at'>) => {
@@ -2261,6 +2405,136 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCategoriasEvento(prev => prev.filter(c => c.id !== id));
     syncWithTurso('delete_categoria_evento', { id });
     return { success: true };
+  };
+
+  const sincronizarFuncionariosCalendario = async () => {
+    try {
+      const res = await fetch('/api/calendario/sincronizar-funcionarios', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': role,
+        },
+        cache: 'no-store',
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        await refreshEventos();
+        return json;
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn('API retornou erro na sincronização, executando fallback local:', errJson);
+      }
+    } catch (e) {
+      console.warn('Falha na chamada de sincronização via API:', e);
+    }
+
+    // Fallback in-memory/local
+    try {
+      const anoLetivo = escolaConfig.ano_letivo_ativo || new Date().getFullYear();
+      let cadastrados = 0;
+      let alterados = 0;
+      let inalterados = 0;
+      let semDataNascimento = 0;
+
+      const novosEventos = [...eventos];
+
+      for (const prof of professores) {
+        const parsed = parseDataNascimento(prof.data_nascimento);
+        if (!parsed) {
+          semDataNascimento++;
+          continue;
+        }
+
+        const { dia, mes } = parsed;
+        const titulo = extrairPrimeiroESegundoNome(prof.nome_completo);
+        const diaStr = String(dia).padStart(2, '0');
+        const mesStr = String(mes).padStart(2, '0');
+        const dataEvento = `${anoLetivo}-${mesStr}-${diaStr}`;
+        const desc = `Aniversário de ${prof.nome_completo} [prof_id:${prof.id}]`;
+
+        const idx = novosEventos.findIndex(
+          (ev) =>
+            ev.id === `aniv-prof-${prof.id}` ||
+            (ev.descricao && ev.descricao.includes(`[prof_id:${prof.id}]`)) ||
+            (['aniverssarios', 'aniversarios', 'cat-aniversarios', 'aniversário', 'aniversários'].includes(ev.categoria?.toLowerCase()) &&
+              ev.titulo?.trim().toLowerCase() === titulo.toLowerCase())
+        );
+
+        if (idx === -1) {
+          const novoEv: EventoEscolar = {
+            id: `aniv-prof-${prof.id}`,
+            titulo,
+            descricao: desc,
+            data_inicio: dataEvento,
+            data_fim: dataEvento,
+            categoria: 'aniverssarios',
+            cor: '#4169E1',
+            publico_alvo: 'Toda a Escola',
+            all_day: true,
+            created_at: new Date().toISOString(),
+            recorrencia_tipo: 'ANUAL',
+            recorrencia_dia: dia,
+            recorrencia_mes: mes,
+            recorrencia_ativa: true,
+            recorrencia_data_limite: null,
+          };
+          novosEventos.push(novoEv);
+          syncWithTurso('save_evento', novoEv);
+          cadastrados++;
+        } else {
+          const ev = novosEventos[idx];
+          const precisaAtualizar =
+            ev.titulo !== titulo ||
+            ev.recorrencia_dia !== dia ||
+            ev.recorrencia_mes !== mes ||
+            ev.recorrencia_tipo !== 'ANUAL' ||
+            !ev.recorrencia_ativa ||
+            ev.data_inicio !== dataEvento ||
+            ev.categoria !== 'aniverssarios';
+
+          if (precisaAtualizar) {
+            const evAtualizado: EventoEscolar = {
+              ...ev,
+              titulo,
+              descricao: desc,
+              data_inicio: dataEvento,
+              data_fim: dataEvento,
+              categoria: 'aniverssarios',
+              cor: '#4169E1',
+              recorrencia_tipo: 'ANUAL',
+              recorrencia_dia: dia,
+              recorrencia_mes: mes,
+              recorrencia_ativa: true,
+              recorrencia_data_limite: null,
+            };
+            novosEventos[idx] = evAtualizado;
+            syncWithTurso('save_evento', evAtualizado);
+            alterados++;
+          } else {
+            inalterados++;
+          }
+        }
+      }
+
+      setEventos(novosEventos);
+      try {
+        localStorage.setItem('school_os_eventos', JSON.stringify(novosEventos));
+      } catch {}
+
+      return {
+        success: true,
+        totalProfessores: professores.length,
+        cadastrados,
+        alterados,
+        inalterados,
+        semDataNascimento,
+      };
+    } catch (err: any) {
+      console.error('Erro no fallback de sincronização de funcionários:', err);
+      return { success: false, error: err.message || 'Erro ao sincronizar funcionários' };
+    }
   };
 
   const addActivityLog = async (logData: Omit<ActivityLog, 'id' | 'created_at'>): Promise<ActivityLog> => {
@@ -3627,10 +3901,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toggleStatusTurma,
         migrarEstudantes,
         refreshTurmas,
+        carregandoTurmas,
         addActivityLog,
         refreshActivityLogs,
         addProfessor,
         updateProfessor,
+        deleteProfessor,
+        refreshProfessores,
         toggleProfessorApoio,
         toggleProfessorAdministrativo,
         addFaltaProfessor,
@@ -3649,6 +3926,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addCategoriaEvento,
         updateCategoriaEvento,
         deleteCategoriaEvento,
+        sincronizarFuncionariosCalendario,
       }}
     >
       {children}

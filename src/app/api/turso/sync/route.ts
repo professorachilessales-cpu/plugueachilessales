@@ -525,6 +525,87 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
+      case 'delete_professor': {
+        const { id } = payload;
+        if (!id) {
+          return NextResponse.json({ error: 'ID do professor não informado' }, { status: 400 });
+        }
+
+        // 1. Remove da tabela relacional turma_professores
+        try {
+          await executeTursoQuery('DELETE FROM turma_professores WHERE professor_id = ?', [id]);
+        } catch (e) {
+          console.warn('Aviso turma_professores em delete_professor:', e);
+        }
+
+        // 2. Desvincula das turmas no banco
+        try {
+          const turmasRes = await executeTursoQuery('SELECT id, professor_regente_id, professor_regente_nome, professores_ids, equipe_apoio_ids FROM turmas');
+          for (const tRow of turmasRes.rows) {
+            let tProfs: string[] = [];
+            let tApoio: string[] = [];
+            try {
+              tProfs = typeof tRow.professores_ids === 'string' ? JSON.parse(tRow.professores_ids) : (tRow.professores_ids || []);
+            } catch (_) { tProfs = []; }
+            try {
+              tApoio = typeof tRow.equipe_apoio_ids === 'string' ? JSON.parse(tRow.equipe_apoio_ids) : (tRow.equipe_apoio_ids || []);
+            } catch (_) { tApoio = []; }
+
+            const hasProf = tProfs.includes(id);
+            const hasApoio = tApoio.includes(id);
+            const isRegente = tRow.professor_regente_id === id;
+
+            if (hasProf || hasApoio || isRegente) {
+              const cleanedProfs = tProfs.filter(pid => pid !== id);
+              const cleanedApoio = tApoio.filter(pid => pid !== id);
+              const cleanedRegenteId = isRegente ? (cleanedProfs[0] || null) : tRow.professor_regente_id;
+              const cleanedRegenteNome = isRegente ? null : tRow.professor_regente_nome;
+              await executeTursoQuery(
+                'UPDATE turmas SET professores_ids = ?, equipe_apoio_ids = ?, professor_regente_id = ?, professor_regente_nome = ? WHERE id = ?',
+                [JSON.stringify(cleanedProfs), JSON.stringify(cleanedApoio), cleanedRegenteId, cleanedRegenteNome, tRow.id]
+              );
+            }
+          }
+        } catch (errTurmas) {
+          console.warn('Aviso turmas em delete_professor:', errTurmas);
+        }
+
+        // 3. Remove dependências de faltas, reposições, atestados e relatórios do professor
+        try {
+          await executeTursoQuery('DELETE FROM faltas_professores WHERE professor_id = ?', [id]);
+        } catch (e) {}
+        try {
+          await executeTursoQuery('DELETE FROM reposicoes_aulas WHERE professor_id = ?', [id]);
+        } catch (e) {}
+        try {
+          await executeTursoQuery('DELETE FROM atestados_professor WHERE professor_id = ?', [id]);
+        } catch (e) {}
+        try {
+          await executeTursoQuery('DELETE FROM relatorios_professores WHERE professor_id = ?', [id]);
+        } catch (e) {}
+
+        // 4. Remove credencial do usuário não-admin correspondente, caso exista
+        try {
+          const profRes = await executeTursoQuery('SELECT cpf FROM professores WHERE id = ?', [id]);
+          if (profRes.rows.length > 0 && profRes.rows[0].cpf) {
+            const rawCpf = String(profRes.rows[0].cpf).replace(/\D/g, '');
+            if (rawCpf) {
+              await executeTursoQuery(
+                'DELETE FROM users WHERE REPLACE(REPLACE(REPLACE(cpf, ".", ""), "-", ""), " ", "") = ? AND role != "admin"',
+                [rawCpf]
+              );
+            }
+          }
+        } catch (e) {
+          console.warn('Aviso users em delete_professor:', e);
+        }
+
+        // 5. Deleta o registro do professor
+        await executeTursoQuery('DELETE FROM professores WHERE id = ?', [id]);
+
+        return NextResponse.json({ success: true });
+      }
+
       // ----------------------------------------------------
       // FALTAS DE PROFESSORES / AUSÊNCIAS DOCENTES
       // ----------------------------------------------------

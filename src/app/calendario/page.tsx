@@ -159,6 +159,7 @@ export default function CalendarioPage() {
     addCategoriaEvento,
     updateCategoriaEvento,
     deleteCategoriaEvento,
+    sincronizarFuncionariosCalendario,
     escolaConfig
   } = useApp();
 
@@ -192,6 +193,24 @@ export default function CalendarioPage() {
   const [novaCatVisivel, setNovaCatVisivel] = useState(true);
   const [erroCat, setErroCat] = useState<string | null>(null);
   const [sucessoCat, setSucessoCat] = useState<string | null>(null);
+
+  // Estados de Sincronização de Funcionários
+  const [sincronizandoFuncionarios, setSincronizandoFuncionarios] = useState(false);
+  const [modalSyncResultado, setModalSyncResultado] = useState<{
+    aberto: boolean;
+    totalProfessores?: number;
+    cadastrados?: number;
+    alterados?: number;
+    inalterados?: number;
+    semDataNascimento?: number;
+    detalhes?: Array<{
+      professorId: string;
+      nomeCompleto: string;
+      titulo: string;
+      status: 'cadastrado' | 'alterado' | 'inalterado' | 'sem_data';
+      dataNascimento?: string;
+    }>;
+  } | null>(null);
 
   // Helper para resolver informações completas da categoria (com retrocompatibilidade legada e canônica)
   const getCategoriaInfo = (catIdOrName: string): CalendarioCategoria => {
@@ -235,6 +254,10 @@ export default function CalendarioPage() {
       aniversário: 'cat-aniversarios',
       aniversarios: 'cat-aniversarios',
       aniversários: 'cat-aniversarios',
+      aniverssario: 'cat-aniversarios',
+      aniverssário: 'cat-aniversarios',
+      aniverssarios: 'cat-aniversarios',
+      aniverssários: 'cat-aniversarios',
       gestao: 'cat-gestao',
       gestão: 'cat-gestao',
     };
@@ -511,6 +534,32 @@ export default function CalendarioPage() {
     }
   };
 
+  // Sincronização automática de funcionários com a tabela de eventos (Aniversários)
+  const handleSincronizarFuncionarios = async () => {
+    try {
+      setSincronizandoFuncionarios(true);
+      const res = await sincronizarFuncionariosCalendario();
+      if (res && res.success) {
+        setModalSyncResultado({
+          aberto: true,
+          totalProfessores: res.totalProfessores,
+          cadastrados: res.cadastrados,
+          alterados: res.alterados,
+          inalterados: res.inalterados,
+          semDataNascimento: res.semDataNascimento,
+          detalhes: res.detalhes,
+        });
+      } else {
+        alert(res?.error || 'Erro ao sincronizar funcionários com o calendário.');
+      }
+    } catch (err: any) {
+      console.error('Erro ao sincronizar funcionários:', err);
+      alert('Ocorreu uma falha ao tentar sincronizar os funcionários.');
+    } finally {
+      setSincronizandoFuncionarios(false);
+    }
+  };
+
   // Estatísticas Rápidas
   const totalEventosVisiveis = eventosVisiveis.length;
 
@@ -534,18 +583,16 @@ export default function CalendarioPage() {
               Ano Letivo {escolaConfig.ano_letivo_ativo || 2026}
             </span>
           </div>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            Cronograma pedagógico unificado, períodos avaliativos contínuos, eventos culturais e recessos escolares.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Botão de Exportação do PDF do Mês Corrente */}
           <BotaoExportarCalendarioPdf
-            eventos={eventos}
+            eventos={categoriaFiltro !== 'todas' ? eventosVisiveis : todosEventosPermitidos}
             categorias={categoriasEvento}
             dataAtual={dataAtual}
             escolaConfig={escolaConfig}
+            categoriaFiltroNome={categoriaFiltro !== 'todas' ? getCategoriaInfo(categoriaFiltro).nome : undefined}
             variant="header"
           />
 
@@ -568,6 +615,23 @@ export default function CalendarioPage() {
             >
               <Palette className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               Gerenciar Categorias
+            </button>
+          )}
+
+          {/* Botão de Sistema: Sincronizar funcionários */}
+          {podeGerenciarCalendario && (
+            <button
+              onClick={handleSincronizarFuncionarios}
+              disabled={sincronizandoFuncionarios}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+              title="Acessar a tabela de professores e sincronizar aniversários em recorrência ativa"
+            >
+              {sincronizandoFuncionarios ? (
+                <RotateCcw className="h-4 w-4 animate-spin text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <Users className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              )}
+              <span>{sincronizandoFuncionarios ? 'Sincronizando...' : 'Sincronizar funcionários'}</span>
             </button>
           )}
 
@@ -790,10 +854,11 @@ export default function CalendarioPage() {
             <div className="flex flex-wrap items-center gap-2">
               {/* Botão de Exportação do PDF do Mês */}
               <BotaoExportarCalendarioPdf
-                eventos={eventos}
+                eventos={categoriaFiltro !== 'todas' ? eventosVisiveis : todosEventosPermitidos}
                 categorias={categoriasEvento}
                 dataAtual={dataAtual}
                 escolaConfig={escolaConfig}
+                categoriaFiltroNome={categoriaFiltro !== 'todas' ? getCategoriaInfo(categoriaFiltro).nome : undefined}
                 variant="toolbar"
               />
 
@@ -873,7 +938,7 @@ export default function CalendarioPage() {
               return (
                 <div
                   key={`day-${diaNum}`}
-                  className={`min-h-[90px] sm:min-h-[115px] rounded-xl border p-1.5 transition-all flex flex-col justify-between overflow-x-clip ${
+                  className={`min-h-[90px] sm:min-h-[115px] print:min-h-[75px] print:overflow-visible rounded-xl border p-1.5 transition-all flex flex-col justify-between overflow-x-clip ${
                     isHoje
                       ? 'border-blue-500 bg-blue-50/30 ring-2 ring-blue-500/20 dark:border-blue-500 dark:bg-blue-950/20'
                       : eventosDoDia.length > 0
@@ -905,7 +970,7 @@ export default function CalendarioPage() {
                   </div>
 
                   {/* Lista de Barras Contínuas dos Eventos no Dia */}
-                  <div className="flex-1 space-y-1 overflow-y-auto max-h-[75px] py-0.5">
+                  <div className="flex-1 space-y-1 overflow-y-auto print:overflow-visible print:max-h-none max-h-[75px] py-0.5">
                     {eventosDoDia.map((ev) => {
                       const inicioStr = ev.data_inicio?.includes('T') ? ev.data_inicio.split('T')[0] : ev.data_inicio;
                       const fimStr = (ev.data_fim || ev.data_inicio)?.includes('T')
@@ -948,10 +1013,12 @@ export default function CalendarioPage() {
                         <button
                           key={`${ev.id}-${dataString}`}
                           onClick={() => setEventoSelecionado(ev)}
-                          className={`h-5 text-left px-1.5 text-[10px] font-bold transition hover:brightness-110 flex items-center shadow-xs z-10 block w-full relative ${roundedClasses} ${marginClasses}`}
+                          className={`evento-calendario-badge print-visible h-5 text-left px-1.5 text-[10px] font-bold transition hover:brightness-110 flex items-center shadow-xs z-10 block w-full relative ${roundedClasses} ${marginClasses}`}
                           style={{
                             backgroundColor: corFinal,
                             color: textColor,
+                            WebkitPrintColorAdjust: 'exact',
+                            printColorAdjust: 'exact',
                           }}
                           title={`${ev.titulo} (${formatarIntervalo(ev.data_inicio, ev.data_fim)})${ehRecorrente ? ' - Repete anualmente' : ''}`}
                         >
@@ -1810,6 +1877,120 @@ export default function CalendarioPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Feedback da Sincronização de Funcionários */}
+      {modalSyncResultado?.aberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 max-h-[90vh] flex flex-col">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Sincronização de Funcionários
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Aniversários integrados à tabela de eventos escolares
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalSyncResultado(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4 overflow-y-auto pr-1 flex-1">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-center dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                  <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300">Cadastrados</span>
+                  <p className="text-xl font-black text-emerald-700 dark:text-emerald-400">
+                    {modalSyncResultado.cadastrados ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-center dark:border-blue-900/40 dark:bg-blue-950/30">
+                  <span className="text-[11px] font-bold text-blue-800 dark:text-blue-300">Atualizados</span>
+                  <p className="text-xl font-black text-blue-700 dark:text-blue-400">
+                    {modalSyncResultado.alterados ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center dark:border-slate-800 dark:bg-slate-800/40">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Inalterados</span>
+                  <p className="text-xl font-black text-slate-800 dark:text-slate-200">
+                    {modalSyncResultado.inalterados ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-center dark:border-amber-900/40 dark:bg-amber-950/30">
+                  <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">Sem Data</span>
+                  <p className="text-xl font-black text-amber-700 dark:text-amber-400">
+                    {modalSyncResultado.semDataNascimento ?? 0}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+                <p>
+                  <strong>Regras aplicadas:</strong> Título configurado com o primeiro e segundo nome do professor, categoria <code>aniverssarios</code> e recorrência anual ativa.
+                </p>
+              </div>
+
+              {modalSyncResultado.detalhes && modalSyncResultado.detalhes.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                    Detalhamento dos Funcionários
+                  </h4>
+                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white text-xs dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900 max-h-48 overflow-y-auto">
+                    {modalSyncResultado.detalhes.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <div className="min-w-0 pr-2">
+                          <p className="font-bold text-slate-900 dark:text-white truncate">
+                            {item.titulo}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            {item.nomeCompleto} {item.dataNascimento ? `• ${item.dataNascimento}` : ''}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${
+                            item.status === 'cadastrado'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : item.status === 'alterado'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                              : item.status === 'sem_data'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          {item.status === 'cadastrado'
+                            ? 'Cadastrado'
+                            : item.status === 'alterado'
+                            ? 'Atualizado'
+                            : item.status === 'sem_data'
+                            ? 'Sem Data'
+                            : 'Inalterado'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-end border-t border-slate-100 pt-3 dark:border-slate-800">
+              <button
+                onClick={() => setModalSyncResultado(null)}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+              >
+                Concluir
+              </button>
+            </div>
           </div>
         </div>
       )}

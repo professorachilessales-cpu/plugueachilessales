@@ -10,6 +10,7 @@ interface BotaoExportarCalendarioPdfProps {
   categorias: CalendarioCategoria[];
   dataAtual: Date;
   escolaConfig: EscolaConfig;
+  categoriaFiltroNome?: string;
   className?: string;
   variant?: 'toolbar' | 'header' | 'compact';
 }
@@ -33,6 +34,7 @@ export function BotaoExportarCalendarioPdf({
   categorias,
   dataAtual,
   escolaConfig,
+  categoriaFiltroNome,
   className = '',
   variant = 'toolbar',
 }: BotaoExportarCalendarioPdfProps) {
@@ -55,6 +57,7 @@ export function BotaoExportarCalendarioPdf({
         ano,
         mes,
         escolaConfig,
+        categoriaFiltroNome,
       });
 
       if (!resultado.success) {

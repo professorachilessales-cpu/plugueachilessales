@@ -339,11 +339,21 @@ export async function GET() {
     let calendarioCategorias: any[] = [];
     try {
       const catRes = await executeTursoQuery('SELECT * FROM calendario_categorias ORDER BY created_at ASC');
-      calendarioCategorias = catRes.rows.map((row: any) => ({
-        ...row,
-        visivel_docentes: Boolean(row.visivel_docentes === 1 || row.visivel_docentes === true),
-        sistema_protegida: Boolean(row.sistema_protegida === 1 || row.sistema_protegida === true),
-      }));
+      calendarioCategorias = catRes.rows.map((row: any) => {
+        const id = String(row.id || '');
+        const nome = String(row.nome || '').toLowerCase();
+        let visivel = Boolean(row.visivel_docentes === 1 || row.visivel_docentes === true);
+        if (id === 'cat-aniversarios' || nome === 'aniversários' || nome === 'aniversarios') {
+          visivel = false;
+        } else if ((id === 'cat-provas' || id === 'cat-reunioes' || nome.includes('prova') || nome.includes('avalia') || nome.includes('reuni')) && !visivel) {
+          visivel = true;
+        }
+        return {
+          ...row,
+          visivel_docentes: visivel,
+          sistema_protegida: Boolean(row.sistema_protegida === 1 || row.sistema_protegida === true || id === 'cat-aniversarios'),
+        };
+      });
     } catch (e) {
       console.error('Erro ao ler calendario_categorias do Turso:', e);
     }

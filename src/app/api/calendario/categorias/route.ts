@@ -46,6 +46,14 @@ export async function GET(req: NextRequest) {
         if (c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários') {
           return { ...c, visivel_docentes: false };
         }
+        // Auto-correção: categorias pedagógicas essenciais são visíveis aos docentes
+        const nomeLower = c.nome.toLowerCase();
+        if (
+          (c.id === 'cat-provas' || c.id === 'cat-reunioes' || nomeLower.includes('prova') || nomeLower.includes('avalia') || nomeLower.includes('reuni')) &&
+          c.visivel_docentes === false
+        ) {
+          return { ...c, visivel_docentes: true };
+        }
         return c;
       });
 

@@ -493,6 +493,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários') {
               return { ...c, visivel_docentes: false, cor_hex: '#4169E1', sistema_protegida: true };
             }
+            // Auto-correção: categorias públicas pedagógicas padrão não devem ser restritas à gestão
+            const nomeLower = c.nome.toLowerCase();
+            if (
+              (c.id === 'cat-provas' || c.id === 'cat-reunioes' || nomeLower.includes('prova') || nomeLower.includes('avalia') || nomeLower.includes('reuni')) &&
+              c.visivel_docentes === false
+            ) {
+              return { ...c, visivel_docentes: true };
+            }
             return c;
           });
           setCategoriasEvento(parsed);
@@ -711,6 +719,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             parsedCats = parsedCats.map(c => {
               if (c.id === 'cat-aniversarios' || c.nome.toLowerCase() === 'aniversários') {
                 return { ...c, visivel_docentes: false, cor_hex: '#4169E1', sistema_protegida: true };
+              }
+              // Auto-correção: categorias públicas pedagógicas padrão não devem ser restritas à gestão
+              const nomeLower = c.nome.toLowerCase();
+              if (
+                (c.id === 'cat-provas' || c.id === 'cat-reunioes' || nomeLower.includes('prova') || nomeLower.includes('avalia') || nomeLower.includes('reuni')) &&
+                c.visivel_docentes === false
+              ) {
+                return { ...c, visivel_docentes: true };
               }
               return c;
             });

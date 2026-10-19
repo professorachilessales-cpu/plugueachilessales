@@ -1059,10 +1059,11 @@ export default function CalendarioPage() {
               </p>
             </div>
             <BotaoExportarCalendarioPdf
-              eventos={eventos}
+              eventos={categoriaFiltro !== 'todas' ? eventosVisiveis : todosEventosPermitidos}
               categorias={categoriasEvento}
               dataAtual={dataAtual}
               escolaConfig={escolaConfig}
+              categoriaFiltroNome={categoriaFiltro !== 'todas' ? getCategoriaInfo(categoriaFiltro).nome : undefined}
               variant="toolbar"
             />
           </div>

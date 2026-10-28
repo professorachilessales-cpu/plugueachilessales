@@ -83,6 +83,8 @@ export function ModalProgressoBancoTurmas({
   const [autoFecharPausado, setAutoFecharPausado] = useState(false);
 
   const logsEndRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Auto-scroll do console de logs para a última mensagem
   useEffect(() => {
@@ -100,7 +102,7 @@ export function ModalProgressoBancoTurmas({
         setTempoRestanteAutoFechar((prev) => {
           if (prev <= 1) {
             clearInterval(timer!);
-            onClose();
+            onCloseRef.current();
             return 0;
           }
           return prev - 1;
@@ -113,7 +115,7 @@ export function ModalProgressoBancoTurmas({
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isOpen, status, autoFechar, autoFecharPausado, onClose]);
+  }, [isOpen, status, autoFechar, autoFecharPausado]);
 
   if (!isOpen) return null;
 

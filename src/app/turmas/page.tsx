@@ -428,10 +428,26 @@ export default function TurmasPage() {
   const [resumoProgressoBanco, setResumoProgressoBanco] = useState<ResumoAcessoBanco | null>(null);
   const [erroProgressoBanco, setErroProgressoBanco] = useState<string | null>(null);
 
+  // Refs de estabilização contra loops de renderização
+  const refreshTurmasRef = React.useRef(refreshTurmas);
+  refreshTurmasRef.current = refreshTurmas;
+
+  const turmasRef = React.useRef(turmas);
+  turmasRef.current = turmas;
+
+  const sincronizacaoEmAndamentoRef = React.useRef(false);
+  const montadoRef = React.useRef(false);
+
   const carregandoDados = carregandoInicial || carregandoTurmas || recarregandoBanco;
 
   // Política de Busca Direta (Bypass de Cache) com Rastreamento de Progresso e Métricas
   const carregarGradeDiretoDoBanco = React.useCallback(async (abrirModal = true) => {
+    // Trava de concorrência: impede execuções sobrepostas ou em loop
+    if (sincronizacaoEmAndamentoRef.current) {
+      return;
+    }
+    sincronizacaoEmAndamentoRef.current = true;
+
     if (abrirModal) {
       setModalProgressoBancoAberto(true);
     }
@@ -498,7 +514,7 @@ export default function TurmasPage() {
         sessionStorage.removeItem('plugue_turmas');
       }
 
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, 60));
       const t1Duracao = Math.round(performance.now() - t1Start);
       atualizarEtapa('cache', 'completed', t1Duracao);
       addLog(`Caches residuais limpos no navegador. Modo sem cache ativado (${t1Duracao}ms).`, 'info');
@@ -510,7 +526,7 @@ export default function TurmasPage() {
       const t2Start = performance.now();
       addLog('Disparando requisição HTTP para /api/turmas com controle anti-cache no-store...', 'info');
 
-      const res = await refreshTurmas();
+      const res = await refreshTurmasRef.current();
 
       if (res && res.success === false && res.error) {
         throw new Error(res.error);
@@ -524,17 +540,18 @@ export default function TurmasPage() {
       // 3. Consulta de Turmas & Salas
       atualizarEtapa('consulta', 'in_progress');
       const t3Start = performance.now();
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 60));
       const t3Duracao = Math.round(performance.now() - t3Start);
       atualizarEtapa('consulta', 'completed', t3Duracao);
-      const totalTurmasRetornadas = (res && typeof res.count === 'number') ? res.count : turmas.length;
+      const turmasAtuais = turmasRef.current;
+      const totalTurmasRetornadas = (res && typeof res.count === 'number') ? res.count : turmasAtuais.length;
       addLog(`${totalTurmasRetornadas} turma(s) recuperada(s) do banco de dados (${t3Duracao}ms).`, 'success');
       setProgressoBanco(82);
 
       // 4. Estruturação da Grade Horária
       atualizarEtapa('grade', 'in_progress');
       const t4Start = performance.now();
-      await new Promise((r) => setTimeout(r, 90));
+      await new Promise((r) => setTimeout(r, 50));
       const t4Duracao = Math.round(performance.now() - t4Start);
       atualizarEtapa('grade', 'completed', t4Duracao);
       addLog('Matriz curricular e horários semanais estruturados com validação de regência/apoio.', 'success');
@@ -543,7 +560,7 @@ export default function TurmasPage() {
       // 5. Sincronização & Persistência Local
       atualizarEtapa('sincronizacao', 'in_progress');
       const t5Start = performance.now();
-      await new Promise((r) => setTimeout(r, 80));
+      await new Promise((r) => setTimeout(r, 40));
       const t5Duracao = Math.round(performance.now() - t5Start);
       atualizarEtapa('sincronizacao', 'completed', t5Duracao);
       addLog('Estado da aplicação sincronizado. Tela pronta para uso.', 'success');
@@ -552,13 +569,14 @@ export default function TurmasPage() {
       const tempoTotalGeral = Math.round(performance.now() - tGeralStart);
       setStatusProgressoBanco('success');
 
+      const turmasFinais = turmasRef.current;
       setResumoProgressoBanco({
         totalTurmas: totalTurmasRetornadas,
-        turmasAtivas: turmas.filter((t) => t.ativa !== false).length,
-        turmasInativas: turmas.filter((t) => t.ativa === false).length,
-        totalAulasGrade: turmas.reduce((acc, t) => acc + (t.grade_horaria?.length || 0), 0),
+        turmasAtivas: turmasFinais.filter((t) => t.ativa !== false).length,
+        turmasInativas: turmasFinais.filter((t) => t.ativa === false).length,
+        totalAulasGrade: turmasFinais.reduce((acc, t) => acc + (t.grade_horaria?.length || 0), 0),
         totalProfessoresVinculados: new Set(
-          turmas.flatMap((t) => [...(t.professores_ids || []), ...(t.equipe_apoio_ids || [])])
+          turmasFinais.flatMap((t) => [...(t.professores_ids || []), ...(t.equipe_apoio_ids || [])])
         ).size,
         tempoRespostaMs: tempoTotalGeral,
         timestamp: new Date().toLocaleTimeString('pt-BR'),
@@ -581,32 +599,17 @@ export default function TurmasPage() {
     } finally {
       setRecarregandoBanco(false);
       setCarregandoInicial(false);
+      sincronizacaoEmAndamentoRef.current = false;
     }
-  }, [refreshTurmas, turmas]);
+  }, []);
 
-  // Carga automática na montagem da tela com exibição do progresso
+  // Carga inicial na montagem da tela (Executa estritamente UMA ÚNICA VEZ)
   React.useEffect(() => {
-    carregarGradeDiretoDoBanco(true);
+    if (!montadoRef.current) {
+      montadoRef.current = true;
+      carregarGradeDiretoDoBanco(false);
+    }
   }, [carregarGradeDiretoDoBanco]);
-
-  // Sincroniza métricas do resumo caso a lista de turmas seja atualizada no contexto
-  React.useEffect(() => {
-    if (turmas.length > 0 && statusProgressoBanco === 'success') {
-      setResumoProgressoBanco((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          totalTurmas: turmas.length,
-          turmasAtivas: turmas.filter((t) => t.ativa !== false).length,
-          turmasInativas: turmas.filter((t) => t.ativa === false).length,
-          totalAulasGrade: turmas.reduce((acc, t) => acc + (t.grade_horaria?.length || 0), 0),
-          totalProfessoresVinculados: new Set(
-            turmas.flatMap((t) => [...(t.professores_ids || []), ...(t.equipe_apoio_ids || [])])
-          ).size,
-        };
-      });
-    }
-  }, [turmas, statusProgressoBanco]);
 
   // Sincroniza a turma selecionada caso a lista de turmas seja carregada assincronamente do banco
   React.useEffect(() => {

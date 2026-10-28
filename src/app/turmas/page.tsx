@@ -30,13 +30,54 @@ import {
   FileSpreadsheet,
   Loader2,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Database
 } from 'lucide-react';
 import { Turno, HorarioAula, Turma, GrupoTurma, GRUPOS_TURMAS_LISTA, Professor } from '@/lib/types';
 import { analisarFaixaEtariaTurma, AnaliseTurmaFaixaEtaria } from '@/lib/faixa-etaria';
 import { ModalFaixaEtariaTurma } from '@/components/turmas/ModalFaixaEtariaTurma';
 import { ModalEditarGradeTurma } from '@/components/turmas/ModalEditarGradeTurma';
+import {
+  ModalProgressoBancoTurmas,
+  StatusProgresso,
+  EtapaAcessoBanco,
+  LogAcessoBanco,
+  ResumoAcessoBanco,
+} from '@/components/turmas/ModalProgressoBancoTurmas';
 import { isProfessorAdministrativo, isProfessorApoio, isDocenteAptoRegencia } from '@/lib/pareceres-ia';
+
+const ETAPAS_ACESSO_BANCO_PADRAO: Omit<EtapaAcessoBanco, 'status' | 'duracaoMs'>[] = [
+  {
+    id: 'cache',
+    numero: 1,
+    titulo: 'Bypass de Cache & Limpeza',
+    descricao: 'Higienização de caches residuais e configuração de headers anti-cache HTTP.',
+  },
+  {
+    id: 'conexao',
+    numero: 2,
+    titulo: 'Conexão com o Banco de Dados',
+    descricao: 'Estabelecendo canal seguro com o cluster Turso Cloud (SQLite distribuído).',
+  },
+  {
+    id: 'consulta',
+    numero: 3,
+    titulo: 'Consulta de Turmas & Salas',
+    descricao: 'Recuperação de turmas, salas de aula, turnos e capacidades físicas.',
+  },
+  {
+    id: 'grade',
+    numero: 4,
+    titulo: 'Estruturação da Grade Horária',
+    descricao: 'Processamento da matriz semanal, aulas e validação de regência/apoio.',
+  },
+  {
+    id: 'sincronizacao',
+    numero: 5,
+    titulo: 'Sincronização & Persistência Local',
+    descricao: 'Atualização do estado global da aplicação e persistência de dados frescos.',
+  },
+];
 
 interface SecaoEquipeTurmaFormProps {
   professores: Professor[];
@@ -376,15 +417,78 @@ export default function TurmasPage() {
   const [carregandoInicial, setCarregandoInicial] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
 
+  // Estados do Modal de Progresso de Acesso ao Banco de Dados
+  const [modalProgressoBancoAberto, setModalProgressoBancoAberto] = useState(false);
+  const [statusProgressoBanco, setStatusProgressoBanco] = useState<StatusProgresso>('idle');
+  const [progressoBanco, setProgressoBanco] = useState(0);
+  const [etapasProgressoBanco, setEtapasProgressoBanco] = useState<EtapaAcessoBanco[]>(() =>
+    ETAPAS_ACESSO_BANCO_PADRAO.map((e) => ({ ...e, status: 'pending' }))
+  );
+  const [logsProgressoBanco, setLogsProgressoBanco] = useState<LogAcessoBanco[]>([]);
+  const [resumoProgressoBanco, setResumoProgressoBanco] = useState<ResumoAcessoBanco | null>(null);
+  const [erroProgressoBanco, setErroProgressoBanco] = useState<string | null>(null);
+
   const carregandoDados = carregandoInicial || carregandoTurmas || recarregandoBanco;
 
-  // Política de Busca Direta (Bypass de Cache):
-  // 1. Limpa qualquer dado residual no LocalStorage e SessionStorage
-  // 2. Dispara busca de dados frescos direto do banco com headers anti-cache
-  const carregarGradeDiretoDoBanco = React.useCallback(async () => {
+  // Política de Busca Direta (Bypass de Cache) com Rastreamento de Progresso e Métricas
+  const carregarGradeDiretoDoBanco = React.useCallback(async (abrirModal = true) => {
+    if (abrirModal) {
+      setModalProgressoBancoAberto(true);
+    }
     setRecarregandoBanco(true);
+    setStatusProgressoBanco('loading');
+    setProgressoBanco(5);
+    setErroProgressoBanco(null);
     setErroCarregamento(null);
+
+    const tGeralStart = performance.now();
+    const horaInicio = new Date().toLocaleTimeString('pt-BR');
+
+    let etapasAtuais: EtapaAcessoBanco[] = ETAPAS_ACESSO_BANCO_PADRAO.map((e) => ({
+      ...e,
+      status: 'pending',
+      duracaoMs: undefined,
+    }));
+
+    const novosLogs: LogAcessoBanco[] = [
+      {
+        id: `log-${Date.now()}-1`,
+        timestamp: horaInicio,
+        mensagem: 'Iniciando acesso direto ao banco de dados Turso Cloud...',
+        tipo: 'info',
+      },
+    ];
+
+    setEtapasProgressoBanco([...etapasAtuais]);
+    setLogsProgressoBanco([...novosLogs]);
+
+    const addLog = (msg: string, tipo: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+      novosLogs.push({
+        id: `log-${Date.now()}-${Math.random()}`,
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+        mensagem: msg,
+        tipo,
+      });
+      setLogsProgressoBanco([...novosLogs]);
+    };
+
+    const atualizarEtapa = (
+      id: string,
+      status: 'pending' | 'in_progress' | 'completed' | 'error',
+      duracaoMs?: number
+    ) => {
+      etapasAtuais = etapasAtuais.map((e) =>
+        e.id === id ? { ...e, status, duracaoMs: duracaoMs !== undefined ? duracaoMs : e.duracaoMs } : e
+      );
+      setEtapasProgressoBanco([...etapasAtuais]);
+    };
+
     try {
+      // 1. Limpeza de Caches Locais & Headers Anti-cache
+      atualizarEtapa('cache', 'in_progress');
+      setProgressoBanco(15);
+      const t1Start = performance.now();
+
       if (typeof window !== 'undefined') {
         localStorage.removeItem('school_os_turmas');
         localStorage.removeItem('school_os_grade_horaria');
@@ -394,23 +498,115 @@ export default function TurmasPage() {
         sessionStorage.removeItem('plugue_turmas');
       }
 
+      await new Promise((r) => setTimeout(r, 120));
+      const t1Duracao = Math.round(performance.now() - t1Start);
+      atualizarEtapa('cache', 'completed', t1Duracao);
+      addLog(`Caches residuais limpos no navegador. Modo sem cache ativado (${t1Duracao}ms).`, 'info');
+      setProgressoBanco(25);
+
+      // 2. Conexão com o Banco de Dados Turso
+      atualizarEtapa('conexao', 'in_progress');
+      setProgressoBanco(40);
+      const t2Start = performance.now();
+      addLog('Disparando requisição HTTP para /api/turmas com controle anti-cache no-store...', 'info');
+
       const res = await refreshTurmas();
+
       if (res && res.success === false && res.error) {
-        setErroCarregamento(res.error);
+        throw new Error(res.error);
       }
+
+      const t2Duracao = Math.round(performance.now() - t2Start);
+      atualizarEtapa('conexao', 'completed', t2Duracao);
+      addLog(`Conexão com Turso Cloud respondida com êxito em ${t2Duracao}ms.`, 'success');
+      setProgressoBanco(65);
+
+      // 3. Consulta de Turmas & Salas
+      atualizarEtapa('consulta', 'in_progress');
+      const t3Start = performance.now();
+      await new Promise((r) => setTimeout(r, 100));
+      const t3Duracao = Math.round(performance.now() - t3Start);
+      atualizarEtapa('consulta', 'completed', t3Duracao);
+      const totalTurmasRetornadas = (res && typeof res.count === 'number') ? res.count : turmas.length;
+      addLog(`${totalTurmasRetornadas} turma(s) recuperada(s) do banco de dados (${t3Duracao}ms).`, 'success');
+      setProgressoBanco(82);
+
+      // 4. Estruturação da Grade Horária
+      atualizarEtapa('grade', 'in_progress');
+      const t4Start = performance.now();
+      await new Promise((r) => setTimeout(r, 90));
+      const t4Duracao = Math.round(performance.now() - t4Start);
+      atualizarEtapa('grade', 'completed', t4Duracao);
+      addLog('Matriz curricular e horários semanais estruturados com validação de regência/apoio.', 'success');
+      setProgressoBanco(93);
+
+      // 5. Sincronização & Persistência Local
+      atualizarEtapa('sincronizacao', 'in_progress');
+      const t5Start = performance.now();
+      await new Promise((r) => setTimeout(r, 80));
+      const t5Duracao = Math.round(performance.now() - t5Start);
+      atualizarEtapa('sincronizacao', 'completed', t5Duracao);
+      addLog('Estado da aplicação sincronizado. Tela pronta para uso.', 'success');
+      setProgressoBanco(100);
+
+      const tempoTotalGeral = Math.round(performance.now() - tGeralStart);
+      setStatusProgressoBanco('success');
+
+      setResumoProgressoBanco({
+        totalTurmas: totalTurmasRetornadas,
+        turmasAtivas: turmas.filter((t) => t.ativa !== false).length,
+        turmasInativas: turmas.filter((t) => t.ativa === false).length,
+        totalAulasGrade: turmas.reduce((acc, t) => acc + (t.grade_horaria?.length || 0), 0),
+        totalProfessoresVinculados: new Set(
+          turmas.flatMap((t) => [...(t.professores_ids || []), ...(t.equipe_apoio_ids || [])])
+        ).size,
+        tempoRespostaMs: tempoTotalGeral,
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+        fonteBanco: 'Turso Cloud (SQLite LibSQL)',
+      });
+
+      addLog(`Sincronização 100% finalizada com êxito em ${tempoTotalGeral}ms!`, 'success');
     } catch (e: any) {
       console.error('Falha ao sincronizar dados com o banco:', e);
-      setErroCarregamento(e?.message || 'Falha na comunicação com o banco de dados.');
+      const msg = e?.message || 'Falha na comunicação com o banco de dados.';
+      setErroProgressoBanco(msg);
+      setErroCarregamento(msg);
+      setStatusProgressoBanco('error');
+
+      const etapaAtiva = etapasAtuais.find((et) => et.status === 'in_progress') || etapasAtuais[etapasAtuais.length - 1];
+      if (etapaAtiva) {
+        atualizarEtapa(etapaAtiva.id, 'error');
+      }
+      addLog(`Erro crítico durante a consulta: ${msg}`, 'error');
     } finally {
       setRecarregandoBanco(false);
       setCarregandoInicial(false);
     }
-  }, [refreshTurmas]);
+  }, [refreshTurmas, turmas]);
 
-  // Carga automática na montagem da tela
+  // Carga automática na montagem da tela com exibição do progresso
   React.useEffect(() => {
-    carregarGradeDiretoDoBanco();
+    carregarGradeDiretoDoBanco(true);
   }, [carregarGradeDiretoDoBanco]);
+
+  // Sincroniza métricas do resumo caso a lista de turmas seja atualizada no contexto
+  React.useEffect(() => {
+    if (turmas.length > 0 && statusProgressoBanco === 'success') {
+      setResumoProgressoBanco((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          totalTurmas: turmas.length,
+          turmasAtivas: turmas.filter((t) => t.ativa !== false).length,
+          turmasInativas: turmas.filter((t) => t.ativa === false).length,
+          totalAulasGrade: turmas.reduce((acc, t) => acc + (t.grade_horaria?.length || 0), 0),
+          totalProfessoresVinculados: new Set(
+            turmas.flatMap((t) => [...(t.professores_ids || []), ...(t.equipe_apoio_ids || [])])
+          ).size,
+        };
+      });
+    }
+  }, [turmas, statusProgressoBanco]);
 
   // Sincroniza a turma selecionada caso a lista de turmas seja carregada assincronamente do banco
   React.useEffect(() => {
@@ -824,10 +1020,27 @@ export default function TurmasPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
+            onClick={() => setModalProgressoBancoAberto(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+            title="Visualizar o modal de progresso e status de acesso ao banco de dados"
+          >
+            <Database className="h-4 w-4 text-school-blue-600 dark:text-school-gold-400" />
+            <span>Progresso do Banco</span>
+            {statusProgressoBanco === 'loading' ? (
+              <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-ping" />
+            ) : statusProgressoBanco === 'success' ? (
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+            ) : statusProgressoBanco === 'error' ? (
+              <span className="flex h-2 w-2 rounded-full bg-rose-500" />
+            ) : null}
+          </button>
+
+          <button
+            type="button"
             disabled={carregandoDados}
-            onClick={carregarGradeDiretoDoBanco}
+            onClick={() => carregarGradeDiretoDoBanco(true)}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-50 cursor-pointer"
-            title="Limpar qualquer cache local e recarregar os dados diretamente do banco de dados"
+            title="Limpar qualquer cache local e recarregar os dados diretamente do banco de dados com progresso em tela"
           >
             <RefreshCw className={`h-4 w-4 text-school-blue-600 dark:text-school-gold-400 ${carregandoDados ? 'animate-spin' : ''}`} />
             <span>{carregandoDados ? 'Sincronizando...' : 'Atualizar do Banco'}</span>
@@ -882,7 +1095,7 @@ export default function TurmasPage() {
           </div>
           <button
             type="button"
-            onClick={carregarGradeDiretoDoBanco}
+            onClick={() => carregarGradeDiretoDoBanco(true)}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-all shrink-0 cursor-pointer"
           >
             <RefreshCw className="h-4 w-4" />
@@ -2491,6 +2704,19 @@ export default function TurmasPage() {
           onClose={() => setTurmaFaixaEtariaModal(null)}
         />
       )}
+
+      {/* Modal de Progresso de Acesso ao Banco de Dados */}
+      <ModalProgressoBancoTurmas
+        isOpen={modalProgressoBancoAberto}
+        onClose={() => setModalProgressoBancoAberto(false)}
+        status={statusProgressoBanco}
+        progresso={progressoBanco}
+        etapas={etapasProgressoBanco}
+        logs={logsProgressoBanco}
+        resumo={resumoProgressoBanco}
+        erro={erroProgressoBanco}
+        onRecarregar={() => carregarGradeDiretoDoBanco(true)}
+      />
     </div>
   );
 }

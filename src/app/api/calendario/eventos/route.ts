@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
     const recAtiva = recTipo !== 'NENHUMA' && toBooleanStrict(recorrencia_ativa) ? 1 : 0;
     const recLimite = recTipo !== 'NENHUMA' && recorrencia_data_limite ? recorrencia_data_limite : null;
 
-    if (isTursoConfigured) {
+    if (checkIsTursoConfigured()) {
       await garantirSchemaRecorrenciaEventos();
 
       // Query SQL explícita e direta na tabela definitiva 'calendario_eventos'
@@ -316,7 +316,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    if (isTursoConfigured) {
+    if (checkIsTursoConfigured()) {
       if (aPartirDeAno) {
         const anoNum = Number(aPartirDeAno);
         // Busca a data de início original do evento para saber se é o primeiro ano

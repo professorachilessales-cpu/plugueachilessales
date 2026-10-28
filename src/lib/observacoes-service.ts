@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { executeTursoQuery, executeTursoTransaction, isTursoConfigured, TursoStatement } from '@/lib/turso';
+import { executeTursoQuery, executeTursoTransaction, checkIsTursoConfigured, TursoStatement } from '@/lib/turso';
 import { verifyJwt } from '@/lib/security';
 
 let tabelasGarantidas = false;
@@ -8,7 +8,7 @@ let tabelasGarantidas = false;
  * Garante que as tabelas necessárias de observações e auditoria existem no Turso com todas as colunas
  */
 export async function garantirTabelasObservacoes(): Promise<void> {
-  if (!isTursoConfigured || tabelasGarantidas) return;
+  if (!checkIsTursoConfigured() || tabelasGarantidas) return;
   try {
     // 1. Tabela observacoes_pedagogicas
     await executeTursoQuery(`
@@ -208,7 +208,7 @@ export async function removerObservacaoComAuditoria(
     throw new Error('ID da observação é obrigatório para exclusão.');
   }
 
-  if (!isTursoConfigured) {
+  if (!checkIsTursoConfigured()) {
     throw new Error('Banco de dados Turso não está configurado.');
   }
 

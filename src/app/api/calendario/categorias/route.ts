@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { CalendarioCategoria } from '@/lib/types';
 import { initialCategoriasEvento } from '@/lib/mock-data';
 
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     const userRole = req.headers.get('x-user-role') || req.nextUrl.searchParams.get('role');
 
-    if (isTursoConfigured) {
+    if (checkIsTursoConfigured()) {
       await executeTursoQuery(`
         CREATE TABLE IF NOT EXISTS calendario_categorias (
           id TEXT PRIMARY KEY,
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (isTursoConfigured) {
+    if (checkIsTursoConfigured()) {
       // Valida se já existe outra categoria com esse nome
       const checkDupe = await executeTursoQuery(
         'SELECT id FROM calendario_categorias WHERE LOWER(nome) = LOWER(?) AND id != ?',
@@ -185,7 +185,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    if (isTursoConfigured) {
+    if (checkIsTursoConfigured()) {
       const checkRes = await executeTursoQuery(
         'SELECT sistema_protegida, nome FROM calendario_categorias WHERE id = ?',
         [id]

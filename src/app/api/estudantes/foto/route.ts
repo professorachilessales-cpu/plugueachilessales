@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Readable } from 'stream';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { 
   getGoogleDriveClient, 
   resolverOuCriarEstruturaPastasEstudante 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     let estudanteNome = searchParams.get('estudante_nome') || '';
 
     // Se tiver ID mas não nome, busca nome do estudante
-    if (!estudanteNome && estudanteId && isTursoConfigured) {
+    if (!estudanteNome && estudanteId && checkIsTursoConfigured()) {
       try {
         const estRes = await executeTursoQuery<{ nome_completo: string }>(
           `SELECT nome_completo FROM estudantes WHERE id = ? LIMIT 1`,
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
       // Se encontrou a foto no Drive (ou modo simulado)
       if (directViewUrl) {
         let targetId = estudanteId;
-        if (!targetId && estudanteNome && isTursoConfigured) {
+        if (!targetId && estudanteNome && checkIsTursoConfigured()) {
           try {
             const estRes = await executeTursoQuery<{ id: string }>(
               `SELECT id FROM estudantes WHERE UPPER(nome_completo) = UPPER(?) LIMIT 1`,
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        if (isTursoConfigured && targetId) {
+        if (checkIsTursoConfigured() && targetId) {
           try {
             await executeTursoQuery(
               `UPDATE estudantes SET foto_url = ? WHERE id = ?`,
@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Persistência no Banco de Dados Turso
     let targetEstudanteId = estudanteId;
-    if (!targetEstudanteId && estudanteNome && isTursoConfigured) {
+    if (!targetEstudanteId && estudanteNome && checkIsTursoConfigured()) {
       try {
         const estRes = await executeTursoQuery<{ id: string }>(
           `SELECT id FROM estudantes WHERE UPPER(nome_completo) = UPPER(?) LIMIT 1`,
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (isTursoConfigured && targetEstudanteId) {
+    if (checkIsTursoConfigured() && targetEstudanteId) {
       try {
         await executeTursoQuery(
           `UPDATE estudantes SET foto_url = ? WHERE id = ?`,

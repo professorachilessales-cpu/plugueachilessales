@@ -1,6 +1,6 @@
 'use server';
 
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 
 export interface FaltaDocenteItem {
   id: string;
@@ -21,7 +21,7 @@ export interface FaltaDocenteItem {
 }
 
 export async function buscarFaltasDoProfessorAction(professorId: string): Promise<FaltaDocenteItem[]> {
-  if (!professorId || !isTursoConfigured) {
+  if (!professorId || !checkIsTursoConfigured()) {
     return [];
   }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +54,7 @@ function coincideProfessor(
 
 export async function GET(request: NextRequest) {
   try {
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json({ error: 'Turso Database não configurado.' }, { status: 500 });
     }
 

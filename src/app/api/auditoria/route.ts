@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { ActivityLog } from '@/lib/types';
 
 /**
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const dataInicio = searchParams.get('data_inicio');
     const dataFim = searchParams.get('data_fim');
 
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json({
         logs: [],
         connected: false,
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     const nowIso = new Date().toISOString();
     const detailsJson = typeof details === 'string' ? details : JSON.stringify(details);
 
-    if (isTursoConfigured) {
+    if (checkIsTursoConfigured()) {
       const insertSql = `
         INSERT INTO activity_logs (id, action_type, user_id, user_name, target_class_id, target_class_name, details, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)

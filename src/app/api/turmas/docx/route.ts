@@ -5,7 +5,7 @@ import {
   TurmaDocxOptions 
 } from '@/lib/turma-docx-generator';
 import { initialEstudantes, initialEscolaConfig } from '@/lib/mock-data';
-import { isTursoConfigured, executeTursoQuery } from '@/lib/turso';
+import { checkIsTursoConfigured, executeTursoQuery } from '@/lib/turso';
 import { Turma, Estudante, EscolaConfig } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     let listaEstudantes: Estudante[] = Array.isArray(estudantes) ? estudantes : [];
 
     if (listaEstudantes.length === 0 && turma.id) {
-      if (isTursoConfigured) {
+      if (checkIsTursoConfigured()) {
         try {
           const res = await executeTursoQuery(
             'SELECT * FROM estudantes WHERE turma_id = ? AND (status_matricula != "Transferido" AND status_matricula != "Evadido")',
@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
     let listaEstudantes: Estudante[] = [];
     let configEscola: any = initialEscolaConfig;
 
-    if (isTursoConfigured) {
+    if (checkIsTursoConfigured()) {
       try {
         const resTurma = await executeTursoQuery('SELECT * FROM turmas WHERE id = ? LIMIT 1', [turmaId]);
         if (resTurma.rows && resTurma.rows.length > 0) {

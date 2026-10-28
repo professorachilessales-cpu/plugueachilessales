@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { verifyJwt } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +38,7 @@ export async function GET(
       );
     }
 
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json({ error: 'Banco de dados Turso não configurado' }, { status: 500 });
     }
 

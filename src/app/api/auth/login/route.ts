@@ -9,7 +9,7 @@ import {
   sanitizeString 
 } from '@/lib/security';
 import { initialProfessores } from '@/lib/mock-data';
-import { executeTursoQuery, isTursoConfigured, garantirSchemaAutenticacaoProfessores } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured, garantirSchemaAutenticacaoProfessores } from '@/lib/turso';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,13 +40,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Garante que as colunas de autenticação existam na tabela professores
-    if (isTursoConfigured) {
+    const tursoAtivo = checkIsTursoConfigured();
+    if (tursoAtivo) {
       await garantirSchemaAutenticacaoProfessores();
     }
 
     // 2. Busca do colaborador diretamente na tabela 'professores'
     let colaborador: any = null;
-    if (isTursoConfigured) {
+    if (tursoAtivo) {
       try {
         const queryRes = await executeTursoQuery(
           `SELECT * FROM professores 
@@ -181,7 +182,7 @@ export async function POST(req: NextRequest) {
     await resetFailedLogin(ip);
 
     // 6. Atualizar último login na tabela professores
-    if (isTursoConfigured && colaborador.id) {
+    if (checkIsTursoConfigured() && colaborador.id) {
       try {
         await executeTursoQuery(
           'UPDATE professores SET ultimo_login = CURRENT_TIMESTAMP WHERE id = ?',

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { verifyJwt } from '@/lib/security';
 import { 
   garantirTabelasObservacoes, 
@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: NextRequest) {
   try {
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json({ error: 'Banco de dados Turso não configurado.' }, { status: 400 });
     }
 
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json(
         { error: 'Banco de dados Turso não está configurado.' },
         { status: 503 }
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
  */
 export async function PUT(req: NextRequest) {
   try {
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json({ error: 'Banco de dados não configurado.' }, { status: 400 });
     }
 
@@ -426,7 +426,7 @@ export async function PUT(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    if (!isTursoConfigured) {
+    if (!checkIsTursoConfigured()) {
       return NextResponse.json({ error: 'Banco de dados Turso não configurado.' }, { status: 400 });
     }
 

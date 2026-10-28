@@ -3,6 +3,10 @@
 
 export const DEFAULT_TURSO_DB_URL = process.env.TURSO_DATABASE_URL || 'libsql://plugueachiles-achilessales.aws-us-west-2.turso.io';
 
+export const DEFAULT_TURSO_AUTH_TOKEN =
+  process.env.TURSO_AUTH_TOKEN ||
+  'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJnaWQiOiJiZWJmOGFkYi00NjNkLTQ2NDctYWE3Yi1hY2RiNjA3ZDA2ZjkiLCJpYXQiOjE3OTAxOTI5MjAsImtpZCI6InZXd1FEZ29POHVQc3FFY0lMOVloZzlxSm5SMjlqVWlaSWdQcW41U3AxQk0iLCJyaWQiOiIyOWE0Y2YzNS05M2FhLTRkMmUtOTA2My04NDQ1NmQ1MDNjNGMifQ.4ESQbOOPJw45FGHv9RbhRLtfMT2m72ptAhfVBG6k0utCdDqmCIZN3PpP3tgmrmZ7LtcfgjuexLPpoDcrMTfLAQ';
+
 // Overrides dinâmicos em memória (apenas runtime, sem acesso a disco)
 let overrideTursoDbUrl: string | null = null;
 let overrideTursoAuthToken: string | null = null;
@@ -18,16 +22,16 @@ export function getTursoAuthToken(): string {
   if (overrideTursoAuthToken && overrideTursoAuthToken.trim() !== '') {
     return overrideTursoAuthToken.trim();
   }
-  return (process.env.TURSO_AUTH_TOKEN || '').trim();
+  return (process.env.TURSO_AUTH_TOKEN || DEFAULT_TURSO_AUTH_TOKEN || '').trim();
 }
 
 /**
  * Atualiza credenciais em memória durante o ciclo de vida do processo
- * (Sem escrita no sistema de arquivos local, compatível com a Vercel)
+ * (Sem escrita no sistema de arquivos local, compatível com Vercel e Cloudflare)
  */
 export function setTursoCredentials(novaUrl: string, novoToken: string): void {
   const urlLimpa = novaUrl ? novaUrl.trim() : DEFAULT_TURSO_DB_URL;
-  const tokenLimpo = novoToken ? novoToken.trim() : '';
+  const tokenLimpo = novoToken ? novoToken.trim() : DEFAULT_TURSO_AUTH_TOKEN;
 
   overrideTursoDbUrl = urlLimpa;
   overrideTursoAuthToken = tokenLimpo;
@@ -48,8 +52,6 @@ export function getTursoHttpUrl(dbUrl: string = getTursoDbUrl()): string {
   return dbUrl;
 }
 
-export let isTursoConfigured = false;
-
 export function checkIsTursoConfigured(): boolean {
   const token = getTursoAuthToken();
   const url = getTursoDbUrl();
@@ -58,7 +60,8 @@ export function checkIsTursoConfigured(): boolean {
   return configured;
 }
 
-// Inicialização inicial
+// Inicialização inicial e retrocompatibilidade com export let
+export let isTursoConfigured = true;
 isTursoConfigured = checkIsTursoConfigured();
 
 export interface TursoQueryResult<T = any> {

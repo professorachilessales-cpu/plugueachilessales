@@ -1,4 +1,4 @@
-import { executeTursoQuery, isTursoConfigured } from '@/lib/turso';
+import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { EventoEscolar, RecorrenciaTipo } from '@/lib/types';
 
 /**
@@ -7,7 +7,7 @@ import { EventoEscolar, RecorrenciaTipo } from '@/lib/types';
  * Idempotente e auto-recuperável.
  */
 export async function garantirSchemaRecorrenciaEventos(): Promise<void> {
-  if (!isTursoConfigured) return;
+  if (!checkIsTursoConfigured()) return;
 
   try {
     // 1. Garante existência da tabela 'eventos'

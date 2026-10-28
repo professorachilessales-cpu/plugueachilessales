@@ -705,16 +705,6 @@ export default function ProfessoresPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Botão de Atualização em Tempo Real (Zero Cache) */}
-          <button
-            onClick={() => carregarDadosFrescos(true)}
-            disabled={carregandoDados || recarregandoManual}
-            title="Atualizar dados diretamente do banco de dados em tempo real"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-school-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-all"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${carregandoDados || recarregandoManual ? 'animate-spin text-school-blue-600' : ''}`} />
-            <span className="hidden sm:inline">Atualizar Base</span>
-          </button>
 
           <button
             onClick={() => setModalNovoProfAberto(true)}

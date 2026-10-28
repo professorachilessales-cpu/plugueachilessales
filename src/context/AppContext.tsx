@@ -172,7 +172,7 @@ interface AppContextType {
   refreshProfessores: () => Promise<void>;
   toggleProfessorApoio: (id: string) => void;
   toggleProfessorAdministrativo: (id: string) => void;
-  addFaltaProfessor: (falta: Omit<FaltaProfessor, 'id' | 'created_at'>) => void;
+  addFaltaProfessor: (falta: Omit<FaltaProfessor, 'id' | 'created_at'>) => Promise<FaltaProfessor> | void;
   updateFaltaProfessor: (id: string, updates: Partial<FaltaProfessor>) => void;
   deleteFaltaProfessor: (id: string, fileId?: string, nomeArquivo?: string) => Promise<void>;
   deleteAtestadoFalta: (faltaId: string, fileId?: string, nomeArquivo?: string) => Promise<void>;
@@ -857,13 +857,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Sincronizador de mutações com o Turso
   const syncWithTurso = async (action: string, payload: any) => {
     try {
-      await fetch('/api/turso/sync', {
+      const res = await fetch('/api/turso/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, payload }),
       });
-    } catch (err) {
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Erro de sincronização com o banco de dados (${res.status})`);
+      }
+      return await res.json().catch(() => ({ success: true }));
+    } catch (err: any) {
       console.warn(`[Turso Sync] Falha ao sincronizar ${action}:`, err);
+      throw err;
     }
   };
 
@@ -1925,7 +1931,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await syncWithTurso('delete_professor', { id });
   };
 
-  const addFaltaProfessor = (novaFalta: Omit<FaltaProfessor, 'id' | 'created_at'>) => {
+  const addFaltaProfessor = async (novaFalta: Omit<FaltaProfessor, 'id' | 'created_at'>): Promise<FaltaProfessor> => {
     const prof = professores.find(p => p.id === novaFalta.professor_id);
     const dataIni = novaFalta.data_inicio || novaFalta.data_falta || new Date().toISOString().split('T')[0];
     const dataFim = novaFalta.data_fim || dataIni;
@@ -1959,7 +1965,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
     };
     setFaltasProfessores((prev) => [faltaCriada, ...prev]);
-    syncWithTurso('save_falta', faltaCriada);
+    await syncWithTurso('save_falta', faltaCriada);
+    return faltaCriada;
   };
 
   const updateFaltaProfessor = (id: string, updates: Partial<FaltaProfessor>) => {

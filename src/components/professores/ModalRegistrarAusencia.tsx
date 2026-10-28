@@ -21,7 +21,18 @@ import {
   Trash2
 } from 'lucide-react';
 import { Professor, TipoRegistroAusencia, Turma } from '@/lib/types';
-import { calcularAulasDevidasGrade, ResultadoCalculoAulas, coincideProfessor } from '@/lib/ausencias-service';
+import { 
+  calcularAulasDevidasGrade, 
+  ResultadoCalculoAulas, 
+  coincideProfessor,
+  formatDataBr,
+  parseDataLocal
+} from '@/lib/ausencias-service';
+import { 
+  OverlayGravacaoAusencia, 
+  StatusGravacaoAusencia, 
+  ResumoAusenciaGravada 
+} from './OverlayGravacaoAusencia';
 
 interface ModalRegistrarAusenciaProps {
   isOpen: boolean;
@@ -83,6 +94,13 @@ export function ModalRegistrarAusencia({
   const [sucesso, setSucesso] = useState<boolean>(false);
   const [expandirDetalhamento, setExpandirDetalhamento] = useState<boolean>(false);
 
+  // Estados do Overlay de Paralização de Tela e Feedback
+  const [statusGravacao, setStatusGravacao] = useState<StatusGravacaoAusencia>('idle');
+  const [etapaProgresso, setEtapaProgresso] = useState<'validando' | 'drive' | 'banco'>('banco');
+  const [mensagemProgresso, setMensagemProgresso] = useState<string>('');
+  const [resumoGravado, setResumoGravado] = useState<ResumoAusenciaGravada | null>(null);
+  const [erroGravacao, setErroGravacao] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mapeamento e classificação dos docentes (com grade ativa vs sem grade)
@@ -137,6 +155,9 @@ export function ModalRegistrarAusencia({
       setErro(null);
       setSucesso(false);
       setProgressoUpload(null);
+      setStatusGravacao('idle');
+      setResumoGravado(null);
+      setErroGravacao(null);
     }
   }, [isOpen, professorPreSelecionadoId, professores, docentesComGrade]);
 
@@ -264,9 +285,9 @@ export function ModalRegistrarAusencia({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Submissão do Formulário
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Submissão do Formulário com Bloqueio de Tela Cheia e Feedback Estruturado
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
     if (!professorId) {
       setErro('Selecione o docente.');
@@ -279,7 +300,11 @@ export function ModalRegistrarAusencia({
     }
 
     setErro(null);
+    setErroGravacao(null);
     setSalvando(true);
+    setStatusGravacao('gravando');
+    setEtapaProgresso('validando');
+    setMensagemProgresso('Validando informações do registro...');
 
     try {
       let finalDriveViewUrl: string | undefined = linkDriveManual ? linkDriveManual.trim() : undefined;
@@ -287,7 +312,10 @@ export function ModalRegistrarAusencia({
 
       // 1. Upload do Atestado no Google Drive se houver arquivo anexado
       if (arquivoAtestado) {
-        setProgressoUpload('Enviando atestado para o Google Drive institucional...');
+        setEtapaProgresso('drive');
+        const msgDrive = 'Enviando atestado para o Google Drive institucional...';
+        setMensagemProgresso(msgDrive);
+        setProgressoUpload(msgDrive);
 
         const formData = new FormData();
         formData.append('file', arquivoAtestado);
@@ -313,14 +341,17 @@ export function ModalRegistrarAusencia({
         finalDriveViewUrl = uploadData.url_visualizacao || uploadData.webViewLink;
       }
 
-      setProgressoUpload('Gravando registro de ausência no sistema...');
+      // 2. Gravação do registro de ausência no Banco de Dados (Turso Cloud)
+      setEtapaProgresso('banco');
+      const msgBanco = 'Gravando registro de ausência no banco de dados Turso...';
+      setMensagemProgresso(msgBanco);
+      setProgressoUpload(msgBanco);
 
       const justificativaFinal = justificativaDetalhada.trim()
         ? `${motivo.toUpperCase()} - ${justificativaDetalhada.trim().toUpperCase()}`
         : motivo.toUpperCase();
 
-      // 2. Gravar o registro da ausência no banco de dados e estado global
-      addFaltaProfessor({
+      await addFaltaProfessor({
         professor_id: professorId,
         professor_nome: professorSelecionado?.nome_completo || 'Docente',
         tipo_registro: tipoRegistro,
@@ -340,21 +371,48 @@ export function ModalRegistrarAusencia({
         usuario_registro_id: currentUser?.id,
       });
 
+      // 3. Sucesso na gravação: monta o resumo detalhado
+      const periodoTexto = tipoRegistro === 'DATA_UNICA'
+        ? `${formatDataBr(parseDataLocal(dataInicioEfetiva))}`
+        : `${formatDataBr(parseDataLocal(dataInicioEfetiva))} a ${formatDataBr(parseDataLocal(dataFimEfetiva))}`;
+
+      setResumoGravado({
+        professorNome: professorSelecionado?.nome_completo || 'Docente',
+        tipoRegistro,
+        periodoFormatado: periodoTexto,
+        aulasTotaisDevidas,
+        motivo: justificativaFinal,
+        temAtestado: Boolean(arquivoAtestado || finalDriveViewUrl),
+        linkDrive: finalDriveViewUrl,
+      });
+
       setSucesso(true);
-      setTimeout(() => {
-        setSucesso(false);
-        onClose();
-      }, 1500);
+      setStatusGravacao('sucesso');
     } catch (err: any) {
-      console.error('Erro ao registrar ausência:', err);
-      setErro(err.message || 'Erro inesperado ao registrar ausência.');
+      console.error('Erro ao registrar ausência no banco de dados:', err);
+      const msgErro = err.message || 'Erro inesperado ao registrar ausência no banco de dados.';
+      setErro(msgErro);
+      setErroGravacao(msgErro);
+      setStatusGravacao('erro');
     } finally {
       setSalvando(false);
       setProgressoUpload(null);
     }
   };
 
-  if (!isOpen) return null;
+  const handleConcluirSucesso = () => {
+    setStatusGravacao('idle');
+    setResumoGravado(null);
+    setArquivoAtestado(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    onClose();
+  };
+
+  const handleFecharErro = () => {
+    setStatusGravacao('idle');
+  };
+
+  if (!isOpen && statusGravacao === 'idle') return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in-0 duration-200">
@@ -865,6 +923,18 @@ export function ModalRegistrarAusencia({
         </div>
 
       </div>
+
+      {/* Overlay de Paralização de Tela com Feedback de Gravação */}
+      <OverlayGravacaoAusencia
+        status={statusGravacao}
+        etapaAtual={etapaProgresso}
+        mensagemProgresso={mensagemProgresso}
+        resumo={resumoGravado}
+        erro={erroGravacao}
+        onConcluir={handleConcluirSucesso}
+        onTentarNovamente={() => handleSubmit()}
+        onFecharErro={handleFecharErro}
+      />
     </div>
   );
 }

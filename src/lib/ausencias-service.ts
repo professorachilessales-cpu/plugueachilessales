@@ -46,6 +46,9 @@ export interface ResultadoCalculoAulas {
   diasDetalhados: DetalheDiaCalculo[];
   totalDiasLetivos: number;
   totalDiasIntervalo: number;
+  totalAulasSemanaDocente?: number;
+  resumoSemanalDocente?: string;
+  diasSemanaComAulasDocente?: string[];
 }
 
 const DIAS_SEMANA_MAP: Record<number, { nome: string; chave: 'Segunda' | 'Terça' | 'Quarta' | 'Quinta' | 'Sexta' | 'Outro' }> = {
@@ -103,39 +106,165 @@ export function normalizarTexto(texto?: string): string {
 }
 
 /**
+ * Limpa strings removendo acentos, caracteres de mojibake/substituição ('?', '\uFFFD')
+ * e caracteres não alfanuméricos para permitir correspondência fonética e estrutural tolerante.
+ */
+export function limparTextoParaComparacao(texto?: string): string {
+  if (!texto) return '';
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\uFFFD\?\"\'\`´\^~_\-%]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * Calcula a distância de Levenshtein entre duas strings curtas (tokens).
+ */
+export function distanciaLevenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+/**
+ * Avalia se dois tokens de nome coincidem, considerando variações de acentuação e mojibake.
+ * Ex: "digenes" ~ "diogenes", "joo" ~ "joao", "kssia" ~ "kassia", "concei" ~ "conceicao".
+ */
+export function tokensDeNomeCoincidem(t1: string, t2: string): boolean {
+  if (t1 === t2) return true;
+  if (t1.length >= 3 && t2.length >= 3) {
+    if (t1.startsWith(t2) || t2.startsWith(t1)) return true;
+  }
+  const maxLen = Math.max(t1.length, t2.length);
+  if (maxLen <= 2) return false;
+  const dist = distanciaLevenshtein(t1, t2);
+  if (dist <= 1) return true;
+  if (maxLen >= 6 && dist <= 2) return true;
+  return false;
+}
+
+/**
+ * Compara dois nomes completos de docentes com tolerância a acentos, pontuação e encoding.
+ */
+export function nomesDocentesCoincidem(nomeGrade?: string, nomeDocente?: string): boolean {
+  if (!nomeGrade || !nomeDocente) return false;
+  if (nomeGrade.trim().toLowerCase() === nomeDocente.trim().toLowerCase()) return true;
+
+  const limpoG = limparTextoParaComparacao(nomeGrade);
+  const limpoD = limparTextoParaComparacao(nomeDocente);
+  if (limpoG === limpoD) return true;
+
+  const stopWords = new Set(['da', 'de', 'do', 'dos', 'das', 'e']);
+  const partesG = limpoG.split(' ').filter(p => p.length >= 2 && !stopWords.has(p));
+  const partesD = limpoD.split(' ').filter(p => p.length >= 2 && !stopWords.has(p));
+
+  if (partesG.length === 0 || partesD.length === 0) return false;
+
+  // Primeiro token do nome deve coincidir (ex: "Alexandre", "Maria", "João", "Diógenes")
+  if (!tokensDeNomeCoincidem(partesG[0], partesD[0])) {
+    return false;
+  }
+
+  // Se ambos têm só 1 token significativo e coincidem
+  if (partesG.length === 1 && partesD.length === 1) return true;
+
+  // Conta quantos tokens coincidem ao longo do nome completo
+  let matches = 0;
+  for (const tg of partesG) {
+    if (partesD.some(td => tokensDeNomeCoincidem(tg, td))) {
+      matches++;
+    }
+  }
+
+  // Exige no mínimo 2 tokens coincidentes (ou todos caso o nome tenha menos que 2)
+  const minExigido = Math.min(2, partesG.length, partesD.length);
+  return matches >= minExigido;
+}
+
+/**
+ * Converte qualquer representação de dia da semana em índice numérico canônico:
+ * 0 = Domingo, 1 = Segunda, 2 = Terça, 3 = Quarta, 4 = Quinta, 5 = Sexta, 6 = Sábado.
+ */
+export function extrairDiaSemanaIndice(diaStr?: string): number | null {
+  if (!diaStr) return null;
+  const limpo = limparTextoParaComparacao(diaStr);
+
+  if (limpo.startsWith('seg')) return 1;
+  if (limpo.startsWith('ter') || limpo.startsWith('ter')) return 2;
+  if (limpo.startsWith('qua')) return 3;
+  if (limpo.startsWith('qui')) return 4;
+  if (limpo.startsWith('sex')) return 5;
+  if (limpo.startsWith('sab') || limpo.startsWith('sbado')) return 6;
+  if (limpo.startsWith('dom')) return 0;
+  return null;
+}
+
+/**
  * Verifica se um dia da semana da grade coincide com o dia da semana apurado.
  */
 export function coincideDiaSemana(diaGrade: string, diaChave: string): boolean {
   if (!diaGrade || !diaChave) return false;
+  const idxGrade = extrairDiaSemanaIndice(diaGrade);
+  const idxChave = extrairDiaSemanaIndice(diaChave);
+  if (idxGrade !== null && idxChave !== null) {
+    return idxGrade === idxChave;
+  }
   const gradeNorm = normalizarTexto(diaGrade);
   const chaveNorm = normalizarTexto(diaChave);
-  return gradeNorm.startsWith(chaveNorm.slice(0, 3));
+  return gradeNorm.slice(0, 3) === chaveNorm.slice(0, 3);
 }
 
 /**
  * Verifica se o professor é o mesmo pelo ID ou pelo nome completo.
  */
 export function coincideProfessor(
-  horario: HorarioAula,
+  horario: HorarioAula | { professor_id?: string; professor_nome?: string },
   professorId: string,
-  professorNome?: string
+  professorNome?: string,
+  professores?: Professor[]
 ): boolean {
-  if (horario.professor_id && professorId && horario.professor_id === professorId) {
-    return true;
-  }
-  if (professorNome && horario.professor_nome) {
-    const nomeH = normalizarTexto(horario.professor_nome);
-    const nomeP = normalizarTexto(professorNome);
-    if (nomeH === nomeP) return true;
-    // Correspondência se nome contiver partes expressivas (mínimo 2 palavras iguais)
-    const partesH = nomeH.split(/\s+/).filter(p => p.length > 2);
-    const partesP = nomeP.split(/\s+/).filter(p => p.length > 2);
-    if (partesH.length >= 2 && partesP.length >= 2) {
-      if (partesH[0] === partesP[0] && partesH[partesH.length - 1] === partesP[partesP.length - 1]) {
-        return true;
-      }
+  if (!horario) return false;
+
+  // 1. Coincidência direta por ID se ambos existirem
+  if (horario.professor_id && professorId) {
+    if (String(horario.professor_id).trim() === String(professorId).trim()) {
+      return true;
     }
   }
+
+  // Se professorNome não foi informado, tenta resolver o nome a partir do ID na lista de docentes
+  let nomeReferencia = professorNome;
+  if (!nomeReferencia && professorId && professores && professores.length > 0) {
+    const p = professores.find(prof => prof.id === professorId);
+    if (p?.nome_completo) {
+      nomeReferencia = p.nome_completo;
+    }
+  }
+
+  // 2. Coincidência por Nome (com tolerância a mojibake, diacríticos e acentuação)
+  if (horario.professor_nome && nomeReferencia) {
+    if (nomesDocentesCoincidem(horario.professor_nome, nomeReferencia)) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -199,6 +328,7 @@ export interface CalcularAulasParams {
   dataFim?: string;    // YYYY-MM-DD (para DATA_UNICA pode ser omitido ou igual a dataInicio)
   turmas: Turma[];
   eventos?: EventoEscolar[];
+  professores?: Professor[];
 }
 
 /**
@@ -213,6 +343,7 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
     dataInicio,
     turmas,
     eventos = [],
+    professores = [],
   } = params;
 
   const dataFimEfetiva = (tipoRegistro === 'DATA_UNICA' || !params.dataFim) ? dataInicio : params.dataFim;
@@ -224,7 +355,19 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
       diasDetalhados: [],
       totalDiasLetivos: 0,
       totalDiasIntervalo: 0,
+      totalAulasSemanaDocente: 0,
+      resumoSemanalDocente: 'Sem docente selecionado',
+      diasSemanaComAulasDocente: [],
     };
+  }
+
+  // Tenta resolver o nome completo do docente caso não venha no parâmetro
+  let nomeReferencia = professorNome;
+  if (!nomeReferencia && professores.length > 0) {
+    const prof = professores.find(p => p.id === professorId);
+    if (prof?.nome_completo) {
+      nomeReferencia = prof.nome_completo;
+    }
   }
 
   const dtIni = parseDataLocal(dataInicio);
@@ -238,17 +381,58 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
       diasDetalhados: [],
       totalDiasLetivos: 0,
       totalDiasIntervalo: 0,
+      totalAulasSemanaDocente: 0,
+      resumoSemanalDocente: 'Intervalo inválido',
+      diasSemanaComAulasDocente: [],
     };
   }
 
   // Filtrar turmas ativas
-  const turmasAtivas = (turmas || []).filter(t => t.ativa !== false && t.ativa !== 0);
+  const turmasAtivas = (turmas || []).filter(
+    t => t.ativa !== false && (t.ativa as any) !== 0 && (t.ativa as any) !== '0'
+  );
 
+  // 1. Mapeamento completo do quadro semanal do docente em todas as turmas ativas
+  const aulasPorDiaSemanaDocente: Record<number, { nome: string; chave: string; totalAulas: number }> = {
+    1: { nome: 'Segunda-feira', chave: 'Segunda', totalAulas: 0 },
+    2: { nome: 'Terça-feira', chave: 'Terça', totalAulas: 0 },
+    3: { nome: 'Quarta-feira', chave: 'Quarta', totalAulas: 0 },
+    4: { nome: 'Quinta-feira', chave: 'Quinta', totalAulas: 0 },
+    5: { nome: 'Sexta-feira', chave: 'Sexta', totalAulas: 0 },
+  };
+
+  let totalAulasSemanaDocente = 0;
+
+  for (const turma of turmasAtivas) {
+    const grade = turma.grade_horaria || [];
+    for (const horario of grade) {
+      if (coincideProfessor(horario, professorId, nomeReferencia, professores)) {
+        const diaIdx = extrairDiaSemanaIndice(horario.dia_semana);
+        const qtd = Number(horario.quantidade_aulas) || 1;
+        if (diaIdx !== null && aulasPorDiaSemanaDocente[diaIdx]) {
+          aulasPorDiaSemanaDocente[diaIdx].totalAulas += qtd;
+          totalAulasSemanaDocente += qtd;
+        }
+      }
+    }
+  }
+
+  const diasComAulasNaSemana = Object.values(aulasPorDiaSemanaDocente).filter(d => d.totalAulas > 0);
+  const diasSemanaComAulasDocente = diasComAulasNaSemana.map(d => d.chave);
+
+  let resumoSemanalDocente = '';
+  if (totalAulasSemanaDocente > 0) {
+    const segmentosSemana = diasComAulasNaSemana.map(d => `${d.chave.slice(0, 3)}: ${d.totalAulas}h`).join(' | ');
+    resumoSemanalDocente = `${totalAulasSemanaDocente} aulas/semana (${segmentosSemana})`;
+  } else {
+    resumoSemanalDocente = 'Sem aulas cadastradas na grade horária ativa';
+  }
+
+  // 2. Itera por cada dia do intervalo solicitado
   const diasDetalhados: DetalheDiaCalculo[] = [];
   let somaAulasTotal = 0;
   let totalDiasLetivos = 0;
 
-  // Itera por cada dia do intervalo
   const cursor = new Date(dtIni.getFullYear(), dtIni.getMonth(), dtIni.getDate());
   const limite = new Date(dtFim.getFullYear(), dtFim.getMonth(), dtFim.getDate());
 
@@ -274,7 +458,7 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
         for (const horario of grade) {
           if (
             coincideDiaSemana(horario.dia_semana, diaInfo.chave) &&
-            coincideProfessor(horario, professorId, professorNome)
+            coincideProfessor(horario, professorId, nomeReferencia, professores)
           ) {
             const qtd = Number(horario.quantidade_aulas) || 1;
             aulasDoDia += qtd;
@@ -298,7 +482,11 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
     } else if (feriadoCheck.isNaoLetivo) {
       descricaoCurta = `Dia não letivo / feriado: ${feriadoCheck.motivo || 'Sem expediente'}`;
     } else if (aulasDoDia === 0) {
-      descricaoCurta = '0 aulas na grade deste docente';
+      if (diasSemanaComAulasDocente.length > 0) {
+        descricaoCurta = `0 aulas na grade (docente leciona às ${diasSemanaComAulasDocente.join(', ')})`;
+      } else {
+        descricaoCurta = '0 aulas na grade deste docente';
+      }
     } else {
       const partesTurmas = turmasDetalhadas.map(
         t => `${t.quantidadeAulas} no ${t.turmaNome}${t.disciplina ? ` (${t.disciplina})` : ''}`
@@ -323,8 +511,7 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  // Gera o resumo explicativo conforme especificado
-  // Exemplo: "Segunda-feira (10/10): 5 aulas | Terça-feira (11/10): 6 aulas → Total sugerido: 11 aulas"
+  // 3. Gera o resumo explicativo transparente e contextualizado
   const diasComAulas = diasDetalhados.filter(d => !d.isFinalDeSemana && !d.isFeriadoOuNaoLetivo);
   let resumoFormatado = '';
 
@@ -334,13 +521,32 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
     } else {
       resumoFormatado = `Nenhuma aula localizada na grade para este docente no período selecionado (Total sugerido: 0 aulas).`;
     }
+  } else if (somaAulasTotal === 0) {
+    // Dias letivos selecionados, porém o docente não possui aulas neles
+    if (totalAulasSemanaDocente === 0) {
+      resumoFormatado = `Docente sem aulas cadastradas na grade horária ativa (Total sugerido: 0 aulas).`;
+    } else if (diasDetalhados.length === 1) {
+      const diaUnico = diasDetalhados[0];
+      const diasLeciona = diasSemanaComAulasDocente.length > 0 ? ` (o docente leciona às ${diasSemanaComAulasDocente.join(', ')})` : '';
+      resumoFormatado = `${diaUnico.diaSemana} (${diaUnico.dataFormatada}): Nenhuma aula prevista na grade nesta data${diasLeciona} → Total sugerido: 0 aulas.`;
+    } else {
+      const diasLeciona = diasSemanaComAulasDocente.length > 0 ? ` (o docente leciona às ${diasSemanaComAulasDocente.join(', ')})` : '';
+      resumoFormatado = `Nenhuma aula prevista na grade para as datas selecionadas${diasLeciona} → Total sugerido: 0 aulas.`;
+    }
   } else {
-    const segmentos = diasComAulas.map(d => {
-      // Ex: "Segunda-feira (10/10): 5 aulas"
+    // Há aulas calculadas (> 0)
+    if (diasDetalhados.length === 1) {
+      const d = diasDetalhados[0];
       const diaAbrev = d.dataFormatada.slice(0, 5); // "DD/MM"
-      return `${d.diaSemana} (${diaAbrev}): ${d.aulasTotal} aula${d.aulasTotal > 1 ? 's' : ''}`;
-    });
-    resumoFormatado = `${segmentos.join(' | ')} → Total sugerido: ${somaAulasTotal} aula${somaAulasTotal > 1 ? 's' : ''}`;
+      const partesTurmas = d.turmasDetalhadas.map(t => `${t.quantidadeAulas} no ${t.turmaNome}`).join(', ');
+      resumoFormatado = `${d.diaSemana} (${diaAbrev}): ${somaAulasTotal} aula${somaAulasTotal > 1 ? 's' : ''}${partesTurmas ? ` (${partesTurmas})` : ''} → Total sugerido: ${somaAulasTotal} aula${somaAulasTotal > 1 ? 's' : ''}.`;
+    } else {
+      const segmentos = diasComAulas.map(d => {
+        const diaAbrev = d.dataFormatada.slice(0, 5); // "DD/MM"
+        return `${d.diaSemana} (${diaAbrev}): ${d.aulasTotal} aula${d.aulasTotal > 1 ? 's' : ''}`;
+      });
+      resumoFormatado = `${segmentos.join(' | ')} → Total sugerido: ${somaAulasTotal} aula${somaAulasTotal > 1 ? 's' : ''}.`;
+    }
   }
 
   return {
@@ -349,6 +555,9 @@ export function calcularAulasDevidasGrade(params: CalcularAulasParams): Resultad
     diasDetalhados,
     totalDiasLetivos,
     totalDiasIntervalo: diasDetalhados.length,
+    totalAulasSemanaDocente,
+    resumoSemanalDocente,
+    diasSemanaComAulasDocente,
   };
 }
 
@@ -416,7 +625,7 @@ export function calcularAusenciasVigentesHoje(
       for (const h of grade) {
         if (
           coincideDiaSemana(h.dia_semana, diaSemanaChave) &&
-          coincideProfessor(h, falta.professor_id, falta.professor_nome)
+          coincideProfessor(h, falta.professor_id, falta.professor_nome, professores)
         ) {
           const qtd = Number(h.quantidade_aulas) || 1;
           const exist = turmasMap.get(t.id);

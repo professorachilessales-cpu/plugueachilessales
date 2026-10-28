@@ -43,6 +43,7 @@ import { formatarTelefone, formatarCPF, formatarCEP, validarCPF } from '@/lib/va
 import FuncaoEscolaSelector from '@/components/professores/FuncaoEscolaSelector';
 import ModalNovoFuncionario from '@/components/professores/ModalNovoFuncionario';
 import { ModalRegistrarAusencia } from '@/components/professores/ModalRegistrarAusencia';
+import { coincideProfessor } from '@/lib/ausencias-service';
 import { ModalSubstituirAtestadoFalta } from '@/components/professores/ModalSubstituirAtestadoFalta';
 import { ModalPagamentoParcialReposicao } from '@/components/professores/ModalPagamentoParcialReposicao';
 
@@ -362,6 +363,7 @@ export default function ProfessoresPage() {
   const [modalEditProfAberto, setModalEditProfAberto] = useState(false);
   const [modalFichaProfAberto, setModalFichaProfAberto] = useState(false);
   const [modalNovaFaltaAberto, setModalNovaFaltaAberto] = useState(false);
+  const [professorParaAusenciaId, setProfessorParaAusenciaId] = useState<string | undefined>(undefined);
 
   // Estados para gerenciamento de atestados de faltas
   const [faltaParaSubstituir, setFaltaParaSubstituir] = useState<FaltaProfessor | null>(null);
@@ -733,7 +735,7 @@ export default function ProfessoresPage() {
           </button>
 
           <button
-            onClick={() => setModalNovaFaltaAberto(true)}
+            onClick={() => { setProfessorParaAusenciaId(undefined); setModalNovaFaltaAberto(true); }}
             disabled={carregandoDados}
             className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 dark:bg-school-blue-600 disabled:opacity-50 disabled:pointer-events-none transition-all"
           >
@@ -1357,7 +1359,7 @@ export default function ProfessoresPage() {
               </div>
 
               <button
-                onClick={() => setModalNovaFaltaAberto(true)}
+                onClick={() => { setProfessorParaAusenciaId(undefined); setModalNovaFaltaAberto(true); }}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 dark:bg-school-blue-600 transition-all shrink-0"
               >
                 <Plus className="h-4 w-4" />
@@ -1584,11 +1586,7 @@ export default function ProfessoresPage() {
           // 3. Docentes com aulas ativas na grade horária ou turmas atribuídas
           const temAulasNaGrade = turmasAtivas.some((t) => {
             const naGrade = (t.grade_horaria || []).some((h) => {
-              if (h.professor_id && h.professor_id === prof.id) return true;
-              if (h.professor_nome && prof.nome_completo) {
-                return normalizarTexto(h.professor_nome) === normalizarTexto(prof.nome_completo);
-              }
-              return false;
+              return coincideProfessor(h, prof.id, prof.nome_completo, professores);
             });
             const naTurma =
               (t.professores_ids || []).includes(prof.id) ||
@@ -4203,6 +4201,22 @@ export default function ProfessoresPage() {
                   </div>
                 </div>
 
+                {/* Ação rápida: Registrar Ausência / Falta */}
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfessorParaAusenciaId(professorSelecionado.id);
+                      setModalFichaProfAberto(false);
+                      setModalNovaFaltaAberto(true);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-school-blue-800 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-school-blue-700 dark:bg-school-blue-600 transition-all cursor-pointer"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    <span>Registrar Ausência / Falta deste Docente</span>
+                  </button>
+                </div>
+
                 {/* Observações */}
                 {professorSelecionado.observacoes && (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/60 space-y-1">
@@ -4221,7 +4235,11 @@ export default function ProfessoresPage() {
       {/* MODAL 4: Registrar Ausência / Falta Docente (Modal completo com cálculo de grade e upload para o Google Drive) */}
       <ModalRegistrarAusencia
         isOpen={modalNovaFaltaAberto}
-        onClose={() => setModalNovaFaltaAberto(false)}
+        onClose={() => {
+          setModalNovaFaltaAberto(false);
+          setProfessorParaAusenciaId(undefined);
+        }}
+        professorPreSelecionadoId={professorParaAusenciaId}
       />
 
       {/* Modal para Substituir ou Anexar Atestado Médico */}

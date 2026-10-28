@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
+import { coincideDiaSemana, coincideProfessor } from '@/lib/ausencias-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,45 +13,6 @@ const DIAS_SEMANA_NOMES = [
   'Sexta',
   'Sábado'
 ];
-
-function normalizarTexto(texto?: string): string {
-  if (!texto) return '';
-  return texto
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function coincideDiaSemana(diaGrade: string, diaChave: string): boolean {
-  if (!diaGrade || !diaChave) return false;
-  const gradeNorm = normalizarTexto(diaGrade);
-  const chaveNorm = normalizarTexto(diaChave);
-  return gradeNorm.startsWith(chaveNorm.slice(0, 3));
-}
-
-function coincideProfessor(
-  horario: any,
-  professorId: string,
-  professorNome?: string
-): boolean {
-  if (horario.professor_id && professorId && horario.professor_id === professorId) {
-    return true;
-  }
-  if (professorNome && horario.professor_nome) {
-    const nomeH = normalizarTexto(horario.professor_nome);
-    const nomeP = normalizarTexto(professorNome);
-    if (nomeH === nomeP) return true;
-    const partesH = nomeH.split(/\s+/).filter(p => p.length > 2);
-    const partesP = nomeP.split(/\s+/).filter(p => p.length > 2);
-    if (partesH.length >= 2 && partesP.length >= 2) {
-      if (partesH[0] === partesP[0] && partesH[partesH.length - 1] === partesP[partesP.length - 1]) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
 
 export async function GET(request: NextRequest) {
   try {

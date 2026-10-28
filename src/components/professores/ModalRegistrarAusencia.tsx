@@ -20,8 +20,8 @@ import {
   Loader2,
   Trash2
 } from 'lucide-react';
-import { Professor, TipoRegistroAusencia } from '@/lib/types';
-import { calcularAulasDevidasGrade, ResultadoCalculoAulas } from '@/lib/ausencias-service';
+import { Professor, TipoRegistroAusencia, Turma } from '@/lib/types';
+import { calcularAulasDevidasGrade, ResultadoCalculoAulas, coincideProfessor } from '@/lib/ausencias-service';
 
 interface ModalRegistrarAusenciaProps {
   isOpen: boolean;
@@ -56,7 +56,7 @@ export function ModalRegistrarAusencia({
   const hoje = new Date().toISOString().split('T')[0];
 
   // Estado do formulário
-  const [professorId, setProfessorId] = useState<string>(professorPreSelecionadoId || professores[0]?.id || '');
+  const [professorId, setProfessorId] = useState<string>(professorPreSelecionadoId || '');
   const [tipoRegistro, setTipoRegistro] = useState<TipoRegistroAusencia>('DATA_UNICA');
   const [dataAusencia, setDataAusencia] = useState<string>(hoje);
   const [dataInicio, setDataInicio] = useState<string>(hoje);
@@ -85,22 +85,74 @@ export function ModalRegistrarAusencia({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Mapeamento e classificação dos docentes (com grade ativa vs sem grade)
+  const { docentesComGrade, demaisDocentes } = useMemo(() => {
+    const comGrade: { professor: Professor; totalAulas: number }[] = [];
+    const semGrade: Professor[] = [];
+
+    const turmasAtivas = (turmas || []).filter(
+      (t: Turma) => t.ativa !== false && (t.ativa as any) !== 0 && (t.ativa as any) !== '0'
+    );
+
+    for (const p of professores) {
+      let total = 0;
+      for (const t of turmasAtivas) {
+        for (const h of (t.grade_horaria || [])) {
+          if (coincideProfessor(h, p.id, p.nome_completo, professores)) {
+            total += Number(h.quantidade_aulas) || 1;
+          }
+        }
+      }
+
+      if (total > 0) {
+        comGrade.push({ professor: p, totalAulas: total });
+      } else {
+        semGrade.push(p);
+      }
+    }
+
+    comGrade.sort((a, b) => a.professor.nome_completo.localeCompare(b.professor.nome_completo));
+    semGrade.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
+
+    return { docentesComGrade: comGrade, demaisDocentes: semGrade };
+  }, [professores, turmas]);
+
+  // Função auxiliar para encontrar um ID de docente válido existente
+  const encontrarIdValido = (idDesejado?: string): string => {
+    if (idDesejado && professores.some((p: Professor) => p.id === idDesejado)) {
+      return idDesejado;
+    }
+    if (docentesComGrade.length > 0) {
+      return docentesComGrade[0].professor.id;
+    }
+    return professores[0]?.id || '';
+  };
+
   // Atualiza professor selecionado ao abrir ou receber prop
   useEffect(() => {
     if (isOpen) {
-      if (professorPreSelecionadoId) {
-        setProfessorId(professorPreSelecionadoId);
-      } else if (!professorId && professores.length > 0) {
-        setProfessorId(professores[0].id);
-      }
+      const idValido = encontrarIdValido(professorPreSelecionadoId || professorId);
+      setProfessorId(idValido);
+      setValorAlteradoManualmente(false);
       setErro(null);
       setSucesso(false);
       setProgressoUpload(null);
     }
-  }, [isOpen, professorPreSelecionadoId, professores]);
+  }, [isOpen, professorPreSelecionadoId, professores, docentesComGrade]);
+
+  // Se professorId não estiver válido (ex: após carregamento dos dados reais do Turso), sincroniza
+  useEffect(() => {
+    if (professores.length > 0) {
+      const exists = professores.some((p: Professor) => p.id === professorId);
+      if (!exists) {
+        const idValido = encontrarIdValido(professorPreSelecionadoId);
+        if (idValido) setProfessorId(idValido);
+      }
+    }
+  }, [professores, professorId, professorPreSelecionadoId, docentesComGrade]);
 
   const professorSelecionado = useMemo(() => {
-    return professores.find(p => p.id === professorId);
+    return professores.find((p: Professor) => p.id === professorId);
   }, [professores, professorId]);
 
   // Datas consolidadas
@@ -137,8 +189,9 @@ export function ModalRegistrarAusencia({
       dataFim: dataFimEfetiva,
       turmas,
       eventos,
+      professores,
     });
-  }, [professorId, professorSelecionado, tipoRegistro, dataInicioEfetiva, dataFimEfetiva, erroIntervaloDatas, turmas, eventos]);
+  }, [professorId, professorSelecionado, tipoRegistro, dataInicioEfetiva, dataFimEfetiva, erroIntervaloDatas, turmas, eventos, professores]);
 
   // Atualiza o valor de aulasTotaisDevidas automaticamente quando o cálculo muda, exceto se usuário alterou manualmente
   useEffect(() => {
@@ -364,22 +417,42 @@ export function ModalRegistrarAusencia({
                   disabled={salvando}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold uppercase text-slate-900 shadow-xs hover:border-slate-400 focus:border-school-blue-600 focus:ring-2 focus:ring-school-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
-                  {professores.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome_completo} {p.matricula ? `(Matrícula: ${p.matricula})` : ''}
-                    </option>
-                  ))}
+                  {docentesComGrade.length > 0 && (
+                    <optgroup label="Docentes com Aulas na Grade Horária Ativa">
+                      {docentesComGrade.map(({ professor: p, totalAulas }) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nome_completo} ({totalAulas} aulas/sem) {p.matricula ? `• Matrícula: ${p.matricula}` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {demaisDocentes.length > 0 && (
+                    <optgroup label="Demais Docentes / Funcionários (Sem Grade)">
+                      {demaisDocentes.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nome_completo} {p.funcao_escola ? `(${p.funcao_escola})` : ''} {p.matricula ? `• Matrícula: ${p.matricula}` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
               {professorSelecionado && (
-                <div className="mt-2 flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-700 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-300">
-                  <User className="h-4 w-4 text-school-blue-700 dark:text-school-gold-400 shrink-0" />
-                  <span>
-                    Cargo/Vínculo: <strong className="text-slate-900 dark:text-white uppercase font-bold">{professorSelecionado.tipo_profissional || 'Docente'}</strong>
-                    {professorSelecionado.disciplinas && professorSelecionado.disciplinas.length > 0 && (
-                      <> • Disciplina(s): <span className="font-semibold text-slate-800 dark:text-slate-200">{professorSelecionado.disciplinas.join(', ')}</span></>
-                    )}
-                  </span>
+                <div className="mt-2 space-y-1.5 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-700 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-school-blue-700 dark:text-school-gold-400 shrink-0" />
+                    <span>
+                      Cargo/Vínculo: <strong className="text-slate-900 dark:text-white uppercase font-bold">{professorSelecionado.tipo_profissional || 'Docente'}</strong>
+                      {professorSelecionado.disciplinas && professorSelecionado.disciplinas.length > 0 && (
+                        <> • Disciplina(s): <span className="font-semibold text-slate-800 dark:text-slate-200">{professorSelecionado.disciplinas.join(', ')}</span></>
+                      )}
+                    </span>
+                  </div>
+                  {calculoGrade.resumoSemanalDocente && (
+                    <div className="flex items-center gap-2 text-school-blue-900 dark:text-school-gold-300 font-semibold pl-6">
+                      <span>Grade Horária Semanal: <strong>{calculoGrade.resumoSemanalDocente}</strong></span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

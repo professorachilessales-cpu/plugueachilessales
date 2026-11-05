@@ -26,9 +26,15 @@ export async function GET() {
       );
     }
 
-    await garantirTabelasObservacoes();
-    await garantirSchemaRecorrenciaEventos();
-    await garantirSchemaAutenticacaoProfessores();
+    try {
+      await Promise.allSettled([
+        garantirTabelasObservacoes(),
+        garantirSchemaRecorrenciaEventos(),
+        garantirSchemaAutenticacaoProfessores(),
+      ]);
+    } catch (schemaErr) {
+      console.warn('Aviso nao fatal ao verificar schemas do Turso:', schemaErr);
+    }
 
     // 1. Config Escola
     let escolaConfig = null;

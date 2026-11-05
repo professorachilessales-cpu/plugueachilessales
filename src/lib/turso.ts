@@ -1,28 +1,48 @@
 // Cliente de conexão ao Turso Database (LibSQL HTTP API nativa)
 // Arquitetura 100% Serverless para Vercel (Edge & Node.js runtimes) sem dependências locais de disco (Zero Local Storage).
 
-export const DEFAULT_TURSO_DB_URL = process.env.TURSO_DATABASE_URL || 'libsql://plugueachiles-achilessales.aws-us-west-2.turso.io';
+// Helper para sanitizar strings de variáveis de ambiente (remove aspas externas e espaços em branco)
+function cleanEnvValue(val: string | null | undefined): string {
+  if (!val) return '';
+  let s = val.trim();
+  while (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
 
-export const DEFAULT_TURSO_AUTH_TOKEN =
-  process.env.TURSO_AUTH_TOKEN ||
+export const HARDCODED_TURSO_DB_URL = 'libsql://plugueachiles-achilessales.aws-us-west-2.turso.io';
+
+export const HARDCODED_TURSO_AUTH_TOKEN =
   'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJnaWQiOiJiZWJmOGFkYi00NjNkLTQ2NDctYWE3Yi1hY2RiNjA3ZDA2ZjkiLCJpYXQiOjE3OTAxOTI5MjAsImtpZCI6InZXd1FEZ29POHVQc3FFY0lMOVloZzlxSm5SMjlqVWlaSWdQcW41U3AxQk0iLCJyaWQiOiIyOWE0Y2YzNS05M2FhLTRkMmUtOTA2My04NDQ1NmQ1MDNjNGMifQ.4ESQbOOPJw45FGHv9RbhRLtfMT2m72ptAhfVBG6k0utCdDqmCIZN3PpP3tgmrmZ7LtcfgjuexLPpoDcrMTfLAQ';
+
+export const DEFAULT_TURSO_DB_URL = cleanEnvValue(process.env.TURSO_DATABASE_URL) || HARDCODED_TURSO_DB_URL;
+
+export const DEFAULT_TURSO_AUTH_TOKEN = cleanEnvValue(process.env.TURSO_AUTH_TOKEN) || HARDCODED_TURSO_AUTH_TOKEN;
 
 // Overrides dinâmicos em memória (apenas runtime, sem acesso a disco)
 let overrideTursoDbUrl: string | null = null;
 let overrideTursoAuthToken: string | null = null;
 
 export function getTursoDbUrl(): string {
-  if (overrideTursoDbUrl && overrideTursoDbUrl.trim() !== '') {
-    return overrideTursoDbUrl.trim();
+  if (overrideTursoDbUrl && cleanEnvValue(overrideTursoDbUrl) !== '') {
+    return cleanEnvValue(overrideTursoDbUrl);
   }
-  return (process.env.TURSO_DATABASE_URL || DEFAULT_TURSO_DB_URL || '').trim();
+  const fromEnv = cleanEnvValue(process.env.TURSO_DATABASE_URL);
+  if (fromEnv) return fromEnv;
+  return cleanEnvValue(DEFAULT_TURSO_DB_URL) || HARDCODED_TURSO_DB_URL;
 }
 
 export function getTursoAuthToken(): string {
-  if (overrideTursoAuthToken && overrideTursoAuthToken.trim() !== '') {
-    return overrideTursoAuthToken.trim();
+  if (overrideTursoAuthToken && cleanEnvValue(overrideTursoAuthToken) !== '') {
+    return cleanEnvValue(overrideTursoAuthToken);
   }
-  return (process.env.TURSO_AUTH_TOKEN || DEFAULT_TURSO_AUTH_TOKEN || '').trim();
+  const fromEnv = cleanEnvValue(process.env.TURSO_AUTH_TOKEN);
+  if (fromEnv) return fromEnv;
+  return cleanEnvValue(DEFAULT_TURSO_AUTH_TOKEN) || HARDCODED_TURSO_AUTH_TOKEN;
 }
 
 /**
@@ -30,8 +50,8 @@ export function getTursoAuthToken(): string {
  * (Sem escrita no sistema de arquivos local, compatível com Vercel e Cloudflare)
  */
 export function setTursoCredentials(novaUrl: string, novoToken: string): void {
-  const urlLimpa = novaUrl ? novaUrl.trim() : DEFAULT_TURSO_DB_URL;
-  const tokenLimpo = novoToken ? novoToken.trim() : DEFAULT_TURSO_AUTH_TOKEN;
+  const urlLimpa = cleanEnvValue(novaUrl) || DEFAULT_TURSO_DB_URL;
+  const tokenLimpo = cleanEnvValue(novoToken) || DEFAULT_TURSO_AUTH_TOKEN;
 
   overrideTursoDbUrl = urlLimpa;
   overrideTursoAuthToken = tokenLimpo;
@@ -43,13 +63,23 @@ export function setTursoCredentials(novaUrl: string, novoToken: string): void {
 }
 
 /**
- * Normaliza a URL do Turso para HTTPS para chamadas de API HTTP v2
+ * Normaliza a URL do Turso para HTTPS para chamadas de API HTTP v2,
+ * removendo barras finais para evitar rotas 404 como //v2/pipeline.
  */
 export function getTursoHttpUrl(dbUrl: string = getTursoDbUrl()): string {
-  if (dbUrl.startsWith('libsql://')) {
-    return dbUrl.replace('libsql://', 'https://');
+  let url = cleanEnvValue(dbUrl);
+  if (url.startsWith('libsql://')) {
+    url = url.replace(/^libsql:\/\//i, 'https://');
+  } else if (url.startsWith('wss://')) {
+    url = url.replace(/^wss:\/\//i, 'https://');
+  } else if (url.startsWith('ws://')) {
+    url = url.replace(/^ws:\/\//i, 'http://');
+  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
   }
-  return dbUrl;
+  // Remove rigorosamente barras finais para nunca gerar //v2/pipeline (causa de erro 404 no Turso)
+  url = url.replace(/\/+$/, '');
+  return url;
 }
 
 export function checkIsTursoConfigured(): boolean {
@@ -114,7 +144,7 @@ export async function executeTursoQuery<T = any>(
 
   const authToken = getTursoAuthToken();
   if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken.trim()}`;
+    headers['Authorization'] = `Bearer ${authToken}`;
   }
 
   const response = await fetch(httpUrl, {
@@ -122,6 +152,7 @@ export async function executeTursoQuery<T = any>(
     headers,
     body: JSON.stringify(payload),
     cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {
@@ -198,7 +229,7 @@ export async function executeTursoTransaction(statements: TursoStatement[]): Pro
 
   const authToken = getTursoAuthToken();
   if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken.trim()}`;
+    headers['Authorization'] = `Bearer ${authToken}`;
   }
 
   const response = await fetch(httpUrl, {
@@ -206,6 +237,7 @@ export async function executeTursoTransaction(statements: TursoStatement[]): Pro
     headers,
     body: JSON.stringify({ requests }),
     cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {
@@ -246,7 +278,7 @@ export async function executeTursoBatch(statements: string[]): Promise<void> {
 
   const authToken = getTursoAuthToken();
   if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken.trim()}`;
+    headers['Authorization'] = `Bearer ${authToken}`;
   }
 
   const response = await fetch(httpUrl, {
@@ -254,6 +286,7 @@ export async function executeTursoBatch(statements: string[]): Promise<void> {
     headers,
     body: JSON.stringify({ requests }),
     cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {

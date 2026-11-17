@@ -56,6 +56,7 @@ export interface EscolaConfig {
     reuniao?: string;
     tarefa?: string;
     elogio?: string;
+    saude?: string;
     livre?: string;
     inclusao_aee?: string;
     inclusao_laudo?: string;

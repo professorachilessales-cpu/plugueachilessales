@@ -37,6 +37,7 @@ import { initialEscolaConfig, initialEstudantes, initialTurmas, initialProfessor
 
 const MODELOS_WHATSAPP_PADRAO = {
   falta: 'Olá {Responsável}, informamos que o(a) estudante {Aluno} da turma {Turma} não compareceu à aula na data de hoje. Solicitamos a gentileza de justificar a ausência junto à secretaria escolar. Atenciosamente, Equipe Pedagógica.',
+  saude: 'Olá, {Responsável}. O(a) estudante {Aluno} ({Turma}) relatou que não está se sentindo bem. Poderia nos orientar se podemos liberá-lo(a) ou se alguém da família virá buscá-lo(a) na escola? Obrigado pela atenção.',
   reuniao: 'Prezado(a) {Responsável}, convidamos você para a Reunião Pedagógica de Pais & Mestres da turma {Turma}. Sua participação é fundamental para o acompanhamento do desenvolvimento de {Aluno}. Contamos com sua presença!',
   tarefa: 'Olá {Responsável}, comunicamos que o(a) aluno(a) {Aluno} possui atividades/tarefas escolares pendentes de entrega na turma {Turma}. Pedimos o apoio da família no incentivo e acompanhamento dos estudos em casa.',
   elogio: 'Olá {Responsável}! Temos a imensa alegria de parabenizar {Aluno} pelo admirável desempenho, postura participativa e dedicação nas aulas da turma {Turma}. O esforço da família reflete neste sucesso! Parabéns!',
@@ -89,6 +90,7 @@ export default function ConfiguracoesPage() {
     ano_letivo_ativo: escolaConfig.ano_letivo_ativo || 2026,
     modelos_whatsapp: {
       falta: escolaConfig.modelos_whatsapp?.falta || MODELOS_WHATSAPP_PADRAO.falta,
+      saude: escolaConfig.modelos_whatsapp?.saude || MODELOS_WHATSAPP_PADRAO.saude,
       reuniao: escolaConfig.modelos_whatsapp?.reuniao || MODELOS_WHATSAPP_PADRAO.reuniao,
       tarefa: escolaConfig.modelos_whatsapp?.tarefa || MODELOS_WHATSAPP_PADRAO.tarefa,
       elogio: escolaConfig.modelos_whatsapp?.elogio || MODELOS_WHATSAPP_PADRAO.elogio,
@@ -834,7 +836,23 @@ CREATE TABLE IF NOT EXISTS eventos (
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Modelo 5: Mensagem Livre / Comunicado Geral
+                Modelo 5: Saúde / Aluno Passando Mal
+              </label>
+              <textarea
+                rows={2}
+                disabled={!isAdmin}
+                value={formConfig.modelos_whatsapp.saude}
+                onChange={(e) => setFormConfig({
+                  ...formConfig,
+                  modelos_whatsapp: { ...formConfig.modelos_whatsapp, saude: e.target.value }
+                })}
+                className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-school-dark-border dark:bg-slate-800 dark:text-white disabled:opacity-50"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Modelo 6: Mensagem Livre / Comunicado Geral
               </label>
               <textarea
                 rows={2}
@@ -936,7 +954,7 @@ CREATE TABLE IF NOT EXISTS eventos (
           </div>
         </div>
 
-        {/* Card 3: Status das Integrações Cloud (Google Drive & Supabase) */}
+        {/* Card 3: Status das Integrações Cloud (Google Drive & Turso) */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Google Drive */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-school-dark-border dark:bg-school-dark-surface">

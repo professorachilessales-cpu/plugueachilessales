@@ -21,6 +21,7 @@ import {
   Calendar,
   AlertTriangle,
   FileQuestion,
+  Activity,
   ExternalLink,
   Printer,
   Edit3,
@@ -32,7 +33,7 @@ import { Estudante, Turma } from '@/lib/types';
 import { FotoEstudanteField } from '@/components/estudantes/FotoEstudanteField';
 import { isTelefoneSemContato } from '@/lib/validations';
 
-type TemplateKey = 'falta' | 'reuniao' | 'tarefa' | 'elogio' | 'livre';
+type TemplateKey = 'falta' | 'saude' | 'reuniao' | 'tarefa' | 'elogio' | 'livre';
 
 interface ModeloWhatsApp {
   key: TemplateKey;
@@ -49,6 +50,13 @@ const MODELOS_WHATSAPP_PADRAO: ModeloWhatsApp[] = [
     icone: AlertTriangle,
     cor: 'text-rose-600 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-400',
     template: 'Olá {Responsável}, informamos que o(a) estudante {Aluno} da turma {Turma} não compareceu à aula na data de hoje. Solicitamos a gentileza de justificar a ausência junto à secretaria escolar. Atenciosamente, Equipe Pedagógica.',
+  },
+  {
+    key: 'saude',
+    titulo: 'Saúde / Passando Mal',
+    icone: Activity,
+    cor: 'text-red-600 bg-red-50 dark:bg-red-950/60 dark:text-red-400',
+    template: 'Olá, {Responsável}. O(a) estudante {Aluno} ({Turma}) relatou que não está se sentindo bem. Poderia nos orientar se podemos liberá-lo(a) ou se alguém da família virá buscá-lo(a) na escola? Obrigado pela atenção.',
   },
   {
     key: 'reuniao',

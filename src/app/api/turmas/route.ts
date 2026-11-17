@@ -39,30 +39,23 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 1. Busca todos os professores e usuários para resolução de regência e nomes
-    let professores: any[] = [];
-    let users: any[] = [];
-    try {
-      const profRes = await executeTursoQuery('SELECT * FROM professores ORDER BY nome_completo ASC');
-      professores = profRes.rows || [];
-    } catch (e) {
-      console.warn('Aviso ao consultar professores em /api/turmas:', e);
-    }
+    // 1. Busca paralela de professores, usuários, vínculos e turmas para máxima performance
+    const [profRes, usersRes, tpRes, turmasRes] = await Promise.all([
+      executeTursoQuery('SELECT * FROM professores ORDER BY nome_completo ASC').catch((e) => {
+        console.warn('Aviso ao consultar professores em /api/turmas:', e);
+        return { rows: [] };
+      }),
+      executeTursoQuery('SELECT * FROM users ORDER BY created_at ASC').catch(() => ({ rows: [] })),
+      executeTursoQuery('SELECT * FROM turma_professores').catch(() => ({ rows: [] })),
+      executeTursoQuery('SELECT * FROM turmas ORDER BY nome ASC').catch((e) => {
+        console.error('Erro ao consultar turmas:', e);
+        return { rows: [] };
+      }),
+    ]);
 
-    try {
-      const usersRes = await executeTursoQuery('SELECT * FROM users ORDER BY created_at ASC');
-      users = usersRes.rows || [];
-    } catch {}
-
-    // 1.1 Vínculos relacionais em turma_professores
-    let turmaProfessores: any[] = [];
-    try {
-      const tpRes = await executeTursoQuery('SELECT * FROM turma_professores');
-      turmaProfessores = tpRes.rows || [];
-    } catch {}
-
-    // 2. Busca todas as turmas cadastradas direto do banco de dados Turso
-    const turmasRes = await executeTursoQuery('SELECT * FROM turmas ORDER BY nome ASC');
+    const professores = profRes.rows || [];
+    const users = usersRes.rows || [];
+    const turmaProfessores = tpRes.rows || [];
 
     const turmas = (turmasRes.rows || []).map((row: any) => {
       // 2.1 Parse seguro de professores_ids

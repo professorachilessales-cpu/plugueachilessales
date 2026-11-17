@@ -1,13 +1,15 @@
 import { executeTursoQuery, checkIsTursoConfigured } from '@/lib/turso';
 import { EventoEscolar, RecorrenciaTipo } from '@/lib/types';
 
+let schemaRecorrenciaVerificado = false;
+
 /**
  * Garante que as tabelas 'eventos' e 'calendario_eventos' possuam todas as colunas
  * de controle de recorrência no banco de dados Turso (LibSQL/SQLite).
- * Idempotente e auto-recuperável.
+ * Idempotente e executado uma única vez por ciclo da aplicação para máxima performance.
  */
 export async function garantirSchemaRecorrenciaEventos(): Promise<void> {
-  if (!checkIsTursoConfigured()) return;
+  if (schemaRecorrenciaVerificado || !checkIsTursoConfigured()) return;
 
   try {
     // 1. Garante existência da tabela 'eventos'
@@ -117,6 +119,8 @@ export async function garantirSchemaRecorrenciaEventos(): Promise<void> {
         FROM eventos
       `);
     } catch {}
+
+    schemaRecorrenciaVerificado = true;
   } catch (err) {
     console.error('Erro ao verificar/migrar schema de recorrência de eventos:', err);
   }

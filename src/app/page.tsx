@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
   Users,
@@ -69,26 +69,48 @@ export default function DashboardPage() {
     carregandoDadosBanco
   } = useApp();
 
-  // Estados de recarregamento manual
+  // Estados de recarregamento manual e sincronização
   const [recarregandoTurmas, setRecarregandoTurmas] = useState(false);
   const [recarregandoEventos, setRecarregandoEventos] = useState(false);
-  const [sincronizandoAbertura, setSincronizandoAbertura] = useState(true);
+  const [sincronizandoAbertura, setSincronizandoAbertura] = useState(false);
+  const [liberacaoManual, setLiberacaoManual] = useState(false);
+  const sincronizacaoIniciadaRef = useRef(false);
 
-  // Sincroniza turmas e eventos do banco ao abrir o dashboard
+  // Sincroniza turmas e eventos do banco ao abrir o dashboard de forma otimizada e não-bloqueante
   useEffect(() => {
+    if (sincronizacaoIniciadaRef.current) return;
+    sincronizacaoIniciadaRef.current = true;
+
+    // Se ainda não há turmas ou estudantes em memória nem em cache, ativa o modal temporário
+    const semDadosLocais = turmas.length === 0 && estudantes.length === 0;
+    if (semDadosLocais && carregandoDadosBanco) {
+      setSincronizandoAbertura(true);
+    }
+
     let ativo = true;
-    Promise.allSettled([refreshTurmas(), refreshEventos()]).finally(() => {
+    // Timeout absoluto de segurança: garante liberação da tela em no máximo 2.5s
+    const timeoutSeguranca = setTimeout(() => {
       if (ativo) {
         setSincronizandoAbertura(false);
       }
+    }, 2500);
+
+    Promise.allSettled([refreshTurmas(), refreshEventos()]).finally(() => {
+      if (ativo) {
+        setSincronizandoAbertura(false);
+        clearTimeout(timeoutSeguranca);
+      }
     });
+
     return () => {
       ativo = false;
+      clearTimeout(timeoutSeguranca);
     };
-  }, [refreshTurmas, refreshEventos]);
+  }, [refreshTurmas, refreshEventos, turmas.length, estudantes.length, carregandoDadosBanco]);
 
-  // Enquanto o carregamento inicial do banco do Turso ou a sincronização de abertura estiverem ocorrendo
-  const estaCarregandoBanco = carregandoDadosBanco || sincronizandoAbertura;
+  // Se o usuário já possui os dados carregados ou clicou em liberar, nunca bloqueia a tela
+  const temDadosMinimos = turmas.length > 0 && estudantes.length > 0;
+  const estaCarregandoBanco = !liberacaoManual && !temDadosMinimos && (carregandoDadosBanco || sincronizandoAbertura);
 
   const handleAtualizarTurmas = async () => {
     setRecarregandoTurmas(true);
@@ -837,8 +859,7 @@ export default function DashboardPage() {
       <>
         {estaCarregandoBanco && (
           <ModalCarregandoBanco
-            status={!carregandoDadosBanco && sincronizandoAbertura ? 'Sincronizando turmas e eventos da escola...' : undefined}
-            progresso={!carregandoDadosBanco && sincronizandoAbertura ? 88 : undefined}
+            onDesbloquear={() => setLiberacaoManual(true)}
           />
         )}
         <ProfessorDashboard />
@@ -851,8 +872,7 @@ export default function DashboardPage() {
       {/* Modal de bloqueio seguro enquanto o banco de dados é carregado */}
       {estaCarregandoBanco && (
         <ModalCarregandoBanco
-          status={!carregandoDadosBanco && sincronizandoAbertura ? 'Sincronizando turmas e eventos da escola...' : undefined}
-          progresso={!carregandoDadosBanco && sincronizandoAbertura ? 88 : undefined}
+          onDesbloquear={() => setLiberacaoManual(true)}
         />
       )}
 

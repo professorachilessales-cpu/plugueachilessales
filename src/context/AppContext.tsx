@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { 
   UserRole, 
   EscolaConfig, 
@@ -246,6 +246,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [simulatedProfessor, setSimulatedProfessor] = useState<Professor | null>(null);
   const isSimulating = Boolean(simulatedProfessor);
+
+  // Refs para preservar referência estável em callbacks de carregamento/atualização
+  const professoresRef = useRef<Professor[]>(professores);
+  useEffect(() => {
+    professoresRef.current = professores;
+  }, [professores]);
+
+  const usersRef = useRef<SystemUser[]>(users);
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
   // O administrador e a direção possuem permissão total de alternância. O professor logado não pode alternar para outro perfil.
   const isAdminSession = authenticatedUser 
@@ -1528,12 +1539,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const refreshTurmas = async () => {
+  const refreshTurmas = useCallback(async () => {
     setCarregandoTurmas(true);
     try {
       let tTurmas: Turma[] | null = null;
-      let cleanProf = professores;
-      let tUsers = users;
+      let cleanProf = professoresRef.current;
+      let tUsers = usersRef.current;
 
       // 1. Tenta rota dedicada e rápida /api/turmas com bypass estrito de cache
       try {
@@ -1569,8 +1580,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const json = await res.json();
           if (json.success && json.data && Array.isArray(json.data.turmas)) {
             tTurmas = json.data.turmas;
-            cleanProf = json.data.professores || professores;
-            tUsers = json.data.users || users;
+            cleanProf = json.data.professores || professoresRef.current;
+            tUsers = json.data.users || usersRef.current;
           }
         }
       }
@@ -1614,7 +1625,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setCarregandoTurmas(false);
     }
-  };
+  }, []);
 
   const addProfessor = (novoProf: Omit<Professor, 'id' | 'created_at'>) => {
     const profCriado: Professor = {
@@ -2233,7 +2244,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const refreshEventos = async () => {
+  const refreshEventos = useCallback(async () => {
     try {
       const res = await fetch(`/api/calendario/eventos?t=${Date.now()}`, {
         cache: 'no-store',
@@ -2255,7 +2266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('Erro ao recarregar eventos do banco de dados:', err);
     }
-  };
+  }, []);
 
   const recarregarDadosBanco = async () => {
     setCarregandoDadosBanco(true);

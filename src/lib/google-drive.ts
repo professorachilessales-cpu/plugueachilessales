@@ -512,11 +512,13 @@ export async function obterOuCriarPastaDrive(
   return res.data.id!;
 }
 
+let tabelaConfigDriveGarantida = false;
+
 /**
- * Garante que a tabela google_drive_config existe no Turso
+ * Garante que a tabela google_drive_config existe no Turso (executado uma única vez)
  */
 export async function garantirTabelaConfigDriveTurso(): Promise<void> {
-  if (!checkIsTursoConfigured()) return;
+  if (tabelaConfigDriveGarantida || !checkIsTursoConfigured()) return;
   try {
     await executeTursoQuery(`
       CREATE TABLE IF NOT EXISTS google_drive_config (
@@ -533,6 +535,7 @@ export async function garantirTabelaConfigDriveTurso(): Promise<void> {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    tabelaConfigDriveGarantida = true;
   } catch (e) {
     // Tabela já existe ou não foi possível criar
   }

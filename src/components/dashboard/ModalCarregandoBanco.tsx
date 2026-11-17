@@ -8,6 +8,7 @@ export interface ModalCarregandoBancoProps {
   subtitulo?: string;
   status?: string;
   progresso?: number;
+  onDesbloquear?: () => void;
 }
 
 const ETAPAS_CARREGAMENTO = [
@@ -24,9 +25,11 @@ export function ModalCarregandoBanco({
   subtitulo = 'Aguarde enquanto os dados escolares, turmas, estudantes e frequências são carregados e sincronizados diretamente com o banco de dados.',
   status: statusProp,
   progresso: progressoProp,
+  onDesbloquear,
 }: ModalCarregandoBancoProps) {
   const [progressoInterno, setProgressoInterno] = useState<number>(10);
   const [etapaIndex, setEtapaIndex] = useState<number>(0);
+  const [mostrarBotaoLiberar, setMostrarBotaoLiberar] = useState<boolean>(false);
 
   // 1. Bloqueia o scroll global da página enquanto o modal estiver aberto
   useEffect(() => {
@@ -37,9 +40,21 @@ export function ModalCarregandoBanco({
     };
   }, []);
 
-  // 2. Bloqueia eventos de teclado e atalhos na tela travada
+  // 2. Libera botão de escape/desbloqueio após 2.5 segundos para garantir que o usuário nunca fique travado
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMostrarBotaoLiberar(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 3. Bloqueia eventos de teclado e atalhos na tela travada, mas permite tecla Escape para desbloqueio
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onDesbloquear) {
+        onDesbloquear();
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
     };
@@ -48,16 +63,14 @@ export function ModalCarregandoBanco({
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, []);
+  }, [onDesbloquear]);
 
-  // 3. Simulação suave de progressão e etapas caso props não sejam fornecidas diretamente
+  // 4. Progressão contínua suave para evitar sensação de travamento em percentuais fixos
   useEffect(() => {
-    if (progressoProp !== undefined) return;
-
     const intervalo = setInterval(() => {
       setProgressoInterno((prev) => {
         if (prev >= 98) return 98;
-        const incremento = prev < 50 ? 4 : prev < 85 ? 3 : 1;
+        const incremento = prev < 50 ? 5 : prev < 85 ? 3 : 1;
         const proximo = Math.min(98, prev + incremento);
 
         const novoIndex = ETAPAS_CARREGAMENTO.findIndex((e) => proximo <= e.progresso);
@@ -69,14 +82,15 @@ export function ModalCarregandoBanco({
 
         return proximo;
       });
-    }, 180);
+    }, 150);
 
     return () => {
       clearInterval(intervalo);
     };
-  }, [progressoProp]);
+  }, []);
 
-  const progressoFinal = progressoProp !== undefined ? progressoProp : progressoInterno;
+  const progressoBase = progressoProp !== undefined ? Math.max(progressoProp, progressoInterno) : progressoInterno;
+  const progressoFinal = Math.min(99, progressoBase);
   const statusFinal = statusProp || ETAPAS_CARREGAMENTO[etapaIndex]?.status || 'Sincronizando dados com o banco...';
 
   // Helpers de estado para os cards de entidades
@@ -292,10 +306,21 @@ export function ModalCarregandoBanco({
             />
           </div>
 
-          {/* Indicador de Bloqueio Seguro */}
-          <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 pt-0.5">
-            <Lock className="h-3 w-3 text-school-blue-600 dark:text-school-gold-400" />
-            <span>Painel do Dashboard temporariamente travado</span>
+          {/* Indicador de Bloqueio Seguro ou Botão de Liberação Rápida */}
+          <div className="flex flex-col items-center justify-center gap-1.5 pt-0.5">
+            <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <Lock className="h-3 w-3 text-school-blue-600 dark:text-school-gold-400" />
+              <span>Painel do Dashboard temporariamente travado</span>
+            </div>
+            {mostrarBotaoLiberar && onDesbloquear && (
+              <button
+                type="button"
+                onClick={onDesbloquear}
+                className="mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-1 text-xs font-semibold text-school-blue-600 hover:text-school-blue-700 dark:text-school-blue-400 dark:hover:text-school-blue-300 hover:underline cursor-pointer transition-colors"
+              >
+                <span>Acessar painel agora com dados locais &rarr;</span>
+              </button>
+            )}
           </div>
         </div>
 

@@ -37,6 +37,7 @@ import {
 import Link from 'next/link';
 import { AniversariantesSection } from '@/components/dashboard/AniversariantesSection';
 import { ProfessorDashboard } from '@/components/dashboard/ProfessorDashboard';
+import { ModalCarregandoBanco } from '@/components/dashboard/ModalCarregandoBanco';
 import { formatarTelefone, isCpfEstudanteSemDocumento, isTelefoneSemContato } from '@/lib/validations';
 import { calcularAusenciasVigentesHoje, normalizarTexto } from '@/lib/ausencias-service';
 
@@ -64,18 +65,30 @@ export default function DashboardPage() {
     relatoriosProfessores,
     homologarReposicaoAula,
     refreshTurmas,
-    refreshEventos
+    refreshEventos,
+    carregandoDadosBanco
   } = useApp();
 
   // Estados de recarregamento manual
   const [recarregandoTurmas, setRecarregandoTurmas] = useState(false);
   const [recarregandoEventos, setRecarregandoEventos] = useState(false);
+  const [sincronizandoAbertura, setSincronizandoAbertura] = useState(true);
 
   // Sincroniza turmas e eventos do banco ao abrir o dashboard
   useEffect(() => {
-    refreshTurmas();
-    refreshEventos();
+    let ativo = true;
+    Promise.allSettled([refreshTurmas(), refreshEventos()]).finally(() => {
+      if (ativo) {
+        setSincronizandoAbertura(false);
+      }
+    });
+    return () => {
+      ativo = false;
+    };
   }, [refreshTurmas, refreshEventos]);
+
+  // Enquanto o carregamento inicial do banco do Turso ou a sincronização de abertura estiverem ocorrendo
+  const estaCarregandoBanco = carregandoDadosBanco || sincronizandoAbertura;
 
   const handleAtualizarTurmas = async () => {
     setRecarregandoTurmas(true);
@@ -820,11 +833,18 @@ export default function DashboardPage() {
 
   // Se o usuário ativo for Professor, exibe o painel docente exclusivo com Banner de Alertas Críticos
   if (role === 'professor') {
-    return <ProfessorDashboard />;
+    return (
+      <>
+        {estaCarregandoBanco && <ModalCarregandoBanco />}
+        <ProfessorDashboard />
+      </>
+    );
   }
 
   return (
     <div className="space-y-6">
+      {/* Modal de bloqueio seguro enquanto o banco de dados é carregado */}
+      {estaCarregandoBanco && <ModalCarregandoBanco />}
 
       {/* Cartões Rápidos de Métricas (KPIs) - Estilo Isometric 3D */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

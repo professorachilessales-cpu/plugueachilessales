@@ -66,6 +66,8 @@ interface AppContextType {
   // Autenticação & Sessão
   isAuthenticated: boolean;
   isInitialized: boolean;
+  carregandoDadosBanco: boolean;
+  recarregarDadosBanco: () => Promise<void>;
   logout: () => Promise<void>;
   authenticatedUser: SystemUser | null;
   setAuthenticatedUser: (user: SystemUser | null) => void;
@@ -210,6 +212,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   
   const [turmas, setTurmas] = useState<Turma[]>(initialTurmas);
   const [carregandoTurmas, setCarregandoTurmas] = useState<boolean>(false);
+  const [carregandoDadosBanco, setCarregandoDadosBanco] = useState<boolean>(true);
   const [estudantes, setEstudantes] = useState<Estudante[]>([]);
   const [professores, setProfessores] = useState<Professor[]>(initialProfessores);
   const [faltasProfessores, setFaltasProfessores] = useState<FaltaProfessor[]>(initialFaltasProfessores);
@@ -830,6 +833,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .catch((err) => {
         console.warn('Usando dados em cache local devido à indisponibilidade momentânea do Turso:', err);
+      })
+      .finally(() => {
+        setCarregandoDadosBanco(false);
       });
   }, []);
 
@@ -2248,6 +2254,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error('Erro ao recarregar eventos do banco de dados:', err);
+    }
+  };
+
+  const recarregarDadosBanco = async () => {
+    setCarregandoDadosBanco(true);
+    try {
+      await Promise.allSettled([
+        refreshTurmas(),
+        refreshEventos(),
+        fetch(`/api/turso/data?_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+          },
+        })
+          .then((res) => res.json())
+          .then((json) => {
+            if (json.success && json.data) {
+              if (Array.isArray(json.data.estudantes)) {
+                setEstudantes(json.data.estudantes);
+              }
+              if (Array.isArray(json.data.professores)) {
+                setProfessores(json.data.professores);
+              }
+              if (Array.isArray(json.data.faltasProfessores)) {
+                setFaltasProfessores(json.data.faltasProfessores);
+              }
+              if (json.data.escolaConfig) {
+                setEscolaConfigState(json.data.escolaConfig);
+              }
+            }
+          })
+          .catch((err) => {
+            console.warn('Erro ao atualizar dados do banco:', err);
+          }),
+      ]);
+    } finally {
+      setCarregandoDadosBanco(false);
     }
   };
 
@@ -3866,6 +3911,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         stopSimulation,
         isAuthenticated,
         isInitialized,
+        carregandoDadosBanco,
+        recarregarDadosBanco,
         logout,
         addUser,
         updateUser,

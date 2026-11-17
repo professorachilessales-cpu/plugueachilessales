@@ -29,12 +29,62 @@ export function PwaRegister() {
 
     checkStandalone();
 
-    // 2. Registro do Service Worker
+    // 2. Auto-recuperação de ChunkLoadError e limpeza de caches obsoletos após novos deploys
+    const handleChunkError = (e: ErrorEvent) => {
+      const errorMsg = e?.message || (e?.error ? String(e.error) : '');
+      const isChunkError = 
+        errorMsg.includes('Loading chunk') || 
+        errorMsg.includes('ChunkLoadError') ||
+        errorMsg.includes('Failed to load resource') ||
+        (e?.error && (e.error.name === 'ChunkLoadError' || String(e.error).includes('ChunkLoadError')));
+
+      if (isChunkError) {
+        const lastReload = sessionStorage.getItem('plugue_chunk_reload');
+        const now = Date.now();
+        if (!lastReload || now - Number(lastReload) > 10000) {
+          sessionStorage.setItem('plugue_chunk_reload', String(now));
+          if ('caches' in window) {
+            caches.keys().then((names) => {
+              return Promise.all(names.map((name) => caches.delete(name)));
+            }).finally(() => {
+              window.location.reload();
+            });
+          } else {
+            window.location.reload();
+          }
+        }
+      }
+    };
+    window.addEventListener('error', handleChunkError);
+
+    // Limpeza de cache v1 legado para clientes que já estavam com o PWA aberto
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      caches.keys().then((keys) => {
+        keys.forEach((key) => {
+          if (key === 'plugue-pwa-v1') {
+            caches.delete(key);
+          }
+        });
+      });
+    }
+
+    // 3. Registro do Service Worker e recarregamento quando novo worker assumir
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+
       window.addEventListener('load', () => {
         navigator.serviceWorker
           .register('/sw.js')
           .then((registration) => {
+            // Força checagem de atualização imediata
+            registration.update().catch(() => {});
+
             // Verifica atualizações do Service Worker periodicamente
             registration.onupdatefound = () => {
               const installingWorker = registration.installing;
@@ -54,7 +104,7 @@ export function PwaRegister() {
       });
     }
 
-    // 3. Captura o evento de instalação do PWA pelo navegador
+    // 4. Captura o evento de instalação do PWA pelo navegador
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e as BeforeInstallPromptEvent);
@@ -75,6 +125,7 @@ export function PwaRegister() {
     });
 
     return () => {
+      window.removeEventListener('error', handleChunkError);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);

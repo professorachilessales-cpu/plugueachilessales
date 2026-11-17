@@ -1,11 +1,10 @@
 // Service Worker do PLUGUE PWA
-// Versão do Cache
-const CACHE_NAME = 'plugue-pwa-v1';
+// Versão do Cache (v2 - corrige bypass de chunks Next.js e previne TypeError Response)
+const CACHE_NAME = 'plugue-pwa-v2';
 const OFFLINE_URL = '/offline.html';
 
-// Recursos essenciais para pré-cache offline
+// Recursos essenciais para pré-cache offline (apenas assets verdadeiramente estáticos, sem '/')
 const PRECACHE_ASSETS = [
-  '/',
   '/offline.html',
   '/manifest.json',
   '/favicon.png',
@@ -59,12 +58,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Requisições de navegação (páginas HTML)
+  // 1. IMPORTANTE: Ignora totalmente requisições internas do Next.js (_next/static, _next/data)
+  // O Next.js já possui versionamento próprio imutável por hash.
+  // Evita ChunkLoadError e TypeError: Failed to convert value to 'Response' entre novos deploys.
+  if (url.pathname.startsWith('/_next/')) {
+    return;
+  }
+
+  // 2. Requisições de navegação (páginas HTML) - Network First
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Salva cópia atualizada da página no cache
           if (response && response.status === 200) {
             const responseClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -74,12 +79,10 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(async () => {
-          // Tenta carregar do cache
           const cachedResponse = await caches.match(request);
           if (cachedResponse) {
             return cachedResponse;
           }
-          // Fallback para a tela offline estilizada
           const offlinePage = await caches.match(OFFLINE_URL);
           return offlinePage || new Response('Você está offline no PLUGUE.', {
             headers: { 'Content-Type': 'text/plain; charset=utf-8' }
@@ -89,46 +92,49 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Requisições de API (/api/*) - Network First com cache fallback
+  // 3. Requisições de API (/api/*) - Network First com fallback JSON
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          return response;
-        })
-        .catch(async () => {
-          const cachedResponse = await caches.match(request);
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          return new Response(JSON.stringify({ 
-            error: 'Você está offline. Operação indisponível sem conexão.', 
-            offline: true 
-          }), {
-            status: 503,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        })
+      fetch(request).catch(async () => {
+        const cachedResponse = await caches.match(request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        return new Response(JSON.stringify({ 
+          error: 'Você está offline. Operação indisponível sem conexão.', 
+          offline: true 
+        }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      })
     );
     return;
   }
 
-  // Recursos estáticos (estilos, scripts, fontes, imagens): Stale-While-Revalidate
+  // 4. Recursos estáticos públicos (ícones, manifest, imagens gerais)
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      const fetchPromise = fetch(request).then((networkResponse) => {
+      if (cachedResponse) {
+        // Revalidação assíncrona em background se já estiver no cache
+        fetch(request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse.clone()));
+            }
+          })
+          .catch(() => {});
+        return cachedResponse;
+      }
+
+      // Se não estiver no cache, busca na rede garantindo retorno de Response válida
+      return fetch(request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const clone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, clone);
-          });
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return networkResponse;
-      }).catch(() => {
-        // Se a rede falhar e não houver cache, o erro é propagado
       });
-
-      return cachedResponse || fetchPromise;
     })
   );
 });

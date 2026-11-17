@@ -39,6 +39,32 @@ export function formatarTelefone(valor: string): string {
 }
 
 /**
+ * Verifica se um telefone é considerado ausente / sem contato.
+ * Conforme regra de negócio, deve ser considerado sem telefone quando:
+ * - Em branco (vazio, apenas espaços, nulo ou indefinido)
+ * - Valor 0 (numérico 0, string "0", "00", ou sequência de apenas zeros como "(00) 00000-0000")
+ * - Literais vazios ou inválidos como "null", "undefined", "NaN"
+ */
+export function isTelefoneSemContato(telefone?: string | number | null): boolean {
+  if (telefone === null || telefone === undefined) return true;
+  if (typeof telefone === 'number') {
+    return telefone === 0 || isNaN(telefone);
+  }
+  const str = String(telefone).trim();
+  if (str === '' || str === '0' || str === '0.0' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined' || str.toLowerCase() === 'nan') {
+    return true;
+  }
+
+  // Remove caracteres que não sejam dígitos
+  const digitos = str.replace(/\D/g, '');
+  if (digitos === '' || /^0+$/.test(digitos)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Formata CPF para o padrão 000.000.000-00 progressivamente
  */
 export function formatarCPF(valor: string): string {

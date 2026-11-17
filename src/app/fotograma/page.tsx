@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { Estudante, Turma } from '@/lib/types';
 import { FotoEstudanteField } from '@/components/estudantes/FotoEstudanteField';
+import { isTelefoneSemContato } from '@/lib/validations';
 
 type TemplateKey = 'falta' | 'reuniao' | 'tarefa' | 'elogio' | 'livre';
 
@@ -282,8 +283,8 @@ export default function FotogramaPage() {
     setTextoPersonalizado(interp);
 
     // De preferência o telefone 1 se preenchido, senão o primeiro preenchido
-    const tel1 = aluno.telefone_responsavel && aluno.telefone_responsavel.trim() !== '' ? aluno.telefone_responsavel : '';
-    const fallback = [aluno.telefone_2, aluno.telefone_3, aluno.telefone_4].find(t => t && t.trim() !== '') || '';
+    const tel1 = !isTelefoneSemContato(aluno.telefone_responsavel) ? aluno.telefone_responsavel : '';
+    const fallback = [aluno.telefone_2, aluno.telefone_3, aluno.telefone_4].find(t => !isTelefoneSemContato(t)) || '';
     setTelefoneDestino(tel1 || fallback);
 
     setModalWhatsAppAberto(true);
@@ -324,10 +325,10 @@ export default function FotogramaPage() {
       rg_numero: aluno.rg_numero || '',
       data_nascimento: aluno.data_nascimento || '',
       nome_responsavel: aluno.nome_responsavel || aluno.filiacao_materna || '',
-      telefone_responsavel: aluno.telefone_responsavel || '',
-      telefone_2: aluno.telefone_2 || '',
-      telefone_3: aluno.telefone_3 || '',
-      telefone_4: aluno.telefone_4 || '',
+      telefone_responsavel: isTelefoneSemContato(aluno.telefone_responsavel) ? '' : (aluno.telefone_responsavel || ''),
+      telefone_2: isTelefoneSemContato(aluno.telefone_2) ? '' : (aluno.telefone_2 || ''),
+      telefone_3: isTelefoneSemContato(aluno.telefone_3) ? '' : (aluno.telefone_3 || ''),
+      telefone_4: isTelefoneSemContato(aluno.telefone_4) ? '' : (aluno.telefone_4 || ''),
       endereco: aluno.endereco || '',
       possui_laudo: Boolean(aluno.possui_laudo),
       aee: Boolean(aluno.aee),
@@ -483,7 +484,7 @@ export default function FotogramaPage() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 print:grid-cols-4 print:gap-4">
           {alunosDaTurma.map((aluno) => {
             const semFoto = !aluno.foto_url || aluno.foto_url.trim() === '';
-            const semTelefone = !aluno.telefone_responsavel || aluno.telefone_responsavel.trim() === '';
+            const semTelefone = isTelefoneSemContato(aluno.telefone_responsavel);
             const comAee = aluno.aee || aluno.possui_laudo;
 
             return (
@@ -552,7 +553,7 @@ export default function FotogramaPage() {
                     {/* Telefone do responsável: omitido para o perfil de professor */}
                     {role !== 'professor' && (
                       <p className="text-[10px] font-mono text-slate-400 mt-0.5 print:hidden">
-                        {aluno.telefone_responsavel || 'Sem contato telefônico'}
+                        {!isTelefoneSemContato(aluno.telefone_responsavel) ? aluno.telefone_responsavel : 'Sem contato telefônico'}
                       </p>
                     )}
                   </div>

@@ -46,7 +46,7 @@ import { PainelRelatoriosEstudante } from '@/components/relatorios/PainelRelator
 import { TimelineObservacoesAluno } from '@/components/estudantes/TimelineObservacoesAluno';
 import { RepositorioDriveAluno } from '@/components/estudantes/RepositorioDriveAluno';
 import { Estudante, TipoMovimentacao, StatusMatricula, PercentualCota, TipoHistoricoEscolar } from '@/lib/types';
-import { formatarTelefone, formatarCPF, validarCPF, CPF_ESTUDANTE_SEM_DOCUMENTO, isCpfEstudanteSemDocumento } from '@/lib/validations';
+import { formatarTelefone, formatarCPF, validarCPF, CPF_ESTUDANTE_SEM_DOCUMENTO, isCpfEstudanteSemDocumento, isTelefoneSemContato } from '@/lib/validations';
 import { FotoEstudanteField } from '@/components/estudantes/FotoEstudanteField';
 
 const CIDADES_PADRAO = [
@@ -240,10 +240,10 @@ export default function EstudantesPage() {
       nome_responsavel: (est.nome_responsavel || '').toUpperCase(),
       cpf_responsavel: (est.cpf_responsavel || '').toUpperCase(),
       parentesco_responsavel: (est.parentesco_responsavel || 'MÃE').toUpperCase(),
-      telefone_responsavel: est.telefone_responsavel || '',
-      telefone_2: est.telefone_2 || '',
-      telefone_3: est.telefone_3 || '',
-      telefone_4: est.telefone_4 || '',
+      telefone_responsavel: isTelefoneSemContato(est.telefone_responsavel) ? '' : (est.telefone_responsavel || ''),
+      telefone_2: isTelefoneSemContato(est.telefone_2) ? '' : (est.telefone_2 || ''),
+      telefone_3: isTelefoneSemContato(est.telefone_3) ? '' : (est.telefone_3 || ''),
+      telefone_4: isTelefoneSemContato(est.telefone_4) ? '' : (est.telefone_4 || ''),
       email: (est.email || '').toUpperCase(),
       endereco: (est.endereco || '').toUpperCase(),
       endereco_logradouro: (est.endereco_logradouro || '').toUpperCase(),
@@ -825,7 +825,7 @@ export default function EstudantesPage() {
                 </tr>
               ) : (
                 itensExibidos.map((est) => {
-                  const qtdTels = [est.telefone_responsavel, est.telefone_2, est.telefone_3, est.telefone_4].filter(Boolean).length;
+                  const qtdTels = [est.telefone_responsavel, est.telefone_2, est.telefone_3, est.telefone_4].filter(tel => !isTelefoneSemContato(tel)).length;
                   return (
                     <tr key={est.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                       {/* Estudante Foto e Nome */}
@@ -902,7 +902,13 @@ export default function EstudantesPage() {
                           {est.nome_responsavel || est.filiacao_materna || 'Não preenchido'}
                         </div>
                         <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                          <span>{est.telefone_responsavel || <span className="text-amber-600 dark:text-amber-400 font-bold">! Sem telefone</span>}</span>
+                          <span>
+                            {!isTelefoneSemContato(est.telefone_responsavel) ? (
+                              est.telefone_responsavel
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400 font-bold">! Sem telefone</span>
+                            )}
+                          </span>
                           {qtdTels > 1 && (
                             <span className="rounded bg-slate-100 px-1 py-0.2 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300" title={`${qtdTels} telefones cadastrados`}>
                               +{qtdTels - 1} tel
@@ -2155,28 +2161,28 @@ export default function EstudantesPage() {
                     <div className="rounded-lg print:rounded bg-white dark:bg-slate-900 p-2 print:p-1 border border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
                       <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 dark:text-slate-400 print:text-slate-600 block leading-tight">Tel 1 (WhatsApp)</span>
                       <strong className="font-mono text-emerald-700 dark:text-emerald-300 print:text-black text-xs print:text-[8px]">
-                        {estudanteSelecionado.telefone_responsavel || 'Não cadastrado'}
+                        {!isTelefoneSemContato(estudanteSelecionado.telefone_responsavel) ? estudanteSelecionado.telefone_responsavel : 'Não cadastrado'}
                       </strong>
                     </div>
 
                     <div className="rounded-lg print:rounded bg-white dark:bg-slate-900 p-2 print:p-1 border border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
                       <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 dark:text-slate-400 print:text-slate-600 block leading-tight">Tel 2 (Responsável)</span>
                       <strong className="font-mono text-slate-800 dark:text-white print:text-black text-xs print:text-[8px]">
-                        {estudanteSelecionado.telefone_2 || 'Não informado'}
+                        {!isTelefoneSemContato(estudanteSelecionado.telefone_2) ? estudanteSelecionado.telefone_2 : 'Não informado'}
                       </strong>
                     </div>
 
                     <div className="rounded-lg print:rounded bg-white dark:bg-slate-900 p-2 print:p-1 border border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
                       <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 dark:text-slate-400 print:text-slate-600 block leading-tight">Tel 3 (Responsável)</span>
                       <strong className="font-mono text-slate-800 dark:text-white print:text-black text-xs print:text-[8px]">
-                        {estudanteSelecionado.telefone_3 || 'Não informado'}
+                        {!isTelefoneSemContato(estudanteSelecionado.telefone_3) ? estudanteSelecionado.telefone_3 : 'Não informado'}
                       </strong>
                     </div>
 
                     <div className="rounded-lg print:rounded bg-white dark:bg-slate-900 p-2 print:p-1 border border-emerald-100 dark:border-emerald-800/50 print:border-slate-300">
                       <span className="text-[10px] print:text-[7px] uppercase font-bold text-slate-400 dark:text-slate-400 print:text-slate-600 block leading-tight">Tel 4 (Recado)</span>
                       <strong className="font-mono text-slate-800 dark:text-white print:text-black text-xs print:text-[8px]">
-                        {estudanteSelecionado.telefone_4 || 'Não informado'}
+                        {!isTelefoneSemContato(estudanteSelecionado.telefone_4) ? estudanteSelecionado.telefone_4 : 'Não informado'}
                       </strong>
                     </div>
                   </div>

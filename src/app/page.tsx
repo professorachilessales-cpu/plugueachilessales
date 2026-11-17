@@ -37,7 +37,7 @@ import {
 import Link from 'next/link';
 import { AniversariantesSection } from '@/components/dashboard/AniversariantesSection';
 import { ProfessorDashboard } from '@/components/dashboard/ProfessorDashboard';
-import { formatarTelefone, isCpfEstudanteSemDocumento } from '@/lib/validations';
+import { formatarTelefone, isCpfEstudanteSemDocumento, isTelefoneSemContato } from '@/lib/validations';
 import { calcularAusenciasVigentesHoje, normalizarTexto } from '@/lib/ausencias-service';
 
 const MODELOS_WHATSAPP_INCLUSAO_PADRAO = {
@@ -388,7 +388,7 @@ export default function DashboardPage() {
   }, [estudantes]);
 
   const estudantesSemTelefone = useMemo(() => {
-    return estudantes.filter(e => !e.telefone_responsavel || e.telefone_responsavel.trim() === '');
+    return estudantes.filter(e => isTelefoneSemContato(e.telefone_responsavel));
   }, [estudantes]);
 
   // Estudantes sem CPF cadastrado (nulo, vazio, 000.000.000-00 ou 111.111.111-11)
@@ -398,8 +398,10 @@ export default function DashboardPage() {
 
   // Disparo WhatsApp de cobrança de CPF para programas sociais
   const handleEnviarWhatsAppCpf = (est: typeof estudantes[0]) => {
-    const rawTelefone = est.telefone_responsavel || est.telefone_2 || '';
-    const numLimpo = rawTelefone.replace(/\D/g, '');
+    const rawTelefone = !isTelefoneSemContato(est.telefone_responsavel)
+      ? est.telefone_responsavel
+      : (!isTelefoneSemContato(est.telefone_2) ? est.telefone_2 : '');
+    const numLimpo = (rawTelefone || '').replace(/\D/g, '');
     const resp = est.nome_responsavel || 'Senhor(a) Responsável';
     const msg = `Olá ${resp}, informamos que é de extrema necessidade termos o número do CPF do(a) estudante ${est.nome_completo} na escola, inclusive para emissão de histórico escolar, controles oficiais de matrícula e acompanhamento de programas sociais (como Bolsa Família/CadÚnico). Solicitamos o comparecimento ou envio do documento à secretaria escolar com urgência. Atenciosamente, Equipe Gestora.`;
 
@@ -521,10 +523,10 @@ export default function DashboardPage() {
   const handleAbrirEditarTelefones = (est: typeof estudantes[0]) => {
     setEstudanteEditarTelefones(est);
     setFormTelefones({
-      telefone_responsavel: est.telefone_responsavel || '',
-      telefone_2: est.telefone_2 || '',
-      telefone_3: est.telefone_3 || '',
-      telefone_4: est.telefone_4 || '',
+      telefone_responsavel: isTelefoneSemContato(est.telefone_responsavel) ? '' : (est.telefone_responsavel || ''),
+      telefone_2: isTelefoneSemContato(est.telefone_2) ? '' : (est.telefone_2 || ''),
+      telefone_3: isTelefoneSemContato(est.telefone_3) ? '' : (est.telefone_3 || ''),
+      telefone_4: isTelefoneSemContato(est.telefone_4) ? '' : (est.telefone_4 || ''),
       nome_responsavel: est.nome_responsavel || '',
       parentesco_responsavel: est.parentesco_responsavel || 'Mãe',
     });
@@ -602,8 +604,10 @@ export default function DashboardPage() {
 
   const handleEnviarWhatsAppDireto = () => {
     if (!estudanteWhatsApp) return;
-    const rawTel = estudanteWhatsApp.telefone_responsavel || '';
-    const cleanTel = rawTel.replace(/\D/g, '');
+    const rawTel = !isTelefoneSemContato(estudanteWhatsApp.telefone_responsavel)
+      ? estudanteWhatsApp.telefone_responsavel
+      : (!isTelefoneSemContato(estudanteWhatsApp.telefone_2) ? estudanteWhatsApp.telefone_2 : '');
+    const cleanTel = (rawTel || '').replace(/\D/g, '');
     if (!cleanTel) {
       alert('Este estudante não possui telefone de contato cadastrado!');
       return;
@@ -1579,7 +1583,7 @@ export default function DashboardPage() {
                     }>
                       {estudantesComLaudo.map((est) => {
                         const turmaInfo = obterInfoTurma(est.turma_id, est.turma_nome);
-                        const temTelefone = Boolean(est.telefone_responsavel && est.telefone_responsavel.trim() !== '');
+                        const temTelefone = !isTelefoneSemContato(est.telefone_responsavel);
 
                         return (
                           <div
@@ -1716,7 +1720,7 @@ export default function DashboardPage() {
                 <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
                   {estudantesSemCpf.map((est) => {
                     const turmaInfo = obterInfoTurma(est.turma_id, est.turma_nome);
-                    const temTelefone = !!(est.telefone_responsavel && est.telefone_responsavel.trim() !== '');
+                    const temTelefone = !isTelefoneSemContato(est.telefone_responsavel);
 
                     return (
                       <div
@@ -2412,7 +2416,9 @@ export default function DashboardPage() {
                     Contato
                   </span>
                   <span className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-400">
-                    {estudanteWhatsApp.telefone_responsavel || 'Sem telefone'}
+                    {!isTelefoneSemContato(estudanteWhatsApp.telefone_responsavel)
+                      ? estudanteWhatsApp.telefone_responsavel
+                      : 'Sem telefone'}
                   </span>
                   {estudanteWhatsApp.nome_responsavel && (
                     <span className="block text-[10px] text-slate-500">

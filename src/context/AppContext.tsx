@@ -258,6 +258,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     usersRef.current = users;
   }, [users]);
 
+  const turmasRef = useRef<Turma[]>(turmas);
+  useEffect(() => {
+    turmasRef.current = turmas;
+  }, [turmas]);
+
   // O administrador e a direção possuem permissão total de alternância. O professor logado não pode alternar para outro perfil.
   const isAdminSession = authenticatedUser 
     ? (authenticatedUser.role === 'admin' || (authenticatedUser.role as string) === 'direcao') 
@@ -1359,7 +1364,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const refreshEstudantes = async () => {
+  const refreshEstudantes = useCallback(async () => {
     try {
       const res = await fetch(`/api/turso/data?_t=${Date.now()}`, {
         cache: 'no-store',
@@ -1372,7 +1377,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data && Array.isArray(json.data.estudantes)) {
-          const tTurmas = json.data.turmas || turmas;
+          const tTurmas = json.data.turmas || turmasRef.current;
           const cleanEst = json.data.estudantes.map((e: Estudante) => {
             const turmaCorrespondente = (!e.turma_id || String(e.turma_id).trim() === '') && e.turma_nome
               ? (Array.isArray(tTurmas) ? tTurmas.find((t: Turma) => t.nome?.trim().toLowerCase() === e.turma_nome?.trim().toLowerCase()) : null)
@@ -1390,7 +1395,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('Erro ao recarregar estudantes do banco Turso:', err);
     }
-  };
+  }, []);
 
   const addEstudante = async (novoEstudante: Omit<Estudante, 'id' | 'created_at' | 'documentos'>) => {
     const turma = turmas.find(t => t.id === novoEstudante.turma_id);

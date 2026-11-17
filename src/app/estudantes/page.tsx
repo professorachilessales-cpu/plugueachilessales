@@ -117,6 +117,7 @@ export default function EstudantesPage() {
   const [editandoEstudanteId, setEditandoEstudanteId] = useState<string | null>(null);
   const [modalUploadAberto, setModalUploadAberto] = useState(false);
   const [modalFichaAberto, setModalFichaAberto] = useState(false);
+  const jaProcessouEdicaoUrlRef = useRef<string | null>(null);
   const [estudanteSelecionado, setEstudanteSelecionado] = useState<Estudante | null>(null);
   const [abaFicha, setAbaFicha] = useState<'cadastro' | 'relatorios' | 'observacoes' | 'drive'>('cadastro');
   const [fotoPreviewEstudante, setFotoPreviewEstudante] = useState<Estudante | null>(null);
@@ -211,7 +212,25 @@ export default function EstudantesPage() {
     }));
   };
 
+  const handleFecharModal = () => {
+    setModalNovoAberto(false);
+    setEditandoEstudanteId(null);
+    setForm(formInicial);
+    jaProcessouEdicaoUrlRef.current = '__fechado__';
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('editar') || params.has('id')) {
+        params.delete('editar');
+        params.delete('id');
+        const novoSearch = params.toString() ? `?${params.toString()}` : '';
+        window.history.replaceState({}, '', `${window.location.pathname}${novoSearch}`);
+      }
+    }
+  };
+
   const handleAbrirNovo = () => {
+    jaProcessouEdicaoUrlRef.current = null;
     setEditandoEstudanteId(null);
     setForm({
       ...formInicial,
@@ -221,6 +240,7 @@ export default function EstudantesPage() {
   };
 
   const handleAbrirEditar = (est: Estudante) => {
+    jaProcessouEdicaoUrlRef.current = est.id;
     setEditandoEstudanteId(est.id);
     setForm({
       nome_completo: (est.nome_completo || '').toUpperCase(),
@@ -278,9 +298,17 @@ export default function EstudantesPage() {
       setFiltroTurma(turmaParam);
     }
     if (editarId && estudantes.length > 0) {
-      const estParaEditar = estudantes.find(e => e.id === editarId);
-      if (estParaEditar) {
-        handleAbrirEditar(estParaEditar);
+      if (jaProcessouEdicaoUrlRef.current !== editarId) {
+        const estParaEditar = estudantes.find(e => e.id === editarId);
+        if (estParaEditar) {
+          jaProcessouEdicaoUrlRef.current = editarId;
+          handleAbrirEditar(estParaEditar);
+          // Limpa da URL para não reabrir em sincronizações ou atualizações subsequentes
+          params.delete('editar');
+          params.delete('id');
+          const novoSearch = params.toString() ? `?${params.toString()}` : '';
+          window.history.replaceState({}, '', `${window.location.pathname}${novoSearch}`);
+        }
       }
     }
   }, [estudantes]);
@@ -620,9 +648,7 @@ export default function EstudantesPage() {
       addEstudante(dadosAtualizados);
     }
 
-    setModalNovoAberto(false);
-    setEditandoEstudanteId(null);
-    setForm(formInicial);
+    handleFecharModal();
   };
 
   // Upload para rota /api/upload-documento
@@ -1199,7 +1225,7 @@ export default function EstudantesPage() {
                 </div>
               </div>
               <button
-                onClick={() => setModalNovoAberto(false)}
+                onClick={handleFecharModal}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
               >
                 <X className="h-5 w-5" />
@@ -1823,7 +1849,7 @@ export default function EstudantesPage() {
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
-                  onClick={() => setModalNovoAberto(false)}
+                  onClick={handleFecharModal}
                   className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white uppercase"
                 >
                   Cancelar

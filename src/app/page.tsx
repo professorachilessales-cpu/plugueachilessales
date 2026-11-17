@@ -835,7 +835,12 @@ export default function DashboardPage() {
   if (role === 'professor') {
     return (
       <>
-        {estaCarregandoBanco && <ModalCarregandoBanco />}
+        {estaCarregandoBanco && (
+          <ModalCarregandoBanco
+            status={!carregandoDadosBanco && sincronizandoAbertura ? 'Sincronizando turmas e eventos da escola...' : undefined}
+            progresso={!carregandoDadosBanco && sincronizandoAbertura ? 88 : undefined}
+          />
+        )}
         <ProfessorDashboard />
       </>
     );
@@ -844,7 +849,12 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Modal de bloqueio seguro enquanto o banco de dados é carregado */}
-      {estaCarregandoBanco && <ModalCarregandoBanco />}
+      {estaCarregandoBanco && (
+        <ModalCarregandoBanco
+          status={!carregandoDadosBanco && sincronizandoAbertura ? 'Sincronizando turmas e eventos da escola...' : undefined}
+          progresso={!carregandoDadosBanco && sincronizandoAbertura ? 88 : undefined}
+        />
+      )}
 
       {/* Cartões Rápidos de Métricas (KPIs) - Estilo Isometric 3D */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
